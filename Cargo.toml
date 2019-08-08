@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "plitki-core",
+    "plitki-map-qua",
+    "plitki-game-wayland",
+]
