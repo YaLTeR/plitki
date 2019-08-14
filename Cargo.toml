@@ -2,5 +2,5 @@
 members = [
     "plitki-core",
     "plitki-map-qua",
-    "plitki-game-wayland",
+    "plitki-ui-wayland",
 ]
