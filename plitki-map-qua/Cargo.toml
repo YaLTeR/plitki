@@ -4,6 +4,11 @@ version = "0.1.0"
 authors = ["Ivan Molodetskikh <yalterz@gmail.com>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.8"
+plitki-core = { path = "../plitki-core" }
+
+[dev-dependencies]
+pretty_assertions = "0.6"
+proptest = "0.9"

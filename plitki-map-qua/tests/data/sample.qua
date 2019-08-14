@@ -1,0 +1,26 @@
+Mode: Keys4
+Artist: Unknown
+Title: Sample Map
+DifficultyName: Easy
+Creator: YaLTeR
+HitObjects:
+- StartTime: 601
+  Lane: 2
+- StartTime: 601
+  Lane: 1
+- StartTime: 601
+  Lane: 4
+  EndTime: 939
+- StartTime: 601
+  Lane: 3
+  EndTime: 939
+- StartTime: 939
+  Lane: 2
+  EndTime: 1278
+- StartTime: 939
+  Lane: 1
+- StartTime: 1194
+  Lane: 4
+  EndTime: 1363
+- StartTime: 1278
+  Lane: 3
