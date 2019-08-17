@@ -20,11 +20,12 @@ struct Vertex {
 implement_vertex!(Vertex, position);
 
 #[derive(Copy, Clone)]
-struct InstanceOffset {
+struct InstanceData {
     offset: [f32; 2],
+    color: [f32; 4],
 }
 
-implement_vertex!(InstanceOffset, offset);
+implement_vertex!(InstanceData, offset, color);
 
 pub struct Renderer {
     log: Logger,
@@ -34,7 +35,7 @@ pub struct Renderer {
     index_buffer: IndexBuffer<u8>,
     dimensions: (u32, u32),
     projection: Matrix4<f32>,
-    offset_vertex_buffer: Option<VertexBuffer<InstanceOffset>>,
+    offset_vertex_buffer: Option<VertexBuffer<InstanceData>>,
 }
 
 impl Renderer {
@@ -67,6 +68,11 @@ impl Renderer {
             // the map will break (and those SVs are the exact reason timestamps are integers with
             // high precision).
             in vec2 offset;
+            // Vertex color
+            in vec4 color;
+
+            // Vertex color (output)
+            out vec4 vertex_color;
 
             // Time in seconds, must be multiplied by note_speed.
             uniform float time;
@@ -88,16 +94,20 @@ impl Renderer {
                 );
                 vec4 position = vec4(position, 0.0, 1.0);
                 gl_Position = projection * model * position;
+                vertex_color = color;
             }
         "#;
 
         let fragment_shader_src = r#"
             #version 140
 
+            // Color from the vertex shader
+            in vec4 vertex_color;
+
             out vec4 color;
 
             void main() {
-                color = vec4(0.1, 0.1, 0.1, 0.1);
+                color = vertex_color;
             }
         "#;
 
@@ -160,7 +170,12 @@ impl Renderer {
                         (lane as f32 - 1.5) * scale * 2.,
                         (object.timestamp().0).0 as f32 / 100_000., // In seconds.
                     ];
-                    map.set(i, InstanceOffset { offset });
+                    let color = if lane == 0 || lane == 3 {
+                        [0.1, 0.1, 0.1, 0.1]
+                    } else {
+                        [0.00, 0.05, 0.1, 0.1]
+                    };
+                    map.set(i, InstanceData { offset, color });
                 }
             }
 
