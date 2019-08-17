@@ -3,7 +3,7 @@ use std::{
     rc::Rc,
     sync::{Arc, Condvar, Mutex},
     thread,
-    time::Instant,
+    time::Duration,
 };
 
 use plitki_core::map::Map;
@@ -25,6 +25,13 @@ use smithay_client_toolkit::{
     Environment,
 };
 use triple_buffer::TripleBuffer;
+use wayland_protocols::presentation_time::client::{
+    wp_presentation::{self, WpPresentation},
+    wp_presentation_feedback,
+};
+
+mod clock_gettime;
+use clock_gettime::clock_gettime;
 
 mod backend;
 use backend::create_context;
@@ -269,6 +276,27 @@ fn main() {
             .unwrap();
     }
 
+    // Get the presentation-time global.
+    let presentation_clock_id = Arc::new(Mutex::new(0));
+    let wp_presentation: WpPresentation = {
+        let log = log.clone();
+        let presentation_clock_id = presentation_clock_id.clone();
+
+        env.manager
+            .instantiate_exact(1, move |proxy| {
+                proxy.implement_closure(
+                    move |event, _| {
+                        if let wp_presentation::Event::ClockId { clk_id } = event {
+                            debug!(log, "presentation ClockId"; "clk_id" => clk_id);
+                            *presentation_clock_id.lock().unwrap() = clk_id;
+                        }
+                    },
+                    (),
+                )
+            })
+            .unwrap()
+    };
+
     // Start up the rendering thread.
     let window = Arc::new(Mutex::new(window));
 
@@ -278,9 +306,19 @@ fn main() {
         let display = display.clone();
         let window = window.clone();
         let pair = pair.clone();
+        let presentation_clock_id = presentation_clock_id.clone();
 
         thread::spawn(move || {
-            render_thread(log, display, window, INITIAL_DIMENSIONS, pair, buf_output)
+            render_thread(
+                log,
+                display,
+                window,
+                INITIAL_DIMENSIONS,
+                pair,
+                buf_output,
+                wp_presentation,
+                presentation_clock_id,
+            )
         });
     }
 
@@ -351,12 +389,16 @@ fn render_thread(
     mut dimensions: (u32, u32),
     pair: Arc<(Mutex<Option<RenderThreadEvent>>, Condvar)>,
     mut state_buffer: triple_buffer::Output<GameState>,
+    wp_presentation: WpPresentation,
+    presentation_clock_id: Arc<Mutex<u32>>,
 ) {
     let surface = window.lock().unwrap().surface().clone();
     let (backend, context) = create_context(log.clone(), &display, &surface, dimensions);
     let mut renderer = Renderer::new(log.clone(), context, dimensions);
 
-    let start = Instant::now();
+    let mut start = None;
+    let mut clk_id = None;
+    let next_frame_timestamp = Arc::new(Mutex::new(None));
 
     let &(ref lock, ref cvar) = &*pair;
     loop {
@@ -370,6 +412,12 @@ fn render_thread(
         };
 
         trace!(log, "render thread event"; "event" => ?event);
+
+        if start.is_none() {
+            clk_id = Some(*presentation_clock_id.lock().unwrap());
+            start = Some(clock_gettime(clk_id.unwrap()));
+            debug!(log, "start"; "start" => ?start.unwrap());
+        }
 
         let mut window = window.lock().unwrap();
 
@@ -400,8 +448,78 @@ fn render_thread(
                 state_buffer.raw_update();
                 let state = state_buffer.raw_output_buffer();
 
-                let elapsed = Instant::now() - start;
-                renderer.render(dimensions, elapsed, state);
+                let elapsed = clock_gettime(clk_id.unwrap()) - start.unwrap();
+                // TODO: handle low fps and subsequent too high fps (also applies to refresh rate
+                // changes)
+                let target_time = if let Some(next_frame_timestamp) =
+                    next_frame_timestamp.lock().unwrap().as_ref().cloned()
+                {
+                    next_frame_timestamp
+                } else {
+                    elapsed
+                };
+
+                debug!(
+                    log, "starting render";
+                    "elapsed" => ?elapsed,
+                    "target_time" => ?target_time
+                );
+
+                {
+                    let log = log.clone();
+                    let next_frame_timestamp = next_frame_timestamp.clone();
+
+                    wp_presentation
+                        .feedback(window.surface(), move |proxy| {
+                            proxy.implement_closure_threadsafe(
+                                move |event, _| match event {
+                                    wp_presentation_feedback::Event::Discarded => {
+                                        debug!(
+                                            log, "frame discarded";
+                                            "target_time" => ?target_time
+                                        );
+                                    }
+                                    wp_presentation_feedback::Event::Presented {
+                                        tv_sec_hi,
+                                        tv_sec_lo,
+                                        tv_nsec,
+                                        refresh,
+                                        ..
+                                    } => {
+                                        let presentation_time = Duration::new(
+                                            (u64::from(tv_sec_hi) << 32) | u64::from(tv_sec_lo),
+                                            tv_nsec,
+                                        ) - start.unwrap();
+                                        let (presentation_latency, sign) = presentation_time
+                                            .checked_sub(target_time)
+                                            .map(|x| (x, ""))
+                                            .unwrap_or_else(|| {
+                                                (target_time - presentation_time, "-")
+                                            });
+
+                                        let refresh = Duration::new(0, refresh);
+
+                                        *next_frame_timestamp.lock().unwrap() =
+                                            Some(presentation_time + refresh);
+
+                                        debug!(
+                                            log, "frame presented";
+                                            "target_time" => ?target_time,
+                                            "presentation_time" => ?presentation_time,
+                                            "presentation_latency"
+                                                => &format!("{}{:?}", sign, presentation_latency),
+                                            "refresh" => ?refresh
+                                        );
+                                    }
+                                    _ => (),
+                                },
+                                (),
+                            )
+                        })
+                        .unwrap();
+                }
+
+                renderer.render(dimensions, target_time, state);
             }
         }
     }

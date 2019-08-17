@@ -20,3 +20,5 @@ plitki-core = { path = "../plitki-core" }
 plitki-map-qua = { path = "../plitki-map-qua" }
 triple_buffer = { version = "5.0.0", features = [ "raw" ] }
 cgmath = "0.17.0"
+wayland-protocols = "0.23.5"
+libc = "0.2.61"
