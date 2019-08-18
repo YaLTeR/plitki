@@ -7,7 +7,7 @@ use glium::{
 use glutin::{
     platform::unix::RawContextExt, ContextBuilder, ContextError, ContextWrapper, PossiblyCurrent,
 };
-use slog::{debug, Logger};
+use slog_scope::debug;
 use smithay_client_toolkit::reexports::client::{protocol::wl_surface::WlSurface, Display};
 use takeable_option::Takeable;
 
@@ -70,7 +70,6 @@ impl GlutinRawBackendInner {
 }
 
 pub fn create_context(
-    log: Logger,
     display: &Display,
     surface: &WlSurface,
     dimensions: (u32, u32),
@@ -92,7 +91,7 @@ pub fn create_context(
             dimensions,
         }))
     };
-    debug!(log, "created a context"; "pixel_format" => ?backend_inner.borrow().context.get_pixel_format());
+    debug!("created a context"; "pixel_format" => ?backend_inner.borrow().context.get_pixel_format());
 
     let backend = GlutinRawBackend(backend_inner.clone());
     let context = unsafe {

@@ -8,7 +8,7 @@ use glium::{
     backend::Context, implement_vertex, index::PrimitiveType, uniform, Frame, IndexBuffer, Program,
     Surface, VertexBuffer,
 };
-use slog::{trace, Logger};
+use slog_scope::trace;
 
 use crate::GameState;
 
@@ -28,7 +28,6 @@ struct InstanceData {
 implement_vertex!(InstanceData, offset, color);
 
 pub struct Renderer {
-    log: Logger,
     context: Rc<Context>,
     program: Program,
     vertex_buffer: VertexBuffer<Vertex>,
@@ -39,7 +38,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(log: Logger, context: Rc<Context>, dimensions: (u32, u32)) -> Self {
+    pub fn new(context: Rc<Context>, dimensions: (u32, u32)) -> Self {
         let shape = [
             Vertex {
                 position: [-1., 0.],
@@ -118,7 +117,6 @@ impl Renderer {
         let projection = ortho(-w / 2., w / 2., -h / 2., h / 2., -1., 1.);
 
         Self {
-            log,
             context,
             program,
             vertex_buffer,
@@ -222,6 +220,6 @@ impl Renderer {
 
         frame.finish().unwrap();
 
-        trace!(self.log, "finished redraw"; "time_taken" => ?(Instant::now() - start));
+        trace!("finished redraw"; "time_taken" => ?(Instant::now() - start));
     }
 }

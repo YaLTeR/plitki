@@ -8,7 +8,8 @@ use std::{
 
 use plitki_core::map::Map;
 use plitki_map_qua::from_reader;
-use slog::{debug, o, trace, Drain, Logger};
+use slog::{o, Drain};
+use slog_scope::{debug, trace};
 use smithay_client_toolkit::{
     keyboard::{
         keysyms, map_keyboard_auto_with_repeat, Event as KbEvent, KeyRepeatEvent, KeyRepeatKind,
@@ -71,6 +72,7 @@ fn main() {
     let drain = slog_term::CompactFormat::new(decorator).build().fuse();
     let drain = slog_async::Async::new(drain).build().fuse();
     let log = slog::Logger::root(drain, o!("version" => env!("CARGO_PKG_VERSION")));
+    let _guard = slog_scope::set_global_logger(log);
 
     let map: Map = from_reader(
         &include_bytes!("/home/yalter/Source/rust/plitki/plitki-map-qua/tests/data/actual_map.qua")
@@ -97,9 +99,8 @@ fn main() {
     let dpi = Arc::new(Mutex::new(1));
     let surface = {
         let dpi = dpi.clone();
-        let log = log.clone();
         env.create_surface(move |new_dpi, _surface| {
-            debug!(log, "DPI changed"; "dpi" => new_dpi);
+            debug!("DPI changed"; "dpi" => new_dpi);
             *dpi.lock().unwrap() = new_dpi;
         })
     };
@@ -150,17 +151,15 @@ fn main() {
         .expect("Failed to bind seat to event queue");
 
     // Map the keyboard.
-    let log_kb = log.clone();
-    let log_repeat = log.clone();
     map_keyboard_auto_with_repeat(
         &seat,
         KeyRepeatKind::System,
         move |event: KbEvent, _| match event {
             KbEvent::Enter { keysyms, .. } => {
-                debug!(log_kb, "KbEvent::Enter"; "keysyms.len()" => keysyms.len());
+                debug!("KbEvent::Enter"; "keysyms.len()" => keysyms.len());
             }
             KbEvent::Leave { .. } => {
-                debug!(log_kb, "KbEvent::Leave");
+                debug!("KbEvent::Leave");
             }
             KbEvent::Key {
                 keysym,
@@ -170,7 +169,7 @@ fn main() {
                 ..
             } => {
                 debug!(
-                    log_kb, "KbEvent::Key";
+                    "KbEvent::Key";
                     "state" => ?state, "time" => time, "keysym" => keysym, "utf8" => utf8
                 );
 
@@ -181,19 +180,19 @@ fn main() {
                 match keysym {
                     keysyms::XKB_KEY_v => {
                         latest_game_state.cap_fps = !latest_game_state.cap_fps;
-                        debug!(log_kb, "changed cap_fps"; "cap_fps" => latest_game_state.cap_fps);
+                        debug!("changed cap_fps"; "cap_fps" => latest_game_state.cap_fps);
                     }
                     keysyms::XKB_KEY_F3 => {
                         latest_game_state.scroll_speed -= 1;
                         debug!(
-                            log_kb, "changed scroll_speed";
+                            "changed scroll_speed";
                             "scroll_speed" => latest_game_state.scroll_speed
                         );
                     }
                     keysyms::XKB_KEY_F4 => {
                         latest_game_state.scroll_speed += 1;
                         debug!(
-                            log_kb, "changed scroll_speed";
+                            "changed scroll_speed";
                             "scroll_speed" => latest_game_state.scroll_speed
                         );
                     }
@@ -207,15 +206,15 @@ fn main() {
                 buf_input.raw_publish();
             }
             KbEvent::RepeatInfo { rate, delay } => {
-                debug!(log_kb, "KbEvent::RepeatInfo"; "rate" => rate, "delay" => delay);
+                debug!("KbEvent::RepeatInfo"; "rate" => rate, "delay" => delay);
             }
             KbEvent::Modifiers { modifiers } => {
-                debug!(log_kb, "KbEvent::Modifiers"; "modifiers" => ?modifiers);
+                debug!("KbEvent::Modifiers"; "modifiers" => ?modifiers);
             }
         },
         move |repeat_event: KeyRepeatEvent, _| {
             debug!(
-                log_repeat, "KeyRepeatEvent";
+                "KeyRepeatEvent";
                 "keysym" => repeat_event.keysym, "utf8" => repeat_event.utf8
             );
         },
@@ -226,27 +225,24 @@ fn main() {
     let need_redraw = Rc::new(Cell::new(false));
     {
         struct FrameHandler {
-            log: Logger,
             need_redraw: Rc<Cell<bool>>,
             surface: WlSurface,
         }
 
         impl wl_callback::EventHandler for FrameHandler {
             fn done(&mut self, _object: WlCallback, _data: u32) {
-                trace!(self.log, "frame done");
+                trace!("frame done");
 
                 // This will get picked up in the event handling loop.
                 self.need_redraw.set(true);
 
                 // Subscribe to the next frame callback.
-                let log = self.log.clone();
                 let need_redraw = self.need_redraw.clone();
                 let surface = self.surface.clone();
                 self.surface
                     .frame(move |callback| {
                         callback.implement(
                             FrameHandler {
-                                log,
                                 need_redraw,
                                 surface,
                             },
@@ -258,7 +254,6 @@ fn main() {
         }
 
         // Subscribe to the first frame callback.
-        let log = log.clone();
         let need_redraw = need_redraw.clone();
         let surface = window.surface().clone();
         window
@@ -266,7 +261,6 @@ fn main() {
             .frame(move |callback| {
                 callback.implement(
                     FrameHandler {
-                        log,
                         need_redraw,
                         surface,
                     },
@@ -279,7 +273,6 @@ fn main() {
     // Get the presentation-time global.
     let presentation_clock_id = Arc::new(Mutex::new(0));
     let wp_presentation: WpPresentation = {
-        let log = log.clone();
         let presentation_clock_id = presentation_clock_id.clone();
 
         env.manager
@@ -287,7 +280,7 @@ fn main() {
                 proxy.implement_closure(
                     move |event, _| {
                         if let wp_presentation::Event::ClockId { clk_id } = event {
-                            debug!(log, "presentation ClockId"; "clk_id" => clk_id);
+                            debug!("presentation ClockId"; "clk_id" => clk_id);
                             *presentation_clock_id.lock().unwrap() = clk_id;
                         }
                     },
@@ -302,7 +295,6 @@ fn main() {
 
     let pair = Arc::new((Mutex::new(None), Condvar::new()));
     {
-        let log = log.clone();
         let display = display.clone();
         let window = window.clone();
         let pair = pair.clone();
@@ -310,7 +302,6 @@ fn main() {
 
         thread::spawn(move || {
             render_thread(
-                log,
                 display,
                 window,
                 INITIAL_DIMENSIONS,
@@ -328,7 +319,7 @@ fn main() {
         // Not sure how exactly this is supposed to work.
         unimplemented!("wl_shell");
 
-        // debug!(log, "!needs_configure()");
+        // debug!("!needs_configure()");
         // initial draw to bootstrap on wl_shell
         // let cap_fps = *cap_fps.lock().unwrap();
         // window.refresh();
@@ -343,7 +334,7 @@ fn main() {
         let mut new_dimensions = None;
         let mut refresh_decorations = false;
 
-        trace!(log, "main thread iteration"; "next_action" => ?next_action.lock().unwrap());
+        trace!("main thread iteration"; "next_action" => ?next_action.lock().unwrap());
 
         match next_action.lock().unwrap().take() {
             Some(WEvent::Close) => break,
@@ -351,7 +342,7 @@ fn main() {
                 refresh_decorations = true;
             }
             Some(WEvent::Configure { new_size, .. }) => {
-                trace!(log, "configure"; "new_size" => ?new_size);
+                trace!("configure"; "new_size" => ?new_size);
 
                 new_dimensions = new_size;
                 refresh_decorations = true;
@@ -383,7 +374,6 @@ fn main() {
 }
 
 fn render_thread(
-    log: Logger,
     display: Display,
     window: Arc<Mutex<Window<ConceptFrame>>>,
     mut dimensions: (u32, u32),
@@ -393,8 +383,8 @@ fn render_thread(
     presentation_clock_id: Arc<Mutex<u32>>,
 ) {
     let surface = window.lock().unwrap().surface().clone();
-    let (backend, context) = create_context(log.clone(), &display, &surface, dimensions);
-    let mut renderer = Renderer::new(log.clone(), context, dimensions);
+    let (backend, context) = create_context(&display, &surface, dimensions);
+    let mut renderer = Renderer::new(context, dimensions);
 
     let mut start = None;
     let mut clk_id = None;
@@ -411,12 +401,12 @@ fn render_thread(
             event.take().unwrap()
         };
 
-        trace!(log, "render thread event"; "event" => ?event);
+        trace!("render thread event"; "event" => ?event);
 
         if start.is_none() {
             clk_id = Some(*presentation_clock_id.lock().unwrap());
             start = Some(clock_gettime(clk_id.unwrap()));
-            debug!(log, "start"; "start" => ?start.unwrap());
+            debug!("start"; "start" => ?start.unwrap());
         }
 
         let mut window = window.lock().unwrap();
@@ -460,13 +450,12 @@ fn render_thread(
                 };
 
                 debug!(
-                    log, "starting render";
+                    "starting render";
                     "elapsed" => ?elapsed,
                     "target_time" => ?target_time
                 );
 
                 {
-                    let log = log.clone();
                     let next_frame_timestamp = next_frame_timestamp.clone();
 
                     wp_presentation
@@ -475,7 +464,7 @@ fn render_thread(
                                 move |event, _| match event {
                                     wp_presentation_feedback::Event::Discarded => {
                                         debug!(
-                                            log, "frame discarded";
+                                            "frame discarded";
                                             "target_time" => ?target_time
                                         );
                                     }
@@ -503,7 +492,7 @@ fn render_thread(
                                             Some(presentation_time + refresh);
 
                                         debug!(
-                                            log, "frame presented";
+                                            "frame presented";
                                             "target_time" => ?target_time,
                                             "presentation_time" => ?presentation_time,
                                             "presentation_latency"
