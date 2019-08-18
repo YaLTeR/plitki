@@ -6,7 +6,11 @@ use std::{
     time::Duration,
 };
 
-use plitki_core::map::Map;
+use plitki_core::{
+    map::Map,
+    object::Object,
+    timing::{GameTimestamp, MapTimestamp, Timestamp},
+};
 use plitki_map_qua::from_reader;
 use slog::{o, Drain};
 use slog_scope::{debug, trace};
@@ -49,6 +53,8 @@ enum RenderThreadEvent {
     },
 }
 
+const HIT_WINDOW: GameTimestamp = GameTimestamp(Timestamp(76_00));
+
 /// State of the game.
 #[derive(Clone)]
 pub struct GameState {
@@ -62,12 +68,144 @@ pub struct GameState {
     /// square 1:1 screen, 10 means a note travels from the very top to the very bottom of the
     /// screen in one second; 5 means in two seconds and 20 means in half a second.
     scroll_speed: u8,
+    /// Contains states of the objects in lanes.
+    lane_states: Vec<LaneState>,
+}
+
+/// States of a long note object.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+enum LongNoteState {
+    /// The long note has not been hit.
+    NotHit,
+    /// The long note is currently held.
+    Held,
+    /// The long note has been hit, that is, held and released.
+    Hit,
+}
+
+/// State of an individual object.
+#[derive(Debug, Clone, Copy)]
+enum ObjectState {
+    /// State of a regular object.
+    Regular {
+        /// If `true`, this object has been hit.
+        hit: bool,
+    },
+    /// State of a long note object.
+    LongNote {
+        /// The state.
+        state: LongNoteState,
+    },
+}
+
+/// States of the objects in a lane.
+#[derive(Clone)]
+struct LaneState {
+    /// States of the objects in this lane.
+    object_states: Vec<ObjectState>,
+    /// Index into `object_states` of the first object that is active, that is, can still be
+    /// interacted with (hit or held). Used for incremental updates of the state: no object below
+    /// this index can have its state changed.
+    first_active_object: usize,
 }
 
 impl GameState {
-    fn update_to_latest(&mut self, latest: &GameState) {
+    /// Creates a new `GameState` given a map.
+    pub fn new(mut map: Map) -> Self {
+        let mut lane_states = Vec::with_capacity(map.lanes.len());
+
+        for lane in &mut map.lanes {
+            // Ensure the objects are sorted by their timestamp (GameState invariant).
+            lane.objects.sort_unstable_by_key(Object::timestamp);
+
+            // Create states for the objects in this lane.
+            let mut object_states = Vec::with_capacity(lane.objects.len());
+            for object in &lane.objects {
+                let state = match object {
+                    Object::Regular { .. } => ObjectState::Regular { hit: false },
+                    Object::LongNote { .. } => ObjectState::LongNote {
+                        state: LongNoteState::NotHit,
+                    },
+                };
+                object_states.push(state);
+            }
+            lane_states.push(LaneState {
+                object_states,
+                first_active_object: 0,
+            });
+        }
+
+        Self {
+            map: Arc::new(map),
+            cap_fps: false,
+            scroll_speed: 12,
+            lane_states,
+        }
+    }
+
+    /// Updates the state to match the `latest` state.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `latest` state is older than `self` (as indicated by `first_active_object` in
+    /// one of the lane states being bigger than the one in the `latest` state).
+    pub fn update_to_latest(&mut self, latest: &GameState) {
         self.cap_fps = latest.cap_fps;
         self.scroll_speed = latest.scroll_speed;
+
+        for (lane, latest_lane) in self.lane_states.iter_mut().zip(latest.lane_states.iter()) {
+            assert!(lane.first_active_object <= latest_lane.first_active_object);
+
+            // The range is inclusive because `first_active_object` can be an LN that's changing
+            // states.
+            let update_range = lane.first_active_object..=latest_lane.first_active_object;
+            lane.object_states[update_range.clone()]
+                .copy_from_slice(&latest_lane.object_states[update_range]);
+        }
+    }
+
+    /// Converts a game timestamp into a map timestamp.
+    #[inline]
+    pub fn game_to_map(&self, timestamp: GameTimestamp) -> MapTimestamp {
+        // Without rates and offsets they are the same.
+        MapTimestamp(timestamp.0)
+    }
+
+    /// Handles a key press.
+    pub fn key_press(&mut self, lane: usize, timestamp: GameTimestamp) {
+        let map_timestamp = self.game_to_map(timestamp);
+        let map_hit_window = self.game_to_map(HIT_WINDOW);
+
+        let lane_state = &mut self.lane_states[lane];
+        let objects = &self.map.lanes[lane].objects[lane_state.first_active_object..];
+        let object_states = &mut lane_state.object_states[lane_state.first_active_object..];
+
+        for (i, (object, state)) in objects.iter().zip(object_states.iter_mut()).enumerate() {
+            if object.timestamp() + map_hit_window < map_timestamp {
+                // The object can no longer be hit.
+                // TODO: LNs
+                // TODO: mark the object as missed
+                continue;
+            }
+
+            // Update `first_active_object`.
+            lane_state.first_active_object += i;
+
+            if map_timestamp >= object.timestamp() - map_hit_window {
+                // The object can be hit.
+                match state {
+                    ObjectState::Regular { ref mut hit } => *hit = true,
+                    ObjectState::LongNote { ref mut state } => *state = LongNoteState::Hit, // TODO
+                }
+
+                trace!("hit object"; "lane" => lane, "index" => lane_state.first_active_object);
+
+                // This object is no longer active.
+                lane_state.first_active_object += 1;
+            }
+
+            break;
+        }
     }
 }
 
@@ -89,11 +227,7 @@ fn main() {
     // The latest game state on the main thread. Main thread uses this for updates relying on
     // previous game state (for example, toggling a bool), and then refreshes the triple buffered
     // state accordingly.
-    let mut latest_game_state = GameState {
-        map: Arc::new(map),
-        cap_fps: false,
-        scroll_speed: 10,
-    };
+    let mut latest_game_state = GameState::new(map);
     let state_buffer = TripleBuffer::new(latest_game_state.clone());
     let (mut buf_input, buf_output) = state_buffer.split();
 
@@ -183,75 +317,98 @@ fn main() {
         .expect("Failed to bind seat to event queue");
 
     // Map the keyboard.
-    map_keyboard_auto_with_repeat(
-        &seat,
-        KeyRepeatKind::System,
-        move |event: KbEvent, _| match event {
-            KbEvent::Enter { keysyms, .. } => {
-                debug!("KbEvent::Enter"; "keysyms.len()" => keysyms.len());
-            }
-            KbEvent::Leave { .. } => {
-                debug!("KbEvent::Leave");
-            }
-            KbEvent::Key {
-                keysym,
-                state,
-                utf8,
-                time,
-                ..
-            } => {
-                debug!(
-                    "KbEvent::Key";
-                    "state" => ?state, "time" => time, "keysym" => keysym, "utf8" => utf8
+    {
+        let presentation_clock_id = presentation_clock_id.clone();
+        let start = start.clone();
+
+        map_keyboard_auto_with_repeat(
+            &seat,
+            KeyRepeatKind::System,
+            move |event: KbEvent, _| match event {
+                KbEvent::Enter { keysyms, .. } => {
+                    trace!("KbEvent::Enter"; "keysyms.len()" => keysyms.len());
+                }
+                KbEvent::Leave { .. } => {
+                    trace!("KbEvent::Leave");
+                }
+                KbEvent::Key {
+                    keysym,
+                    state,
+                    utf8,
+                    time,
+                    ..
+                } => {
+                    trace!(
+                        "KbEvent::Key";
+                        "state" => ?state, "time" => time, "keysym" => keysym, "utf8" => utf8
+                    );
+
+                    if state != KeyState::Pressed {
+                        return;
+                    }
+
+                    let elapsed = clock_gettime(*presentation_clock_id.lock().unwrap())
+                        - start.lock().unwrap().unwrap();
+                    let elapsed_timestamp = Timestamp(
+                        elapsed.as_secs() as i32 * 1000_00 + elapsed.subsec_micros() as i32 / 10,
+                    );
+
+                    match keysym {
+                        keysyms::XKB_KEY_v => {
+                            latest_game_state.cap_fps = !latest_game_state.cap_fps;
+                            debug!("changed cap_fps"; "cap_fps" => latest_game_state.cap_fps);
+                        }
+                        keysyms::XKB_KEY_F3 => {
+                            latest_game_state.scroll_speed -= 1;
+                            debug!(
+                                "changed scroll_speed";
+                                "scroll_speed" => latest_game_state.scroll_speed
+                            );
+                        }
+                        keysyms::XKB_KEY_F4 => {
+                            latest_game_state.scroll_speed += 1;
+                            debug!(
+                                "changed scroll_speed";
+                                "scroll_speed" => latest_game_state.scroll_speed
+                            );
+                        }
+                        keysyms::XKB_KEY_z => {
+                            latest_game_state.key_press(0, GameTimestamp(elapsed_timestamp));
+                        }
+                        keysyms::XKB_KEY_x => {
+                            latest_game_state.key_press(1, GameTimestamp(elapsed_timestamp));
+                        }
+                        keysyms::XKB_KEY_period => {
+                            latest_game_state.key_press(2, GameTimestamp(elapsed_timestamp));
+                        }
+                        keysyms::XKB_KEY_slash => {
+                            latest_game_state.key_press(3, GameTimestamp(elapsed_timestamp));
+                        }
+                        _ => (),
+                    }
+
+                    // if (something changed)?
+                    buf_input
+                        .raw_input_buffer()
+                        .update_to_latest(&latest_game_state);
+                    buf_input.raw_publish();
+                }
+                KbEvent::RepeatInfo { rate, delay } => {
+                    trace!("KbEvent::RepeatInfo"; "rate" => rate, "delay" => delay);
+                }
+                KbEvent::Modifiers { modifiers } => {
+                    trace!("KbEvent::Modifiers"; "modifiers" => ?modifiers);
+                }
+            },
+            move |repeat_event: KeyRepeatEvent, _| {
+                trace!(
+                    "KeyRepeatEvent";
+                    "keysym" => repeat_event.keysym, "utf8" => repeat_event.utf8
                 );
-
-                if state != KeyState::Pressed {
-                    return;
-                }
-
-                match keysym {
-                    keysyms::XKB_KEY_v => {
-                        latest_game_state.cap_fps = !latest_game_state.cap_fps;
-                        debug!("changed cap_fps"; "cap_fps" => latest_game_state.cap_fps);
-                    }
-                    keysyms::XKB_KEY_F3 => {
-                        latest_game_state.scroll_speed -= 1;
-                        debug!(
-                            "changed scroll_speed";
-                            "scroll_speed" => latest_game_state.scroll_speed
-                        );
-                    }
-                    keysyms::XKB_KEY_F4 => {
-                        latest_game_state.scroll_speed += 1;
-                        debug!(
-                            "changed scroll_speed";
-                            "scroll_speed" => latest_game_state.scroll_speed
-                        );
-                    }
-                    _ => (),
-                }
-
-                // if (something changed)?
-                buf_input
-                    .raw_input_buffer()
-                    .update_to_latest(&latest_game_state);
-                buf_input.raw_publish();
-            }
-            KbEvent::RepeatInfo { rate, delay } => {
-                debug!("KbEvent::RepeatInfo"; "rate" => rate, "delay" => delay);
-            }
-            KbEvent::Modifiers { modifiers } => {
-                debug!("KbEvent::Modifiers"; "modifiers" => ?modifiers);
-            }
-        },
-        move |repeat_event: KeyRepeatEvent, _| {
-            debug!(
-                "KeyRepeatEvent";
-                "keysym" => repeat_event.keysym, "utf8" => repeat_event.utf8
-            );
-        },
-    )
-    .expect("Failed to map keyboard");
+            },
+        )
+        .expect("Failed to map keyboard");
+    }
 
     // Start receiving the frame callbacks.
     let need_redraw = Rc::new(Cell::new(false));
