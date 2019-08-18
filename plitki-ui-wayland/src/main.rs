@@ -375,7 +375,8 @@ fn main() {
                             debug!("changed cap_fps"; "cap_fps" => latest_game_state.cap_fps);
                         }
                         keysyms::XKB_KEY_F3 => {
-                            latest_game_state.scroll_speed -= 1;
+                            latest_game_state.scroll_speed =
+                                (latest_game_state.scroll_speed - 1).max(1);
                             debug!(
                                 "changed scroll_speed";
                                 "scroll_speed" => latest_game_state.scroll_speed
