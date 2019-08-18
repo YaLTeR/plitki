@@ -49,9 +49,14 @@ enum RenderThreadEvent {
     },
 }
 
+/// State of the game.
 #[derive(Clone)]
 pub struct GameState {
+    /// The map.
+    ///
+    /// Invariant: objects in each lane must be sorted by timestamp.
     map: Arc<Map>,
+    /// If `true`, heavily limit the FPS for testing.
     cap_fps: bool,
     /// The scroll speed, in vertical square screens per second, multiplied by 10. That is, on a
     /// square 1:1 screen, 10 means a note travels from the very top to the very bottom of the
