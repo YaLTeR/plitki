@@ -146,8 +146,10 @@ fn main() {
 
     // Get the presentation-time global.
     let presentation_clock_id = Arc::new(Mutex::new(0));
+    let start = Arc::new(Mutex::new(None));
     let wp_presentation: WpPresentation = {
         let presentation_clock_id = presentation_clock_id.clone();
+        let start = start.clone();
 
         env.manager
             .instantiate_exact(1, move |proxy| {
@@ -156,6 +158,11 @@ fn main() {
                         if let wp_presentation::Event::ClockId { clk_id } = event {
                             debug!("presentation ClockId"; "clk_id" => clk_id);
                             *presentation_clock_id.lock().unwrap() = clk_id;
+
+                            let start_time = clock_gettime(clk_id);
+                            debug!("start"; "start" => ?start_time);
+
+                            *start.lock().unwrap() = Some(start_time);
                         }
                     },
                     (),
@@ -304,6 +311,7 @@ fn main() {
         let window = window.clone();
         let pair = pair.clone();
         let presentation_clock_id = presentation_clock_id.clone();
+        let start = start.clone();
 
         thread::spawn(move || {
             render_thread(
@@ -314,6 +322,7 @@ fn main() {
                 buf_output,
                 wp_presentation,
                 presentation_clock_id,
+                start,
             )
         });
     }
@@ -386,6 +395,7 @@ fn render_thread(
     mut state_buffer: triple_buffer::Output<GameState>,
     wp_presentation: WpPresentation,
     presentation_clock_id: Arc<Mutex<u32>>,
+    start_time: Arc<Mutex<Option<Duration>>>,
 ) {
     let surface = window.lock().unwrap().surface().clone();
     let (backend, context) = create_context(&display, &surface, dimensions);
@@ -410,7 +420,7 @@ fn render_thread(
 
         if start.is_none() {
             clk_id = Some(*presentation_clock_id.lock().unwrap());
-            start = Some(clock_gettime(clk_id.unwrap()));
+            start = Some(start_time.lock().unwrap().unwrap());
             debug!("start"; "start" => ?start.unwrap());
         }
 
