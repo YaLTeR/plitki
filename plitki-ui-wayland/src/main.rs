@@ -98,6 +98,15 @@ enum ObjectState {
     },
 }
 
+impl ObjectState {
+    pub fn is_hit(&self) -> bool {
+        match self {
+            Self::Regular { hit } => *hit,
+            Self::LongNote { state } => *state == LongNoteState::Hit,
+        }
+    }
+}
+
 /// States of the objects in a lane.
 #[derive(Clone)]
 struct LaneState {
@@ -169,6 +178,13 @@ impl GameState {
     pub fn game_to_map(&self, timestamp: GameTimestamp) -> MapTimestamp {
         // Without rates and offsets they are the same.
         MapTimestamp(timestamp.0)
+    }
+
+    /// Converts a map timestamp into a game timestamp.
+    #[inline]
+    pub fn map_to_game(&self, timestamp: MapTimestamp) -> GameTimestamp {
+        // Without rates and offsets they are the same.
+        GameTimestamp(timestamp.0)
     }
 
     /// Handles a key press.
