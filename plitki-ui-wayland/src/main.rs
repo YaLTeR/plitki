@@ -144,6 +144,26 @@ fn main() {
 
     window.set_title("Plitki Wayland".to_string());
 
+    // Get the presentation-time global.
+    let presentation_clock_id = Arc::new(Mutex::new(0));
+    let wp_presentation: WpPresentation = {
+        let presentation_clock_id = presentation_clock_id.clone();
+
+        env.manager
+            .instantiate_exact(1, move |proxy| {
+                proxy.implement_closure(
+                    move |event, _| {
+                        if let wp_presentation::Event::ClockId { clk_id } = event {
+                            debug!("presentation ClockId"; "clk_id" => clk_id);
+                            *presentation_clock_id.lock().unwrap() = clk_id;
+                        }
+                    },
+                    (),
+                )
+            })
+            .unwrap()
+    };
+
     let seat = env
         .manager
         .instantiate_range(1, 6, NewProxy::implement_dummy)
@@ -274,26 +294,6 @@ fn main() {
             })
             .unwrap();
     }
-
-    // Get the presentation-time global.
-    let presentation_clock_id = Arc::new(Mutex::new(0));
-    let wp_presentation: WpPresentation = {
-        let presentation_clock_id = presentation_clock_id.clone();
-
-        env.manager
-            .instantiate_exact(1, move |proxy| {
-                proxy.implement_closure(
-                    move |event, _| {
-                        if let wp_presentation::Event::ClockId { clk_id } = event {
-                            debug!("presentation ClockId"; "clk_id" => clk_id);
-                            *presentation_clock_id.lock().unwrap() = clk_id;
-                        }
-                    },
-                    (),
-                )
-            })
-            .unwrap()
-    };
 
     // Start up the rendering thread.
     let window = Arc::new(Mutex::new(window));
