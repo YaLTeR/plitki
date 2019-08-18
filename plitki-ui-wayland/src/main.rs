@@ -46,6 +46,7 @@ use renderer::Renderer;
 
 #[derive(Debug)]
 enum RenderThreadEvent {
+    Exit,
     RefreshDecorations,
     Redraw {
         new_dimensions: Option<(u32, u32)>,
@@ -480,7 +481,7 @@ fn main() {
     let window = Arc::new(Mutex::new(window));
 
     let pair = Arc::new((Mutex::new(None), Condvar::new()));
-    {
+    let rendering_thread = {
         let display = display.clone();
         let window = window.clone();
         let pair = pair.clone();
@@ -498,8 +499,8 @@ fn main() {
                 presentation_clock_id,
                 start,
             )
-        });
-    }
+        })
+    };
 
     let &(ref lock, ref cvar) = &*pair;
 
@@ -559,6 +560,10 @@ fn main() {
             .dispatch()
             .expect("Failed to dispatch all messages.");
     }
+
+    *lock.lock().unwrap() = Some(RenderThreadEvent::Exit);
+    cvar.notify_one();
+    rendering_thread.join().unwrap();
 }
 
 fn render_thread(
@@ -601,6 +606,7 @@ fn render_thread(
         let mut window = window.lock().unwrap();
 
         match event {
+            RenderThreadEvent::Exit => break,
             RenderThreadEvent::RefreshDecorations => {
                 window.refresh();
                 display.flush().unwrap();
