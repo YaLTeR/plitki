@@ -51,16 +51,6 @@ pub enum ObjectState {
     },
 }
 
-impl ObjectState {
-    /// Returns `true` if the object has been hit, that is, can no longer be interacted with.
-    pub fn is_hit(&self) -> bool {
-        match self {
-            Self::Regular { hit } => *hit,
-            Self::LongNote { state } => *state == LongNoteState::Hit,
-        }
-    }
-}
-
 /// States of the objects in a lane.
 #[derive(Clone)]
 pub struct LaneState {
@@ -175,6 +165,16 @@ impl GameState {
             }
 
             break;
+        }
+    }
+}
+
+impl ObjectState {
+    /// Returns `true` if the object has been hit, that is, can no longer be interacted with.
+    pub fn is_hit(&self) -> bool {
+        match self {
+            Self::Regular { hit } => *hit,
+            Self::LongNote { state } => *state == LongNoteState::Hit,
         }
     }
 }
