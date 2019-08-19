@@ -1,11 +1,15 @@
 //! Functionality related to managing the game state.
 use alloc::{sync::Arc, vec::Vec};
-use core::{convert::TryInto, time::Duration};
+use core::{
+    convert::TryInto,
+    ops::{Div, Mul},
+    time::Duration,
+};
 
 use crate::{
     map::Map,
     object::Object,
-    timing::{GameTimestamp, MapTimestamp},
+    timing::{GameTimestamp, MapTimestamp, Timestamp},
 };
 
 /// State of the game.
@@ -17,13 +21,17 @@ pub struct GameState {
     pub map: Arc<Map>,
     /// If `true`, heavily limit the FPS for testing.
     pub cap_fps: bool,
-    /// The scroll speed, in vertical square screens per second, multiplied by 10. That is, on a
-    /// square 1:1 screen, 10 means a note travels from the very top to the very bottom of the
-    /// screen in one second; 5 means in two seconds and 20 means in half a second.
-    pub scroll_speed: u8,
+    /// Note scrolling speed.
+    pub scroll_speed: ScrollSpeed,
     /// Contains states of the objects in lanes.
     pub lane_states: Vec<LaneState>,
 }
+
+/// Scrolling speed, measured in <sup>1</sup>⁄<sub>10</sub>ths of vertical square screens per
+/// second. That is, on a square 1:1 screen, 10 means a note travels from the very top to the very
+/// bottom of the screen in one second; 5 means in two seconds and 20 means in half a second.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct ScrollSpeed(pub u8);
 
 /// States of a long note object.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -91,7 +99,7 @@ impl GameState {
         Self {
             map: Arc::new(map),
             cap_fps: false,
-            scroll_speed: 12,
+            scroll_speed: ScrollSpeed(12),
             lane_states,
         }
     }
@@ -166,6 +174,33 @@ impl GameState {
 
             break;
         }
+    }
+}
+
+impl Mul<GameTimestamp> for ScrollSpeed {
+    type Output = f32;
+
+    #[inline]
+    fn mul(self, rhs: GameTimestamp) -> Self::Output {
+        f32::from(self.0) * rhs.0.as_secs_f32()
+    }
+}
+
+impl Mul<ScrollSpeed> for GameTimestamp {
+    type Output = f32;
+
+    #[inline]
+    fn mul(self, rhs: ScrollSpeed) -> Self::Output {
+        rhs * self
+    }
+}
+
+impl Div<ScrollSpeed> for f32 {
+    type Output = GameTimestamp;
+
+    #[inline]
+    fn div(self, rhs: ScrollSpeed) -> Self::Output {
+        GameTimestamp(Timestamp::from_secs_f32(self / f32::from(rhs.0)))
     }
 }
 

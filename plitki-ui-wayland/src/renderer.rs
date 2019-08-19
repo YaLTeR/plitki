@@ -1,5 +1,5 @@
 use std::{
-    convert::{identity, TryFrom, TryInto},
+    convert::{identity, TryInto},
     rc::Rc,
     time::{Duration, Instant},
 };
@@ -181,32 +181,22 @@ impl Renderer {
         });
 
         let elapsed_timestamp = GameTimestamp(elapsed.try_into().unwrap());
-        // Y coordinates per timestamp.
-        let scroll_speed = f32::from(state.scroll_speed) / 5_000_00.;
+
+        #[allow(clippy::inconsistent_digit_grouping)]
+        let to_scroll_speed_coord = |x| x * 5.;
+        #[allow(clippy::inconsistent_digit_grouping)]
+        let from_scroll_speed_coord = |x| x / 5.;
 
         let note_height = 0.1;
         let first_visible_timestamp = state.game_to_map(
             elapsed_timestamp
-                - GameTimestamp(
-                    Duration::from_micros(
-                        ((judgement_line_position - self.ortho.bottom + note_height)
-                            / scroll_speed as f32) as u64
-                            * 10,
-                    )
-                    .try_into()
-                    .unwrap(),
-                ),
+                - to_scroll_speed_coord(judgement_line_position - self.ortho.bottom + note_height)
+                    / state.scroll_speed,
         );
         let one_past_last_visible_timestamp = state.game_to_map(
             elapsed_timestamp
-                + GameTimestamp(
-                    Duration::from_micros(
-                        ((self.ortho.top - judgement_line_position) / scroll_speed as f32) as u64
-                            * 10,
-                    )
-                    .try_into()
-                    .unwrap(),
-                ),
+                + to_scroll_speed_coord(self.ortho.top - judgement_line_position)
+                    / state.scroll_speed,
         );
 
         for (lane, objects, object_states) in (0..state.map.lanes.len()).map(|lane| {
@@ -231,16 +221,13 @@ impl Renderer {
                 .filter(|(_, s)| !s.is_hit())
                 .map(|(o, _)| o)
             {
-                let timestamp = (state.map_to_game(object.timestamp()) - elapsed_timestamp).0;
-                let timestamp = Duration::try_from(timestamp)
-                    .map(|x| (x.as_micros() / 10) as f32)
-                    .unwrap_or_else(|_| {
-                        -((Duration::try_from(-timestamp).unwrap().as_micros() / 10) as f32)
-                    });
-
                 let pos = Point2::new(
                     -border_offset + lane_width * lane as f32,
-                    judgement_line_position + timestamp * scroll_speed as f32,
+                    judgement_line_position
+                        + from_scroll_speed_coord(
+                            (state.map_to_game(object.timestamp()) - elapsed_timestamp)
+                                * state.scroll_speed,
+                        ),
                 );
                 let color = if lane == 0 || lane == 3 {
                     Srgba::new(0.1, 0.1, 0.1, 0.1)
