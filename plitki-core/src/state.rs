@@ -1,13 +1,12 @@
 //! Functionality related to managing the game state.
 use alloc::{sync::Arc, vec::Vec};
+use core::{convert::TryInto, time::Duration};
 
 use crate::{
     map::Map,
     object::Object,
-    timing::{GameTimestamp, MapTimestamp, Timestamp},
+    timing::{GameTimestamp, MapTimestamp},
 };
-
-const HIT_WINDOW: GameTimestamp = GameTimestamp(Timestamp(76_00));
 
 /// State of the game.
 #[derive(Clone)]
@@ -144,8 +143,10 @@ impl GameState {
 
     /// Handles a key press.
     pub fn key_press(&mut self, lane: usize, timestamp: GameTimestamp) {
+        let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
+
         let map_timestamp = self.game_to_map(timestamp);
-        let map_hit_window = self.game_to_map(HIT_WINDOW);
+        let map_hit_window = self.game_to_map(hit_window);
 
         let lane_state = &mut self.lane_states[lane];
         let objects = &self.map.lanes[lane].objects[lane_state.first_active_object..];

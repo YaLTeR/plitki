@@ -1,5 +1,5 @@
 use std::{
-    convert::identity,
+    convert::{identity, TryFrom, TryInto},
     rc::Rc,
     time::{Duration, Instant},
 };
@@ -10,10 +10,7 @@ use glium::{
     Surface, VertexBuffer,
 };
 use palette::Srgba;
-use plitki_core::{
-    object::Object,
-    timing::{GameTimestamp, Timestamp},
-};
+use plitki_core::{object::Object, timing::GameTimestamp};
 use slog_scope::{debug, trace};
 
 use crate::GameState;
@@ -183,22 +180,33 @@ impl Renderer {
             color: Srgba::new(1., 1., 1., 1.),
         });
 
-        let elapsed_timestamp = GameTimestamp(elapsed.into());
+        let elapsed_timestamp = GameTimestamp(elapsed.try_into().unwrap());
         // Y coordinates per timestamp.
         let scroll_speed = f32::from(state.scroll_speed) / 5_000_00.;
 
         let note_height = 0.1;
         let first_visible_timestamp = state.game_to_map(
             elapsed_timestamp
-                - GameTimestamp(Timestamp(
-                    ((judgement_line_position - self.ortho.bottom + note_height) / scroll_speed as f32) as i32,
-                )),
+                - GameTimestamp(
+                    Duration::from_micros(
+                        ((judgement_line_position - self.ortho.bottom + note_height)
+                            / scroll_speed as f32) as u64
+                            * 10,
+                    )
+                    .try_into()
+                    .unwrap(),
+                ),
         );
         let one_past_last_visible_timestamp = state.game_to_map(
             elapsed_timestamp
-                + GameTimestamp(Timestamp(
-                    ((self.ortho.top - judgement_line_position) / scroll_speed as f32) as i32,
-                )),
+                + GameTimestamp(
+                    Duration::from_micros(
+                        ((self.ortho.top - judgement_line_position) / scroll_speed as f32) as u64
+                            * 10,
+                    )
+                    .try_into()
+                    .unwrap(),
+                ),
         );
 
         for (lane, objects, object_states) in (0..state.map.lanes.len()).map(|lane| {
@@ -223,11 +231,16 @@ impl Renderer {
                 .filter(|(_, s)| !s.is_hit())
                 .map(|(o, _)| o)
             {
+                let timestamp = (state.map_to_game(object.timestamp()) - elapsed_timestamp).0;
+                let timestamp = Duration::try_from(timestamp)
+                    .map(|x| (x.as_micros() / 10) as f32)
+                    .unwrap_or_else(|_| {
+                        -((Duration::try_from(-timestamp).unwrap().as_micros() / 10) as f32)
+                    });
+
                 let pos = Point2::new(
                     -border_offset + lane_width * lane as f32,
-                    judgement_line_position
-                        + ((state.map_to_game(object.timestamp()) - elapsed_timestamp).0).0 as f32
-                            * scroll_speed as f32,
+                    judgement_line_position + timestamp * scroll_speed as f32,
                 );
                 let color = if lane == 0 || lane == 3 {
                     Srgba::new(0.1, 0.1, 0.1, 0.1)

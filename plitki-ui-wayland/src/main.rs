@@ -1,5 +1,6 @@
 use std::{
     cell::Cell,
+    convert::TryInto,
     rc::Rc,
     sync::{Arc, Condvar, Mutex},
     thread,
@@ -190,7 +191,7 @@ fn main() {
 
                     let elapsed = clock_gettime(*presentation_clock_id.lock().unwrap())
                         - start.lock().unwrap().unwrap();
-                    let elapsed_timestamp = elapsed.into();
+                    let elapsed_timestamp = elapsed.try_into().unwrap();
 
                     match keysym {
                         keysyms::XKB_KEY_v => {

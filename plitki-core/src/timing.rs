@@ -1,5 +1,7 @@
 //! Types and utilities related to timing.
-use core::time::Duration;
+#![allow(clippy::inconsistent_digit_grouping)]
+
+use core::{convert::TryFrom, time::Duration};
 
 use derive_more::{Add, AddAssign, Neg, Sub, SubAssign};
 
@@ -9,7 +11,7 @@ use derive_more::{Add, AddAssign, Neg, Sub, SubAssign};
 #[derive(
     Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd, Add, AddAssign, Sub, SubAssign, Neg,
 )]
-pub struct Timestamp(pub i32);
+pub struct Timestamp(i32);
 
 /// A point in time, measured in map time.
 #[derive(
@@ -23,18 +25,40 @@ pub struct MapTimestamp(pub Timestamp);
 )]
 pub struct GameTimestamp(pub Timestamp);
 
-impl Timestamp {
-    /// Creates a `Timestamp` from a `Duration`.
+/// The error type returned when a duration to timestamp conversion fails.
+#[derive(Debug, Clone, Copy)]
+pub struct TryFromDurationError(());
+
+/// The error type returned when a timestamp to duration conversion fails.
+#[derive(Debug, Clone, Copy)]
+pub struct TryFromTimestampError(());
+
+impl TryFrom<Duration> for Timestamp {
+    type Error = TryFromDurationError;
+
     #[inline]
-    pub const fn from_duration(duration: Duration) -> Self {
-        #[allow(clippy::inconsistent_digit_grouping)]
-        Self(duration.as_secs() as i32 * 1_000_00 + duration.subsec_micros() as i32 / 10)
+    fn try_from(d: Duration) -> Result<Self, Self::Error> {
+        let value = d.as_micros() / 10;
+        if value > i32::max_value() as u128 {
+            Err(TryFromDurationError(()))
+        } else {
+            Ok(Self(value as i32))
+        }
     }
 }
 
-impl From<Duration> for Timestamp {
+impl TryFrom<Timestamp> for Duration {
+    type Error = TryFromTimestampError;
+
     #[inline]
-    fn from(d: Duration) -> Self {
-        Self::from_duration(d)
+    fn try_from(t: Timestamp) -> Result<Self, Self::Error> {
+        if t.0 < 0 {
+            return Err(TryFromTimestampError(()));
+        }
+
+        let t = t.0 as u64;
+        let seconds = t / 1_000_00;
+        let nanos = (t - seconds * 1_000_00) as u32 * 10_000;
+        Ok(Self::new(seconds, nanos))
     }
 }
