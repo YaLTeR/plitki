@@ -1,4 +1,5 @@
 //! Functionality related to mapsets and maps.
+use alloc::{string::String, vec::Vec};
 
 use crate::object::Object;
 

@@ -1,4 +1,6 @@
 //! Types and utilities related to timing.
+use core::time::Duration;
+
 use derive_more::{Add, AddAssign, Sub, SubAssign};
 
 /// A point in time.
@@ -20,3 +22,19 @@ pub struct MapTimestamp(pub Timestamp);
     Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd, Add, AddAssign, Sub, SubAssign,
 )]
 pub struct GameTimestamp(pub Timestamp);
+
+impl Timestamp {
+    /// Creates a `Timestamp` from a `Duration`.
+    #[inline]
+    pub const fn from_duration(duration: Duration) -> Self {
+        #[allow(clippy::inconsistent_digit_grouping)]
+        Self(duration.as_secs() as i32 * 1_000_00 + duration.subsec_micros() as i32 / 10)
+    }
+}
+
+impl From<Duration> for Timestamp {
+    #[inline]
+    fn from(d: Duration) -> Self {
+        Self::from_duration(d)
+    }
+}

@@ -183,9 +183,7 @@ impl Renderer {
             color: Srgba::new(1., 1., 1., 1.),
         });
 
-        let elapsed_timestamp = GameTimestamp(Timestamp(
-            elapsed.as_secs() as i32 * 1000_00 + elapsed.subsec_micros() as i32 / 10,
-        ));
+        let elapsed_timestamp = GameTimestamp(elapsed.into());
         // Y coordinates per timestamp.
         let scroll_speed = f32::from(state.scroll_speed) / 5_000_00.;
 
