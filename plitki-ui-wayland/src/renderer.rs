@@ -229,6 +229,14 @@ impl Renderer {
                                 * state.scroll_speed,
                         ),
                 );
+
+                let height = match *object {
+                    Object::Regular { .. } => note_height,
+                    Object::LongNote { start, end } => {
+                        from_scroll_speed_coord(state.map_to_game(end - start) * state.scroll_speed)
+                    }
+                };
+
                 let color = if lane == 0 || lane == 3 {
                     Srgba::new(0.1, 0.1, 0.1, 0.1)
                 } else {
@@ -237,7 +245,7 @@ impl Renderer {
 
                 self.sprites.push(Sprite {
                     pos,
-                    scale: Vector2::new(lane_width, note_height),
+                    scale: Vector2::new(lane_width, height),
                     color,
                 });
             }
