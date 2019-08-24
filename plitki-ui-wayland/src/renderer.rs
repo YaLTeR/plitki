@@ -207,10 +207,10 @@ impl Renderer {
             )
         }) {
             let first_visible_index = objects
-                .binary_search_by_key(&first_visible_timestamp, Object::timestamp)
+                .binary_search_by_key(&first_visible_timestamp, Object::end_timestamp)
                 .unwrap_or_else(identity);
             let one_past_last_visible_index = objects
-                .binary_search_by_key(&one_past_last_visible_timestamp, Object::timestamp)
+                .binary_search_by_key(&one_past_last_visible_timestamp, Object::start_timestamp)
                 .unwrap_or_else(identity);
 
             let range = first_visible_index..one_past_last_visible_index;
@@ -225,7 +225,7 @@ impl Renderer {
                     -border_offset + lane_width * lane as f32,
                     judgement_line_position
                         + from_scroll_speed_coord(
-                            (state.map_to_game(object.timestamp()) - elapsed_timestamp)
+                            (state.map_to_game(object.start_timestamp()) - elapsed_timestamp)
                                 * state.scroll_speed,
                         ),
                 );

@@ -25,12 +25,25 @@ pub enum Object {
 }
 
 impl Object {
-    /// Returns the timestamp of this object. For long notes this is the start timestamp.
+    /// Returns the start timestamp of the object.
+    ///
+    /// This is the first timestamp at which this object is visible.
     #[inline]
-    pub fn timestamp(&self) -> MapTimestamp {
+    pub fn start_timestamp(&self) -> MapTimestamp {
         match *self {
             Object::Regular { timestamp } => timestamp,
             Object::LongNote { start, .. } => start,
+        }
+    }
+
+    /// Returns the end timestamp of the object.
+    ///
+    /// This is the last timestamp at which this object is visible.
+    #[inline]
+    pub fn end_timestamp(&self) -> MapTimestamp {
+        match *self {
+            Object::Regular { timestamp } => timestamp,
+            Object::LongNote { end, .. } => end,
         }
     }
 }

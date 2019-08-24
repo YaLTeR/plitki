@@ -17,7 +17,8 @@ use crate::{
 pub struct GameState {
     /// The map.
     ///
-    /// Invariant: objects in each lane must be sorted by timestamp.
+    /// Invariant: objects in each lane must be sorted by start timestamp and not overlap (which
+    /// means they are sorted by both start and end timestamp).
     pub map: Arc<Map>,
     /// If `true`, heavily limit the FPS for testing.
     pub cap_fps: bool,
@@ -76,8 +77,15 @@ impl GameState {
         let mut lane_states = Vec::with_capacity(map.lanes.len());
 
         for lane in &mut map.lanes {
-            // Ensure the objects are sorted by their timestamp (GameState invariant).
-            lane.objects.sort_unstable_by_key(Object::timestamp);
+            // Ensure the objects are sorted by their start timestamp (GameState invariant).
+            lane.objects.sort_unstable_by_key(Object::start_timestamp);
+            // Ensure the objects don't overlap.
+            for window in lane.objects.windows(2) {
+                let (a, b) = (window[0], window[1]);
+                // This does not permit an object at an LN end timestamp... Which is probably a
+                // good thing, especially considering the traditional LN skins with an LN end.
+                assert!(a.end_timestamp() < b.start_timestamp());
+            }
 
             // Create states for the objects in this lane.
             let mut object_states = Vec::with_capacity(lane.objects.len());
@@ -151,7 +159,7 @@ impl GameState {
         let object_states = &mut lane_state.object_states[lane_state.first_active_object..];
 
         for (i, (object, state)) in objects.iter().zip(object_states.iter_mut()).enumerate() {
-            if object.timestamp() + map_hit_window < map_timestamp {
+            if object.start_timestamp() + map_hit_window < map_timestamp {
                 // The object can no longer be hit.
                 // TODO: LNs
                 // TODO: mark the object as missed
@@ -161,7 +169,7 @@ impl GameState {
             // Update `first_active_object`.
             lane_state.first_active_object += i;
 
-            if map_timestamp >= object.timestamp() - map_hit_window {
+            if map_timestamp >= object.start_timestamp() - map_hit_window {
                 // The object can be hit.
                 match state {
                     ObjectState::Regular { ref mut hit } => *hit = true,
