@@ -1,6 +1,9 @@
 use std::{
+    borrow::Cow,
     cell::Cell,
     convert::TryInto,
+    env::args,
+    fs::read,
     rc::Rc,
     sync::{Arc, Condvar, Mutex},
     thread,
@@ -59,12 +62,16 @@ fn main() {
     let log = slog::Logger::root(drain, o!("version" => env!("CARGO_PKG_VERSION")));
     let _guard = slog_scope::set_global_logger(log);
 
-    let map: Map = from_reader(
-        &include_bytes!("/home/yalter/Source/rust/plitki/plitki-map-qua/tests/data/actual_map.qua")
-            [..],
-    )
-    .unwrap()
-    .into();
+    let qua = if let Some(path) = args().nth(1) {
+        Cow::from(read(path).unwrap())
+    } else {
+        Cow::from(
+            &include_bytes!(
+                "/home/yalter/Source/rust/plitki/plitki-map-qua/tests/data/actual_map.qua"
+            )[..],
+        )
+    };
+    let map: Map = from_reader(&*qua).unwrap().into();
 
     // The latest game state on the main thread. Main thread uses this for updates relying on
     // previous game state (for example, toggling a bool), and then refreshes the triple buffered
