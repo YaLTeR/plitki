@@ -24,6 +24,8 @@ pub struct GameState {
     pub cap_fps: bool,
     /// Note scrolling speed.
     pub scroll_speed: ScrollSpeed,
+    /// Global offset.
+    pub offset: GameTimestamp,
     /// Contains states of the objects in lanes.
     pub lane_states: Vec<LaneState>,
 }
@@ -109,7 +111,8 @@ impl GameState {
         Self {
             map: Arc::new(map),
             cap_fps: false,
-            scroll_speed: ScrollSpeed(12),
+            scroll_speed: ScrollSpeed(16),
+            offset: GameTimestamp(Timestamp::from_secs_f32(-0.08)),
             lane_states,
         }
     }
@@ -155,6 +158,7 @@ impl GameState {
     /// handled here. This should be called every so often for all lanes.
     pub fn update(&mut self, lane: usize, timestamp: GameTimestamp) {
         let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
+        let timestamp = timestamp + self.offset;
 
         let map_timestamp = self.game_to_map(timestamp);
         let map_hit_window = self.game_to_map(hit_window);
@@ -208,6 +212,7 @@ impl GameState {
     /// Handles a key press.
     pub fn key_press(&mut self, lane: usize, timestamp: GameTimestamp) {
         self.update(lane, timestamp);
+        let timestamp = timestamp + self.offset;
 
         let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
 
@@ -235,6 +240,7 @@ impl GameState {
     /// Handles a key release.
     pub fn key_release(&mut self, lane: usize, timestamp: GameTimestamp) {
         self.update(lane, timestamp);
+        let timestamp = timestamp + self.offset;
 
         let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
 

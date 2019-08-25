@@ -184,7 +184,7 @@ impl Renderer {
             color: Srgba::new(1., 1., 1., 1.),
         });
 
-        let elapsed_timestamp = GameTimestamp(elapsed.try_into().unwrap());
+        let elapsed_timestamp = GameTimestamp(elapsed.try_into().unwrap()) + state.offset;
 
         #[allow(clippy::inconsistent_digit_grouping)]
         let to_scroll_speed_coord = |x| x * 5.;
