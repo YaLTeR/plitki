@@ -149,8 +149,11 @@ impl GameState {
         GameTimestamp(timestamp.0)
     }
 
-    /// Handles a key press.
-    pub fn key_press(&mut self, lane: usize, timestamp: GameTimestamp) {
+    /// Updates the state.
+    ///
+    /// Essentially, this is a way to signal "some time has passed". Stuff like missed objects is
+    /// handled here. This should be called every so often for all lanes.
+    pub fn update(&mut self, lane: usize, timestamp: GameTimestamp) {
         let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
 
         let map_timestamp = self.game_to_map(timestamp);
@@ -198,89 +201,62 @@ impl GameState {
 
             // Update `first_active_object`.
             lane_state.first_active_object += i;
-
-            if map_timestamp >= object.start_timestamp() - map_hit_window {
-                // The object can be hit.
-                match state {
-                    ObjectState::Regular { ref mut hit } => {
-                        *hit = true;
-
-                        // This object is no longer active.
-                        lane_state.first_active_object += 1;
-                    }
-                    ObjectState::LongNote { ref mut state } => *state = LongNoteState::Held,
-                }
-            }
-
             break;
+        }
+    }
+
+    /// Handles a key press.
+    pub fn key_press(&mut self, lane: usize, timestamp: GameTimestamp) {
+        self.update(lane, timestamp);
+
+        let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
+
+        let map_timestamp = self.game_to_map(timestamp);
+        let map_hit_window = self.game_to_map(hit_window);
+
+        let lane_state = &mut self.lane_states[lane];
+        let object = &self.map.lanes[lane].objects[lane_state.first_active_object];
+        let state = &mut lane_state.object_states[lane_state.first_active_object];
+
+        if map_timestamp >= object.start_timestamp() - map_hit_window {
+            // The object can be hit.
+            match state {
+                ObjectState::Regular { ref mut hit } => {
+                    *hit = true;
+
+                    // This object is no longer active.
+                    lane_state.first_active_object += 1;
+                }
+                ObjectState::LongNote { ref mut state } => *state = LongNoteState::Held,
+            }
         }
     }
 
     /// Handles a key release.
     pub fn key_release(&mut self, lane: usize, timestamp: GameTimestamp) {
+        self.update(lane, timestamp);
+
         let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
 
         let map_timestamp = self.game_to_map(timestamp);
         let map_hit_window = self.game_to_map(hit_window);
 
         let lane_state = &mut self.lane_states[lane];
-        let objects = &self.map.lanes[lane].objects[lane_state.first_active_object..];
-        let object_states = &mut lane_state.object_states[lane_state.first_active_object..];
+        let object = &self.map.lanes[lane].objects[lane_state.first_active_object];
+        let state = &mut lane_state.object_states[lane_state.first_active_object];
 
-        for (i, (object, state)) in objects.iter().zip(object_states.iter_mut()).enumerate() {
-            if object.end_timestamp() + map_hit_window < map_timestamp {
-                // The object can no longer be hit.
-                // TODO: mark the object as missed
-
-                if let ObjectState::LongNote { state } = state {
-                    if *state == LongNoteState::Held {
-                        *state = LongNoteState::Hit;
-                    } else if *state == LongNoteState::NotHit {
-                        *state = LongNoteState::Missed;
-                    } else {
-                        unreachable!()
-                    }
-                }
-
-                continue;
-            }
-
-            if object.start_timestamp() + map_hit_window < map_timestamp {
-                // The object can no longer be hit.
-                // TODO: mark the object as missed
-
-                if let ObjectState::LongNote { state } = state {
-                    // Mark this long note as missed.
-                    if *state == LongNoteState::NotHit {
-                        *state = LongNoteState::Missed;
-                        continue;
-                    }
-
-                    assert!(*state == LongNoteState::Held);
+        if let ObjectState::LongNote { state } = state {
+            if *state == LongNoteState::Held {
+                if map_timestamp >= object.end_timestamp() - map_hit_window {
+                    *state = LongNoteState::Hit;
                 } else {
-                    // Regular objects would be skipped over in the previous if.
-                    unreachable!()
+                    // Released too early.
+                    *state = LongNoteState::Missed;
                 }
+
+                // This object is no longer active.
+                lane_state.first_active_object += 1;
             }
-
-            // Update `first_active_object`.
-            lane_state.first_active_object += i;
-
-            if let ObjectState::LongNote { state } = state {
-                if *state == LongNoteState::Held {
-                    if map_timestamp >= object.end_timestamp() - map_hit_window {
-                        *state = LongNoteState::Hit;
-                    } else {
-                        // Released too early.
-                        *state = LongNoteState::Missed;
-                    }
-
-                    // This object is no longer active.
-                    lane_state.first_active_object += 1;
-                }
-            }
-
-            break;
         }
     }
 }
