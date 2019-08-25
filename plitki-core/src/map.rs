@@ -25,6 +25,8 @@ pub struct Map {
     /// Mapper's name.
     pub mapper: Option<String>,
 
+    /// Filename of the audio track.
+    pub audio_file: Option<String>,
     /// Lanes constituting the map.
     pub lanes: Vec<Lane>,
 }

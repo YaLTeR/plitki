@@ -22,6 +22,7 @@ fn parse_sample() {
         title: Some("Sample Map".to_owned()),
         difficulty_name: Some("Easy".to_owned()),
         creator: Some("YaLTeR".to_owned()),
+        audio_file: Some("song.mp3".to_owned()),
         hit_objects: vec![
             HitObject {
                 start_time: 601,
@@ -80,6 +81,7 @@ fn convert() {
         song_title: Some("Sample Map".to_owned()),
         difficulty_name: Some("Easy".to_owned()),
         mapper: Some("YaLTeR".to_owned()),
+        audio_file: Some("song.mp3".to_owned()),
         lanes: vec![
             Lane {
                 objects: vec![
@@ -183,6 +185,7 @@ prop_compose! {
                      artist in prop::option::of(any::<String>()),
                      creator in prop::option::of(any::<String>()),
                      difficulty_name in prop::option::of(any::<String>()),
+                     audio_file in prop::option::of(any::<String>()),
                      hit_objects in prop::collection::vec(arbitrary_hit_object(mode), 0..64))
                     -> Qua {
         Qua {
@@ -191,6 +194,7 @@ prop_compose! {
             artist,
             creator,
             difficulty_name,
+            audio_file,
             hit_objects,
         }
     }

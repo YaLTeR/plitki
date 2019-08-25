@@ -3,6 +3,7 @@ Artist: Unknown
 Title: Sample Map
 DifficultyName: Easy
 Creator: YaLTeR
+AudioFile: song.mp3
 HitObjects:
 - StartTime: 601
   Lane: 2

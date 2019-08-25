@@ -87,6 +87,8 @@ pub struct Qua {
     pub creator: Option<String>,
     #[serde(rename = "DifficultyName")]
     pub difficulty_name: Option<String>,
+    #[serde(rename = "AudioFile")]
+    pub audio_file: Option<String>,
     #[serde(rename = "HitObjects")]
     pub hit_objects: Vec<HitObject>,
 }
@@ -116,6 +118,7 @@ impl From<Qua> for Map {
             song_title: qua.title,
             difficulty_name: qua.difficulty_name,
             mapper: qua.creator,
+            audio_file: qua.audio_file,
             lanes,
         }
     }
@@ -135,6 +138,7 @@ impl From<Map> for Qua {
             title: map.song_title,
             difficulty_name: map.difficulty_name,
             creator: map.mapper,
+            audio_file: map.audio_file,
             hit_objects: map
                 .lanes
                 .into_iter()
