@@ -10,7 +10,11 @@ use glium::{
     Surface, VertexBuffer,
 };
 use palette::Srgba;
-use plitki_core::{object::Object, timing::GameTimestamp};
+use plitki_core::{
+    object::Object,
+    state::{LongNoteState, ObjectState},
+    timing::GameTimestamp,
+};
 use slog_scope::{debug, trace};
 
 use crate::GameState;
@@ -214,12 +218,11 @@ impl Renderer {
                 .unwrap_or_else(identity);
 
             let range = first_visible_index..one_past_last_visible_index;
-            for object in objects[range.clone()]
+            for (object, object_state) in objects[range.clone()]
                 .iter()
                 .zip(object_states[range].iter())
                 .rev()
                 .filter(|(_, s)| !s.is_hit())
-                .map(|(o, _)| o)
             {
                 let pos = Point2::new(
                     -border_offset + lane_width * lane as f32,
@@ -237,11 +240,20 @@ impl Renderer {
                     }
                 };
 
-                let color = if lane == 0 || lane == 3 {
-                    Srgba::new(0.1, 0.1, 0.1, 0.1)
-                } else {
-                    Srgba::new(0.00, 0.05, 0.1, 0.1)
+                let color = match object_state {
+                    ObjectState::LongNote {
+                        state: LongNoteState::Held,
+                    } => Srgba::new(0.1, 0.1, 0.0, 0.1),
+                    ObjectState::LongNote {
+                        state: LongNoteState::Missed,
+                    } => Srgba::new(0.1, 0.0, 0.0, 0.1),
+                    _ => Srgba::new(0.1, 0.1, 0.1, 0.1),
                 };
+                // let color = if lane == 0 || lane == 3 {
+                //     Srgba::new(0.1, 0.1, 0.1, 0.1)
+                // } else {
+                //     Srgba::new(0.00, 0.05, 0.1, 0.1)
+                // };
 
                 self.sprites.push(Sprite {
                     pos,

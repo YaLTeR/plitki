@@ -192,47 +192,63 @@ fn main() {
                         "state" => ?state, "time" => time, "keysym" => keysym, "utf8" => utf8
                     );
 
-                    if state != KeyState::Pressed {
-                        return;
-                    }
-
                     let elapsed = clock_gettime(*presentation_clock_id.lock().unwrap())
                         - start.lock().unwrap().unwrap();
                     let elapsed_timestamp = elapsed.try_into().unwrap();
 
-                    match keysym {
-                        keysyms::XKB_KEY_v => {
-                            latest_game_state.cap_fps = !latest_game_state.cap_fps;
-                            debug!("changed cap_fps"; "cap_fps" => latest_game_state.cap_fps);
-                        }
-                        keysyms::XKB_KEY_F3 => {
-                            latest_game_state.scroll_speed.0 =
-                                (latest_game_state.scroll_speed.0 - 1).max(1);
-                            debug!(
-                                "changed scroll_speed";
-                                "scroll_speed" => ?latest_game_state.scroll_speed
-                            );
-                        }
-                        keysyms::XKB_KEY_F4 => {
-                            latest_game_state.scroll_speed.0 += 1;
-                            debug!(
-                                "changed scroll_speed";
-                                "scroll_speed" => ?latest_game_state.scroll_speed
-                            );
-                        }
-                        keysyms::XKB_KEY_z => {
-                            latest_game_state.key_press(0, GameTimestamp(elapsed_timestamp));
-                        }
-                        keysyms::XKB_KEY_x => {
-                            latest_game_state.key_press(1, GameTimestamp(elapsed_timestamp));
-                        }
-                        keysyms::XKB_KEY_period => {
-                            latest_game_state.key_press(2, GameTimestamp(elapsed_timestamp));
-                        }
-                        keysyms::XKB_KEY_slash => {
-                            latest_game_state.key_press(3, GameTimestamp(elapsed_timestamp));
-                        }
-                        _ => (),
+                    match state {
+                        KeyState::Pressed => match keysym {
+                            keysyms::XKB_KEY_v => {
+                                latest_game_state.cap_fps = !latest_game_state.cap_fps;
+                                debug!("changed cap_fps"; "cap_fps" => latest_game_state.cap_fps);
+                            }
+                            keysyms::XKB_KEY_F3 => {
+                                latest_game_state.scroll_speed.0 =
+                                    (latest_game_state.scroll_speed.0 - 1).max(1);
+                                debug!(
+                                    "changed scroll_speed";
+                                    "scroll_speed" => ?latest_game_state.scroll_speed
+                                );
+                            }
+                            keysyms::XKB_KEY_F4 => {
+                                latest_game_state.scroll_speed.0 += 1;
+                                debug!(
+                                    "changed scroll_speed";
+                                    "scroll_speed" => ?latest_game_state.scroll_speed
+                                );
+                            }
+                            keysyms::XKB_KEY_z => {
+                                latest_game_state.key_press(0, GameTimestamp(elapsed_timestamp));
+                            }
+                            keysyms::XKB_KEY_x => {
+                                latest_game_state.key_press(1, GameTimestamp(elapsed_timestamp));
+                            }
+                            keysyms::XKB_KEY_period => {
+                                latest_game_state.key_press(2, GameTimestamp(elapsed_timestamp));
+                            }
+                            keysyms::XKB_KEY_slash => {
+                                latest_game_state.key_press(3, GameTimestamp(elapsed_timestamp));
+                            }
+                            _ => (),
+                        },
+
+                        KeyState::Released => match keysym {
+                            keysyms::XKB_KEY_z => {
+                                latest_game_state.key_release(0, GameTimestamp(elapsed_timestamp));
+                            }
+                            keysyms::XKB_KEY_x => {
+                                latest_game_state.key_release(1, GameTimestamp(elapsed_timestamp));
+                            }
+                            keysyms::XKB_KEY_period => {
+                                latest_game_state.key_release(2, GameTimestamp(elapsed_timestamp));
+                            }
+                            keysyms::XKB_KEY_slash => {
+                                latest_game_state.key_release(3, GameTimestamp(elapsed_timestamp));
+                            }
+                            _ => (),
+                        },
+
+                        _ => unreachable!(),
                     }
 
                     // if (something changed)?
