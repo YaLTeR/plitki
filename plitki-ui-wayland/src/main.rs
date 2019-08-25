@@ -3,7 +3,9 @@ use std::{
     cell::{Cell, RefCell},
     convert::TryInto,
     env::args,
-    fs::read,
+    fs::{read, File},
+    io::BufReader,
+    path::PathBuf,
     rc::Rc,
     sync::{Arc, Condvar, Mutex},
     thread,
@@ -12,6 +14,7 @@ use std::{
 
 use plitki_core::{map::Map, state::GameState, timing::GameTimestamp};
 use plitki_map_qua::from_reader;
+use rodio::Source;
 use slog::{o, Drain};
 use slog_scope::{debug, trace};
 use smithay_client_toolkit::{
@@ -62,16 +65,34 @@ fn main() {
     let log = slog::Logger::root(drain, o!("version" => env!("CARGO_PKG_VERSION")));
     let _guard = slog_scope::set_global_logger(log);
 
-    let qua = if let Some(path) = args().nth(1) {
-        Cow::from(read(path).unwrap())
+    let (qua, mut play) = if let Some(path) = args().nth(1) {
+        (
+            Cow::from(read(&path).unwrap()),
+            Some(move |filename| {
+                let mut path = PathBuf::from(path);
+                path.pop();
+                path.push(filename);
+
+                let audio_device = rodio::default_output_device().unwrap();
+                let audio_file = File::open(path).unwrap();
+                let source = rodio::Decoder::new(BufReader::new(audio_file))
+                    .unwrap()
+                    .amplify(0.6);
+                rodio::play_raw(&audio_device, source.convert_samples());
+            }),
+        )
     } else {
-        Cow::from(
-            &include_bytes!(
-                "/home/yalter/Source/rust/plitki/plitki-map-qua/tests/data/actual_map.qua"
-            )[..],
+        (
+            Cow::from(
+                &include_bytes!(
+                    "/home/yalter/Source/rust/plitki/plitki-map-qua/tests/data/actual_map.qua"
+                )[..],
+            ),
+            None,
         )
     };
     let map: Map = from_reader(&*qua).unwrap().into();
+    let mut audio_file = map.audio_file.as_ref().cloned();
 
     // The latest game state on the main thread. Main thread uses this for updates relying on
     // previous game state (for example, toggling a bool), and then refreshes the triple buffered
@@ -147,6 +168,10 @@ fn main() {
                             debug!("start"; "start" => ?start_time);
 
                             *start.lock().unwrap() = Some(start_time);
+
+                            if let Some(play) = play.take() {
+                                play(audio_file.take().unwrap());
+                            }
                         }
                     },
                     (),
