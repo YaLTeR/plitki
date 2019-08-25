@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    cell::Cell,
+    cell::{Cell, RefCell},
     convert::TryInto,
     env::args,
     fs::read,
@@ -76,9 +76,10 @@ fn main() {
     // The latest game state on the main thread. Main thread uses this for updates relying on
     // previous game state (for example, toggling a bool), and then refreshes the triple buffered
     // state accordingly.
-    let mut latest_game_state = GameState::new(map);
+    let latest_game_state = GameState::new(map);
     let state_buffer = TripleBuffer::new(latest_game_state.clone());
-    let (mut buf_input, buf_output) = state_buffer.split();
+    let (buf_input, buf_output) = state_buffer.split();
+    let game_state_pair = Rc::new(RefCell::new((latest_game_state, buf_input)));
 
     let (display, mut event_queue) =
         Display::connect_to_env().expect("Failed to connect to the wayland server.");
@@ -169,6 +170,7 @@ fn main() {
     {
         let presentation_clock_id = presentation_clock_id.clone();
         let start = start.clone();
+        let game_state_pair = game_state_pair.clone();
 
         map_keyboard_auto_with_repeat(
             &seat,
@@ -195,6 +197,8 @@ fn main() {
                     let elapsed = clock_gettime(*presentation_clock_id.lock().unwrap())
                         - start.lock().unwrap().unwrap();
                     let elapsed_timestamp = elapsed.try_into().unwrap();
+
+                    let (latest_game_state, buf_input) = &mut *game_state_pair.borrow_mut();
 
                     match state {
                         KeyState::Pressed => match keysym {
@@ -397,6 +401,20 @@ fn main() {
                 refresh_decorations,
             });
             cvar.notify_one();
+
+            // TODO: move this somewhere more appropriate.
+            let elapsed = clock_gettime(*presentation_clock_id.lock().unwrap())
+                - start.lock().unwrap().unwrap();
+            let elapsed_timestamp = elapsed.try_into().unwrap();
+
+            let (latest_game_state, buf_input) = &mut *game_state_pair.borrow_mut();
+            for lane in 0..latest_game_state.lane_states.len() {
+                latest_game_state.update(lane, GameTimestamp(elapsed_timestamp));
+            }
+            buf_input
+                .raw_input_buffer()
+                .update_to_latest(&latest_game_state);
+            buf_input.raw_publish();
         } else if refresh_decorations {
             *lock.lock().unwrap() = Some(RenderThreadEvent::RefreshDecorations);
             cvar.notify_one();
