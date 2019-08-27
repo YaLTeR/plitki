@@ -182,7 +182,10 @@ impl GameState {
         let objects = &self.map.lanes[lane].objects[lane_state.first_active_object..];
         let object_states = &mut lane_state.object_states[lane_state.first_active_object..];
 
-        for (i, (object, state)) in objects.iter().zip(object_states.iter_mut()).enumerate() {
+        for (object, state) in objects.iter().zip(object_states.iter_mut()) {
+            // We want to increase first_active_object on every continue.
+            lane_state.first_active_object += 1;
+
             if object.end_timestamp() + map_hit_window < map_timestamp {
                 // The object can no longer be hit.
                 // TODO: mark the object as missed
@@ -218,8 +221,8 @@ impl GameState {
                 }
             }
 
-            // Update `first_active_object`.
-            lane_state.first_active_object += i;
+            // Didn't hit a continue, decrease it back.
+            lane_state.first_active_object -= 1;
             break;
         }
     }
