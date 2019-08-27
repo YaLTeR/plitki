@@ -26,11 +26,11 @@ pub struct MapTimestamp(pub Timestamp);
 pub struct GameTimestamp(pub Timestamp);
 
 /// The error type returned when a duration to timestamp conversion fails.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TryFromDurationError(());
 
 /// The error type returned when a timestamp to duration conversion fails.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TryFromTimestampError(());
 
 impl Timestamp {
