@@ -329,3 +329,299 @@ impl ObjectState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::map::Lane;
+    use alloc::vec;
+
+    #[test]
+    fn game_state_objects_sorted() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            lanes: vec![
+                Lane {
+                    objects: vec![
+                        Object::Regular {
+                            timestamp: MapTimestamp(Duration::from_millis(10).try_into().unwrap()),
+                        },
+                        Object::Regular {
+                            timestamp: MapTimestamp(Duration::from_millis(0).try_into().unwrap()),
+                        },
+                    ],
+                },
+                Lane {
+                    objects: vec![
+                        Object::Regular {
+                            timestamp: MapTimestamp(Duration::from_millis(10).try_into().unwrap()),
+                        },
+                        Object::LongNote {
+                            start: MapTimestamp(Duration::from_millis(0).try_into().unwrap()),
+                            end: MapTimestamp(Duration::from_millis(9).try_into().unwrap()),
+                        },
+                    ],
+                },
+                Lane {
+                    objects: vec![
+                        Object::LongNote {
+                            start: MapTimestamp(Duration::from_millis(7).try_into().unwrap()),
+                            end: MapTimestamp(Duration::from_millis(10).try_into().unwrap()),
+                        },
+                        Object::Regular {
+                            timestamp: MapTimestamp(Duration::from_millis(0).try_into().unwrap()),
+                        },
+                    ],
+                },
+                Lane {
+                    objects: vec![
+                        Object::LongNote {
+                            start: MapTimestamp(Duration::from_millis(10).try_into().unwrap()),
+                            end: MapTimestamp(Duration::from_millis(7).try_into().unwrap()),
+                        },
+                        Object::LongNote {
+                            start: MapTimestamp(Duration::from_millis(0).try_into().unwrap()),
+                            end: MapTimestamp(Duration::from_millis(6).try_into().unwrap()),
+                        },
+                    ],
+                },
+            ],
+        };
+
+        let state = GameState::new(map);
+
+        for lane in &state.map.lanes {
+            for xs in lane.objects.windows(2) {
+                let (a, b) = (xs[0], xs[1]);
+                assert!(a.start_timestamp() < b.start_timestamp());
+                assert!(a.end_timestamp() < b.end_timestamp());
+                assert!(a.end_timestamp() < b.start_timestamp());
+            }
+        }
+    }
+
+    #[test]
+    fn game_state_regular_hit() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            lanes: vec![Lane {
+                objects: vec![
+                    Object::Regular {
+                        timestamp: MapTimestamp(Duration::from_secs(0).try_into().unwrap()),
+                    },
+                    Object::Regular {
+                        timestamp: MapTimestamp(Duration::from_secs(10).try_into().unwrap()),
+                    },
+                ],
+            }],
+        };
+
+        let mut state = GameState::new(map);
+        state.key_press(
+            0,
+            GameTimestamp(Duration::from_secs(10).try_into().unwrap()),
+        );
+
+        assert_eq!(
+            &state.lane_states[0].object_states[..],
+            &[
+                ObjectState::Regular { hit: false },
+                ObjectState::Regular { hit: true },
+            ][..]
+        );
+    }
+
+    #[test]
+    fn game_state_regular_hit_note_lock() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            lanes: vec![Lane {
+                objects: vec![
+                    Object::Regular {
+                        timestamp: MapTimestamp(Duration::from_millis(0).try_into().unwrap()),
+                    },
+                    Object::Regular {
+                        timestamp: MapTimestamp(Duration::from_millis(10).try_into().unwrap()),
+                    },
+                ],
+            }],
+        };
+
+        let mut state = GameState::new(map);
+        state.key_press(
+            0,
+            GameTimestamp(Duration::from_millis(10).try_into().unwrap()),
+        );
+
+        assert_eq!(
+            &state.lane_states[0].object_states[..],
+            &[
+                ObjectState::Regular { hit: true },
+                ObjectState::Regular { hit: false },
+            ][..]
+        );
+    }
+
+    #[test]
+    fn game_state_long_note_hit() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            lanes: vec![Lane {
+                objects: vec![Object::LongNote {
+                    start: MapTimestamp(Duration::from_secs(5).try_into().unwrap()),
+                    end: MapTimestamp(Duration::from_secs(10).try_into().unwrap()),
+                }],
+            }],
+        };
+
+        let mut state = GameState::new(map);
+        state.key_press(0, GameTimestamp(Duration::from_secs(5).try_into().unwrap()));
+        state.key_release(
+            0,
+            GameTimestamp(Duration::from_secs(10).try_into().unwrap()),
+        );
+
+        assert_eq!(
+            &state.lane_states[0].object_states[..],
+            &[ObjectState::LongNote {
+                state: LongNoteState::Hit,
+            }][..]
+        );
+    }
+
+    #[test]
+    fn game_state_long_note_released_early() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            lanes: vec![Lane {
+                objects: vec![Object::LongNote {
+                    start: MapTimestamp(Duration::from_secs(5).try_into().unwrap()),
+                    end: MapTimestamp(Duration::from_secs(10).try_into().unwrap()),
+                }],
+            }],
+        };
+
+        let mut state = GameState::new(map);
+        state.key_press(0, GameTimestamp(Duration::from_secs(5).try_into().unwrap()));
+        state.key_release(0, GameTimestamp(Duration::from_secs(7).try_into().unwrap()));
+
+        assert_eq!(
+            &state.lane_states[0].object_states[..],
+            &[ObjectState::LongNote {
+                state: LongNoteState::Missed,
+            }][..]
+        );
+    }
+
+    #[test]
+    fn game_state_long_note_pressed_late() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            lanes: vec![Lane {
+                objects: vec![Object::LongNote {
+                    start: MapTimestamp(Duration::from_secs(5).try_into().unwrap()),
+                    end: MapTimestamp(Duration::from_secs(10).try_into().unwrap()),
+                }],
+            }],
+        };
+
+        let mut state = GameState::new(map);
+        state.key_press(0, GameTimestamp(Duration::from_secs(7).try_into().unwrap()));
+        state.key_release(
+            0,
+            GameTimestamp(Duration::from_secs(10).try_into().unwrap()),
+        );
+
+        assert_eq!(
+            &state.lane_states[0].object_states[..],
+            &[ObjectState::LongNote {
+                state: LongNoteState::Missed,
+            }][..]
+        );
+    }
+
+    #[test]
+    fn game_state_key_press_long_note_held() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            lanes: vec![Lane {
+                objects: vec![Object::LongNote {
+                    start: MapTimestamp(Duration::from_secs(5).try_into().unwrap()),
+                    end: MapTimestamp(Duration::from_secs(10).try_into().unwrap()),
+                }],
+            }],
+        };
+
+        let mut state = GameState::new(map);
+        state.key_press(0, GameTimestamp(Duration::from_secs(5).try_into().unwrap()));
+
+        assert_eq!(
+            &state.lane_states[0].object_states[..],
+            &[ObjectState::LongNote {
+                state: LongNoteState::Held,
+            }][..]
+        );
+    }
+
+    #[test]
+    fn game_state_global_offset() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            lanes: vec![Lane {
+                objects: vec![Object::Regular {
+                    timestamp: MapTimestamp(Duration::from_secs(20).try_into().unwrap()),
+                }],
+            }],
+        };
+
+        let mut state = GameState::new(map);
+        state.offset = GameTimestamp(Duration::from_secs(10).try_into().unwrap());
+
+        state.key_press(0, GameTimestamp(Duration::from_secs(0).try_into().unwrap()));
+        assert_eq!(
+            &state.lane_states[0].object_states[..],
+            &[ObjectState::Regular { hit: false }][..]
+        );
+
+        state.key_press(
+            0,
+            GameTimestamp(Duration::from_secs(10).try_into().unwrap()),
+        );
+        assert_eq!(
+            &state.lane_states[0].object_states[..],
+            &[ObjectState::Regular { hit: true }][..]
+        );
+    }
+}
