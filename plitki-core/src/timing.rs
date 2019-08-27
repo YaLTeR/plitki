@@ -62,6 +62,9 @@ impl TryFrom<Duration> for Timestamp {
 
     #[inline]
     fn try_from(d: Duration) -> Result<Self, Self::Error> {
+        // TODO: should this return an error instead of silently dropping precision?
+        // Maybe use a method instead of TryFrom? Seems to be too much effort to use it while
+        // preserving the lossless-ness of the conversion...
         let value = d.as_micros() / 10;
         if value > i32::max_value() as u128 {
             Err(TryFromDurationError(()))
