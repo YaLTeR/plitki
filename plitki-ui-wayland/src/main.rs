@@ -12,7 +12,11 @@ use std::{
     time::Duration,
 };
 
-use plitki_core::{map::Map, state::GameState, timing::{Timestamp, GameTimestamp}};
+use plitki_core::{
+    map::Map,
+    state::GameState,
+    timing::{GameTimestamp, Timestamp},
+};
 use plitki_map_qua::from_reader;
 use rodio::Source;
 use slog::{o, Drain};

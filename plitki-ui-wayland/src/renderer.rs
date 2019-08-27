@@ -184,7 +184,7 @@ impl Renderer {
             color: Srgba::new(1., 1., 1., 1.),
         });
 
-        let elapsed_timestamp = GameTimestamp(elapsed.try_into().unwrap()) + state.offset;
+        let elapsed_timestamp = GameTimestamp(elapsed.try_into().unwrap());
 
         #[allow(clippy::inconsistent_digit_grouping)]
         let to_scroll_speed_coord = |x| x * 5.;
@@ -235,9 +235,9 @@ impl Renderer {
 
                 let height = match *object {
                     Object::Regular { .. } => note_height,
-                    Object::LongNote { start, end } => {
-                        from_scroll_speed_coord(state.map_to_game(end - start) * state.scroll_speed)
-                    }
+                    Object::LongNote { start, end } => from_scroll_speed_coord(
+                        state.map_to_game_duration(end - start) * state.scroll_speed,
+                    ),
                 };
 
                 let color = match object_state {

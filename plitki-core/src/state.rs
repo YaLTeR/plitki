@@ -139,17 +139,47 @@ impl GameState {
     }
 
     /// Converts a game timestamp into a map timestamp.
+    ///
+    /// Takes global offset into account. For durations (which do _not_ need to consider global
+    /// offset) use [`game_to_map_duration`].
+    ///
+    /// [`game_to_map_duration`]: #method.game_to_map_duration
     #[inline]
     pub fn game_to_map(&self, timestamp: GameTimestamp) -> MapTimestamp {
-        // Without rates and offsets they are the same.
-        MapTimestamp(timestamp.0)
+        MapTimestamp((timestamp + self.offset).0)
     }
 
     /// Converts a map timestamp into a game timestamp.
+    ///
+    /// Takes global offset into account. For durations (which do _not_ need to consider global
+    /// offset) use [`map_to_game_duration`].
+    ///
+    /// [`map_to_game_duration`]: #method.map_to_game_duration
     #[inline]
     pub fn map_to_game(&self, timestamp: MapTimestamp) -> GameTimestamp {
-        // Without rates and offsets they are the same.
-        GameTimestamp(timestamp.0)
+        GameTimestamp(timestamp.0) - self.offset
+    }
+
+    /// Converts a game duration into a map duration.
+    ///
+    /// Duration conversion does _not_ consider global offset. For timestamps (which need to
+    /// consider global offset) use [`game_to_map`].
+    ///
+    /// [`game_to_map`]: #method.game_to_map
+    #[inline]
+    pub fn game_to_map_duration(&self, duration: GameTimestamp) -> MapTimestamp {
+        MapTimestamp(duration.0)
+    }
+
+    /// Converts a map duration into a game duration.
+    ///
+    /// Duration conversion does _not_ consider global offset. For timestamps (which need to
+    /// consider global offset) use [`map_to_game`].
+    ///
+    /// [`map_to_game`]: #method.map_to_game
+    #[inline]
+    pub fn map_to_game_duration(&self, duration: MapTimestamp) -> GameTimestamp {
+        GameTimestamp(duration.0)
     }
 
     /// Returns `true` if the lane has active objects remaining.
@@ -173,10 +203,9 @@ impl GameState {
         }
 
         let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
-        let timestamp = timestamp + self.offset;
 
         let map_timestamp = self.game_to_map(timestamp);
-        let map_hit_window = self.game_to_map(hit_window);
+        let map_hit_window = self.game_to_map_duration(hit_window);
 
         let lane_state = &mut self.lane_states[lane];
         let objects = &self.map.lanes[lane].objects[lane_state.first_active_object..];
@@ -234,12 +263,10 @@ impl GameState {
             return;
         }
 
-        let timestamp = timestamp + self.offset;
-
         let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
 
         let map_timestamp = self.game_to_map(timestamp);
-        let map_hit_window = self.game_to_map(hit_window);
+        let map_hit_window = self.game_to_map_duration(hit_window);
 
         let lane_state = &mut self.lane_states[lane];
         let object = &self.map.lanes[lane].objects[lane_state.first_active_object];
@@ -266,12 +293,10 @@ impl GameState {
             return;
         }
 
-        let timestamp = timestamp + self.offset;
-
         let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
 
         let map_timestamp = self.game_to_map(timestamp);
-        let map_hit_window = self.game_to_map(hit_window);
+        let map_hit_window = self.game_to_map_duration(hit_window);
 
         let lane_state = &mut self.lane_states[lane];
         let object = &self.map.lanes[lane].objects[lane_state.first_active_object];
