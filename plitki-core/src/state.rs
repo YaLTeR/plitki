@@ -152,11 +152,26 @@ impl GameState {
         GameTimestamp(timestamp.0)
     }
 
+    /// Returns `true` if the lane has active objects remaining.
+    ///
+    /// If this method returns `false`, then there are no more active objects in this lane. For
+    /// example, this happens in the end of the map after the last object in the lane has been hit
+    /// or missed.
+    #[inline]
+    pub fn has_active_objects(&self, lane: usize) -> bool {
+        let lane_state = &self.lane_states[lane];
+        lane_state.first_active_object < lane_state.object_states.len()
+    }
+
     /// Updates the state.
     ///
     /// Essentially, this is a way to signal "some time has passed". Stuff like missed objects is
     /// handled here. This should be called every so often for all lanes.
     pub fn update(&mut self, lane: usize, timestamp: GameTimestamp) {
+        if !self.has_active_objects(lane) {
+            return;
+        }
+
         let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
         let timestamp = timestamp + self.offset;
 
@@ -212,6 +227,10 @@ impl GameState {
     /// Handles a key press.
     pub fn key_press(&mut self, lane: usize, timestamp: GameTimestamp) {
         self.update(lane, timestamp);
+        if !self.has_active_objects(lane) {
+            return;
+        }
+
         let timestamp = timestamp + self.offset;
 
         let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
@@ -240,6 +259,10 @@ impl GameState {
     /// Handles a key release.
     pub fn key_release(&mut self, lane: usize, timestamp: GameTimestamp) {
         self.update(lane, timestamp);
+        if !self.has_active_objects(lane) {
+            return;
+        }
+
         let timestamp = timestamp + self.offset;
 
         let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
