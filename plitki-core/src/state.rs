@@ -112,7 +112,7 @@ impl GameState {
             map: Arc::new(map),
             cap_fps: false,
             scroll_speed: ScrollSpeed(16),
-            offset: GameTimestamp(Timestamp::from_secs_f32(-0.08)),
+            offset: GameTimestamp(Timestamp::from_secs_f32(0.)),
             lane_states,
         }
     }
