@@ -89,3 +89,21 @@ impl TryFrom<Timestamp> for Duration {
         Ok(Self::new(seconds, nanos))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::convert::TryFrom;
+
+    #[test]
+    fn timestamp_from_duration() {
+        let timestamp = Timestamp::try_from(Duration::from_secs(1));
+        assert_eq!(timestamp, Ok(Timestamp(1_000_00)));
+    }
+
+    #[test]
+    fn timestamp_from_non_representable_duration() {
+        let timestamp = Timestamp::try_from(Duration::from_millis(u64::max_value()));
+        assert_eq!(timestamp, Err(TryFromDurationError(())));
+    }
+}

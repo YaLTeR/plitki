@@ -7,3 +7,6 @@ edition = "2018"
 [dependencies]
 # The git version has fixed no_std.
 derive_more = { git = "https://github.com/JelteF/derive_more.git" }
+
+[dev-dependencies]
+proptest = "0.9.4"
