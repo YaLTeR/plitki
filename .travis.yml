@@ -1,0 +1,27 @@
+language: rust
+
+addons:
+  apt:
+    packages:
+      - libasound2-dev
+
+rust:
+  - stable
+  - beta
+  - nightly
+
+matrix:
+  allow_failures:
+    - rust: nightly
+
+cache: cargo
+
+before_script:
+  - rustup component add rustfmt
+
+script:
+  - cargo build --all --verbose
+  - cargo build --all --release --verbose
+  - cargo test --all --verbose
+  - cargo test --all --release --verbose
+  - cargo fmt --all -- --check
