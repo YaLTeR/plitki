@@ -55,6 +55,44 @@ impl Timestamp {
 
         Self(value as i32)
     }
+
+    /// Creates a new `Timestamp` from the specified number of milliseconds.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `millis` overflows the `Timestamp`.
+    #[inline]
+    pub fn from_millis(millis: i32) -> Self {
+        Self(
+            millis
+                .checked_mul(100)
+                .expect("overflow when converting milliseconds to Timestamp"),
+        )
+    }
+}
+
+impl MapTimestamp {
+    /// Creates a new `MapTimestamp` from the specified number of milliseconds.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `millis` overflows the `MapTimestamp`.
+    #[inline]
+    pub fn from_millis(millis: i32) -> Self {
+        Self(Timestamp::from_millis(millis))
+    }
+}
+
+impl GameTimestamp {
+    /// Creates a new `GameTimestamp` from the specified number of milliseconds.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `millis` overflows the `GameTimestamp`.
+    #[inline]
+    pub fn from_millis(millis: i32) -> Self {
+        Self(Timestamp::from_millis(millis))
+    }
 }
 
 impl TryFrom<Duration> for Timestamp {
