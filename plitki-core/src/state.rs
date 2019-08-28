@@ -65,7 +65,7 @@ pub enum LongNoteState {
 }
 
 /// State of an individual object.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum ObjectState {
     /// State of a regular object.
     Regular(RegularObjectState),
