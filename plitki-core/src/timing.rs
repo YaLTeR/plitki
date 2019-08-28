@@ -1,29 +1,47 @@
 //! Types and utilities related to timing.
 #![allow(clippy::inconsistent_digit_grouping)]
 
-use core::{convert::TryFrom, time::Duration};
+use core::{
+    convert::TryFrom,
+    ops::{Add, Sub},
+    time::Duration,
+};
 
-use derive_more::{Add, AddAssign, Neg, Sub, SubAssign};
+use crate::state::GameState;
 
 /// A point in time.
 ///
 /// Timestamps are represented as `i32`s in <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
-#[derive(
-    Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd, Add, AddAssign, Sub, SubAssign, Neg,
-)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Timestamp(i32);
 
+/// A difference between [`Timestamp`]s.
+///
+/// Represented the same way as a [`Timestamp`].
+///
+/// [`Timestamp`]: struct.Timestamp.html
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct TimestampDifference(i32);
+
 /// A point in time, measured in map time.
-#[derive(
-    Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd, Add, AddAssign, Sub, SubAssign, Neg,
-)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct MapTimestamp(pub Timestamp);
 
+/// A difference between [`MapTimestamp`]s.
+///
+/// [`MapTimestamp`]: struct.MapTimestamp.html
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct MapTimestampDifference(pub TimestampDifference);
+
 /// A point in time, measured in game time.
-#[derive(
-    Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd, Add, AddAssign, Sub, SubAssign, Neg,
-)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct GameTimestamp(pub Timestamp);
+
+/// A difference between [`GameTimestamp`]s.
+///
+/// [`GameTimestamp`]: struct.GameTimestamp.html
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct GameTimestampDifference(pub TimestampDifference);
 
 /// The error type returned when a duration to timestamp conversion fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,6 +113,46 @@ impl GameTimestamp {
     }
 }
 
+impl TimestampDifference {
+    /// Creates a new `TimestampDifference` from the specified number of milliseconds.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `millis` overflows the `TimestampDifference`.
+    #[inline]
+    pub fn from_millis(millis: i32) -> Self {
+        Self(
+            millis
+                .checked_mul(100)
+                .expect("overflow when converting milliseconds to TimestampDifference"),
+        )
+    }
+}
+
+impl MapTimestampDifference {
+    /// Creates a new `MapTimestampDifference` from the specified number of milliseconds.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `millis` overflows the `MapTimestampDifference`.
+    #[inline]
+    pub fn from_millis(millis: i32) -> Self {
+        Self(TimestampDifference::from_millis(millis))
+    }
+}
+
+impl GameTimestampDifference {
+    /// Creates a new `GameTimestampDifference` from the specified number of milliseconds.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `millis` overflows the `GameTimestampDifference`.
+    #[inline]
+    pub fn from_millis(millis: i32) -> Self {
+        Self(TimestampDifference::from_millis(millis))
+    }
+}
+
 impl TryFrom<Duration> for Timestamp {
     type Error = TryFromDurationError;
 
@@ -128,12 +186,82 @@ impl TryFrom<Timestamp> for Duration {
     }
 }
 
+macro_rules! impl_ops {
+    ($timestamp:ty, $timestamp_difference:ty) => {
+        impl Sub<$timestamp> for $timestamp {
+            type Output = $timestamp_difference;
+
+            #[inline]
+            fn sub(self, other: $timestamp) -> Self::Output {
+                Self::Output {
+                    0: self.0 - other.0,
+                }
+            }
+        }
+
+        impl Add<$timestamp_difference> for $timestamp {
+            type Output = $timestamp;
+
+            #[inline]
+            fn add(self, other: $timestamp_difference) -> Self::Output {
+                Self::Output {
+                    0: self.0 + other.0,
+                }
+            }
+        }
+
+        impl Sub<$timestamp_difference> for $timestamp {
+            type Output = $timestamp;
+
+            #[inline]
+            fn sub(self, other: $timestamp_difference) -> Self::Output {
+                Self::Output {
+                    0: self.0 - other.0,
+                }
+            }
+        }
+
+        impl Add<$timestamp_difference> for $timestamp_difference {
+            type Output = $timestamp_difference;
+
+            #[inline]
+            fn add(self, other: $timestamp_difference) -> Self::Output {
+                Self::Output {
+                    0: self.0 + other.0,
+                }
+            }
+        }
+
+        impl Sub<$timestamp_difference> for $timestamp_difference {
+            type Output = $timestamp_difference;
+
+            #[inline]
+            fn sub(self, other: $timestamp_difference) -> Self::Output {
+                Self::Output {
+                    0: self.0 - other.0,
+                }
+            }
+        }
+    };
+}
+
+impl_ops!(Timestamp, TimestampDifference);
+impl_ops!(MapTimestamp, MapTimestampDifference);
+impl_ops!(GameTimestamp, GameTimestampDifference);
 
 impl MapTimestamp {
     /// Converts the game timestamp to a map timestamp.
     #[inline]
     pub fn to_game(self, state: &GameState) -> GameTimestamp {
         state.map_to_game(self)
+    }
+}
+
+impl MapTimestampDifference {
+    /// Converts the game timestamp difference to a map timestamp difference.
+    #[inline]
+    pub fn to_game(self, state: &GameState) -> GameTimestampDifference {
+        state.map_to_game_difference(self)
     }
 }
 
@@ -144,6 +272,15 @@ impl GameTimestamp {
         state.game_to_map(self)
     }
 }
+
+impl GameTimestampDifference {
+    /// Converts the game timestamp difference to a map timestamp difference.
+    #[inline]
+    pub fn to_map(self, state: &GameState) -> MapTimestampDifference {
+        state.game_to_map_difference(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

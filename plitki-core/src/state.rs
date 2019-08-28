@@ -1,15 +1,13 @@
 //! Functionality related to managing the game state.
 use alloc::{sync::Arc, vec::Vec};
-use core::{
-    convert::TryInto,
-    ops::{Div, Mul},
-    time::Duration,
-};
+use core::ops::{Div, Mul};
 
 use crate::{
     map::Map,
     object::Object,
-    timing::{GameTimestamp, MapTimestamp, Timestamp},
+    timing::{
+        GameTimestamp, GameTimestampDifference, MapTimestamp, MapTimestampDifference, Timestamp,
+    },
 };
 
 /// State of the game.
@@ -25,7 +23,7 @@ pub struct GameState {
     /// Note scrolling speed.
     pub scroll_speed: ScrollSpeed,
     /// Global offset.
-    pub offset: GameTimestamp,
+    pub offset: GameTimestampDifference,
     /// Contains states of the objects in lanes.
     pub lane_states: Vec<LaneState>,
 }
@@ -118,7 +116,7 @@ impl GameState {
             map: Arc::new(map),
             cap_fps: false,
             scroll_speed: ScrollSpeed(16),
-            offset: GameTimestamp(Timestamp::from_secs_f32(0.)),
+            offset: GameTimestampDifference::from_millis(0),
             lane_states,
         }
     }
@@ -156,10 +154,10 @@ impl GameState {
 
     /// Converts a game timestamp into a map timestamp.
     ///
-    /// Takes global offset into account. For durations (which do _not_ need to consider global
-    /// offset) use [`game_to_map_duration`].
+    /// Takes global offset into account. For differences (which do _not_ need to consider global
+    /// offset) use [`game_to_map_difference`].
     ///
-    /// [`game_to_map_duration`]: #method.game_to_map_duration
+    /// [`game_to_map_difference`]: #method.game_to_map_difference
     #[inline]
     pub fn game_to_map(&self, timestamp: GameTimestamp) -> MapTimestamp {
         MapTimestamp((timestamp + self.offset).0)
@@ -167,35 +165,41 @@ impl GameState {
 
     /// Converts a map timestamp into a game timestamp.
     ///
-    /// Takes global offset into account. For durations (which do _not_ need to consider global
-    /// offset) use [`map_to_game_duration`].
+    /// Takes global offset into account. For differences (which do _not_ need to consider global
+    /// offset) use [`map_to_game_difference`].
     ///
-    /// [`map_to_game_duration`]: #method.map_to_game_duration
+    /// [`map_to_game_difference`]: #method.map_to_game_difference
     #[inline]
     pub fn map_to_game(&self, timestamp: MapTimestamp) -> GameTimestamp {
         GameTimestamp(timestamp.0) - self.offset
     }
 
-    /// Converts a game duration into a map duration.
+    /// Converts a game difference into a map difference.
     ///
-    /// Duration conversion does _not_ consider global offset. For timestamps (which need to
+    /// Difference conversion does _not_ consider global offset. For timestamps (which need to
     /// consider global offset) use [`game_to_map`].
     ///
     /// [`game_to_map`]: #method.game_to_map
     #[inline]
-    pub fn game_to_map_duration(&self, duration: GameTimestamp) -> MapTimestamp {
-        MapTimestamp(duration.0)
+    pub fn game_to_map_difference(
+        &self,
+        difference: GameTimestampDifference,
+    ) -> MapTimestampDifference {
+        MapTimestampDifference(difference.0)
     }
 
-    /// Converts a map duration into a game duration.
+    /// Converts a map difference into a game difference.
     ///
-    /// Duration conversion does _not_ consider global offset. For timestamps (which need to
+    /// Difference conversion does _not_ consider global offset. For timestamps (which need to
     /// consider global offset) use [`map_to_game`].
     ///
     /// [`map_to_game`]: #method.map_to_game
     #[inline]
-    pub fn map_to_game_duration(&self, duration: MapTimestamp) -> GameTimestamp {
-        GameTimestamp(duration.0)
+    pub fn map_to_game_difference(
+        &self,
+        difference: MapTimestampDifference,
+    ) -> GameTimestampDifference {
+        GameTimestampDifference(difference.0)
     }
 
     /// Returns `true` if the lane has active objects remaining.
@@ -218,10 +222,10 @@ impl GameState {
             return;
         }
 
-        let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
+        let hit_window = GameTimestampDifference::from_millis(76);
 
         let map_timestamp = self.game_to_map(timestamp);
-        let map_hit_window = self.game_to_map_duration(hit_window);
+        let map_hit_window = self.game_to_map_difference(hit_window);
 
         let lane_state = &mut self.lane_states[lane];
         let objects = &self.map.lanes[lane].objects[lane_state.first_active_object..];
@@ -279,10 +283,10 @@ impl GameState {
             return;
         }
 
-        let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
+        let hit_window = GameTimestampDifference::from_millis(76);
 
         let map_timestamp = self.game_to_map(timestamp);
-        let map_hit_window = self.game_to_map_duration(hit_window);
+        let map_hit_window = self.game_to_map_difference(hit_window);
 
         let lane_state = &mut self.lane_states[lane];
         let object = &self.map.lanes[lane].objects[lane_state.first_active_object];
@@ -309,10 +313,10 @@ impl GameState {
             return;
         }
 
-        let hit_window = GameTimestamp(Duration::from_millis(76).try_into().unwrap());
+        let hit_window = GameTimestampDifference::from_millis(76);
 
         let map_timestamp = self.game_to_map(timestamp);
-        let map_hit_window = self.game_to_map_duration(hit_window);
+        let map_hit_window = self.game_to_map_difference(hit_window);
 
         let lane_state = &mut self.lane_states[lane];
         let object = &self.map.lanes[lane].objects[lane_state.first_active_object];
@@ -336,16 +340,16 @@ impl GameState {
     }
 }
 
-impl Mul<GameTimestamp> for ScrollSpeed {
+impl Mul<GameTimestampDifference> for ScrollSpeed {
     type Output = f32;
 
     #[inline]
-    fn mul(self, rhs: GameTimestamp) -> Self::Output {
-        f32::from(self.0) * rhs.0.as_secs_f32()
+    fn mul(self, rhs: GameTimestampDifference) -> Self::Output {
+        f32::from(self.0) * (GameTimestamp::from_millis(0) + rhs).0.as_secs_f32()
     }
 }
 
-impl Mul<ScrollSpeed> for GameTimestamp {
+impl Mul<ScrollSpeed> for GameTimestampDifference {
     type Output = f32;
 
     #[inline]
@@ -355,11 +359,12 @@ impl Mul<ScrollSpeed> for GameTimestamp {
 }
 
 impl Div<ScrollSpeed> for f32 {
-    type Output = GameTimestamp;
+    type Output = GameTimestampDifference;
 
     #[inline]
     fn div(self, rhs: ScrollSpeed) -> Self::Output {
         GameTimestamp(Timestamp::from_secs_f32(self / f32::from(rhs.0)))
+            - GameTimestamp::from_millis(0)
     }
 }
 
@@ -391,44 +396,44 @@ mod tests {
                 Lane {
                     objects: vec![
                         Object::Regular {
-                            timestamp: MapTimestamp(Duration::from_millis(10).try_into().unwrap()),
+                            timestamp: MapTimestamp::from_millis(10),
                         },
                         Object::Regular {
-                            timestamp: MapTimestamp(Duration::from_millis(0).try_into().unwrap()),
+                            timestamp: MapTimestamp::from_millis(0),
                         },
                     ],
                 },
                 Lane {
                     objects: vec![
                         Object::Regular {
-                            timestamp: MapTimestamp(Duration::from_millis(10).try_into().unwrap()),
+                            timestamp: MapTimestamp::from_millis(10),
                         },
                         Object::LongNote {
-                            start: MapTimestamp(Duration::from_millis(0).try_into().unwrap()),
-                            end: MapTimestamp(Duration::from_millis(9).try_into().unwrap()),
+                            start: MapTimestamp::from_millis(0),
+                            end: MapTimestamp::from_millis(9),
                         },
                     ],
                 },
                 Lane {
                     objects: vec![
                         Object::LongNote {
-                            start: MapTimestamp(Duration::from_millis(7).try_into().unwrap()),
-                            end: MapTimestamp(Duration::from_millis(10).try_into().unwrap()),
+                            start: MapTimestamp::from_millis(7),
+                            end: MapTimestamp::from_millis(10),
                         },
                         Object::Regular {
-                            timestamp: MapTimestamp(Duration::from_millis(0).try_into().unwrap()),
+                            timestamp: MapTimestamp::from_millis(0),
                         },
                     ],
                 },
                 Lane {
                     objects: vec![
                         Object::LongNote {
-                            start: MapTimestamp(Duration::from_millis(10).try_into().unwrap()),
-                            end: MapTimestamp(Duration::from_millis(7).try_into().unwrap()),
+                            start: MapTimestamp::from_millis(10),
+                            end: MapTimestamp::from_millis(7),
                         },
                         Object::LongNote {
-                            start: MapTimestamp(Duration::from_millis(0).try_into().unwrap()),
-                            end: MapTimestamp(Duration::from_millis(6).try_into().unwrap()),
+                            start: MapTimestamp::from_millis(0),
+                            end: MapTimestamp::from_millis(6),
                         },
                     ],
                 },
@@ -458,20 +463,17 @@ mod tests {
             lanes: vec![Lane {
                 objects: vec![
                     Object::Regular {
-                        timestamp: MapTimestamp(Duration::from_secs(0).try_into().unwrap()),
+                        timestamp: MapTimestamp::from_millis(0),
                     },
                     Object::Regular {
-                        timestamp: MapTimestamp(Duration::from_secs(10).try_into().unwrap()),
+                        timestamp: MapTimestamp::from_millis(10_000),
                     },
                 ],
             }],
         };
 
         let mut state = GameState::new(map);
-        state.key_press(
-            0,
-            GameTimestamp(Duration::from_secs(10).try_into().unwrap()),
-        );
+        state.key_press(0, GameTimestamp::from_millis(10_000));
 
         assert_eq!(
             &state.lane_states[0].object_states[..],
@@ -493,20 +495,17 @@ mod tests {
             lanes: vec![Lane {
                 objects: vec![
                     Object::Regular {
-                        timestamp: MapTimestamp(Duration::from_millis(0).try_into().unwrap()),
+                        timestamp: MapTimestamp::from_millis(0),
                     },
                     Object::Regular {
-                        timestamp: MapTimestamp(Duration::from_millis(10).try_into().unwrap()),
+                        timestamp: MapTimestamp::from_millis(10),
                     },
                 ],
             }],
         };
 
         let mut state = GameState::new(map);
-        state.key_press(
-            0,
-            GameTimestamp(Duration::from_millis(10).try_into().unwrap()),
-        );
+        state.key_press(0, GameTimestamp::from_millis(10));
 
         assert_eq!(
             &state.lane_states[0].object_states[..],
@@ -527,18 +526,15 @@ mod tests {
             audio_file: None,
             lanes: vec![Lane {
                 objects: vec![Object::LongNote {
-                    start: MapTimestamp(Duration::from_secs(5).try_into().unwrap()),
-                    end: MapTimestamp(Duration::from_secs(10).try_into().unwrap()),
+                    start: MapTimestamp::from_millis(5_000),
+                    end: MapTimestamp::from_millis(10_000),
                 }],
             }],
         };
 
         let mut state = GameState::new(map);
-        state.key_press(0, GameTimestamp(Duration::from_secs(5).try_into().unwrap()));
-        state.key_release(
-            0,
-            GameTimestamp(Duration::from_secs(10).try_into().unwrap()),
-        );
+        state.key_press(0, GameTimestamp::from_millis(5_000));
+        state.key_release(0, GameTimestamp::from_millis(10_000));
 
         assert_eq!(
             &state.lane_states[0].object_states[..],
@@ -558,24 +554,21 @@ mod tests {
             audio_file: None,
             lanes: vec![Lane {
                 objects: vec![Object::LongNote {
-                    start: MapTimestamp(Duration::from_secs(5).try_into().unwrap()),
-                    end: MapTimestamp(Duration::from_secs(10).try_into().unwrap()),
+                    start: MapTimestamp::from_millis(5_000),
+                    end: MapTimestamp::from_millis(10_000),
                 }],
             }],
         };
 
         let mut state = GameState::new(map);
-        state.key_press(0, GameTimestamp(Duration::from_secs(5).try_into().unwrap()));
-        state.key_release(0, GameTimestamp(Duration::from_secs(7).try_into().unwrap()));
+        state.key_press(0, GameTimestamp::from_millis(5_000));
+        state.key_release(0, GameTimestamp::from_millis(7_000));
 
         assert_eq!(
             &state.lane_states[0].object_states[..],
             &[ObjectState::LongNote {
                 state: LongNoteState::Missed {
-                    held_until: Some(
-                        state
-                            .game_to_map(GameTimestamp(Duration::from_secs(7).try_into().unwrap()))
-                    )
+                    held_until: Some(state.game_to_map(GameTimestamp::from_millis(7_000)))
                 },
             }][..]
         );
@@ -591,18 +584,15 @@ mod tests {
             audio_file: None,
             lanes: vec![Lane {
                 objects: vec![Object::LongNote {
-                    start: MapTimestamp(Duration::from_secs(5).try_into().unwrap()),
-                    end: MapTimestamp(Duration::from_secs(10).try_into().unwrap()),
+                    start: MapTimestamp::from_millis(5_000),
+                    end: MapTimestamp::from_millis(10_000),
                 }],
             }],
         };
 
         let mut state = GameState::new(map);
-        state.key_press(0, GameTimestamp(Duration::from_secs(7).try_into().unwrap()));
-        state.key_release(
-            0,
-            GameTimestamp(Duration::from_secs(10).try_into().unwrap()),
-        );
+        state.key_press(0, GameTimestamp::from_millis(7_000));
+        state.key_release(0, GameTimestamp::from_millis(10_000));
 
         assert_eq!(
             &state.lane_states[0].object_states[..],
@@ -622,14 +612,14 @@ mod tests {
             audio_file: None,
             lanes: vec![Lane {
                 objects: vec![Object::LongNote {
-                    start: MapTimestamp(Duration::from_secs(5).try_into().unwrap()),
-                    end: MapTimestamp(Duration::from_secs(10).try_into().unwrap()),
+                    start: MapTimestamp::from_millis(5_000),
+                    end: MapTimestamp::from_millis(10_000),
                 }],
             }],
         };
 
         let mut state = GameState::new(map);
-        state.key_press(0, GameTimestamp(Duration::from_secs(5).try_into().unwrap()));
+        state.key_press(0, GameTimestamp::from_millis(5_000));
 
         assert_eq!(
             &state.lane_states[0].object_states[..],
@@ -649,24 +639,21 @@ mod tests {
             audio_file: None,
             lanes: vec![Lane {
                 objects: vec![Object::Regular {
-                    timestamp: MapTimestamp(Duration::from_secs(20).try_into().unwrap()),
+                    timestamp: MapTimestamp::from_millis(20_000),
                 }],
             }],
         };
 
         let mut state = GameState::new(map);
-        state.offset = GameTimestamp(Duration::from_secs(10).try_into().unwrap());
+        state.offset = GameTimestampDifference::from_millis(10_000);
 
-        state.key_press(0, GameTimestamp(Duration::from_secs(0).try_into().unwrap()));
+        state.key_press(0, GameTimestamp::from_millis(0));
         assert_eq!(
             &state.lane_states[0].object_states[..],
             &[ObjectState::Regular { hit: false }][..]
         );
 
-        state.key_press(
-            0,
-            GameTimestamp(Duration::from_secs(10).try_into().unwrap()),
-        );
+        state.key_press(0, GameTimestamp::from_millis(10_000));
         assert_eq!(
             &state.lane_states[0].object_states[..],
             &[ObjectState::Regular { hit: true }][..]
@@ -684,10 +671,10 @@ mod tests {
             lanes: vec![Lane {
                 objects: vec![
                     Object::Regular {
-                        timestamp: MapTimestamp(Duration::from_secs(20).try_into().unwrap()),
+                        timestamp: MapTimestamp::from_millis(20_000),
                     },
                     Object::Regular {
-                        timestamp: MapTimestamp(Duration::from_secs(30).try_into().unwrap()),
+                        timestamp: MapTimestamp::from_millis(30_000),
                     },
                 ],
             }],
@@ -697,7 +684,7 @@ mod tests {
 
         let mut state2 = state.clone();
         state2.cap_fps = true;
-        state2.offset = GameTimestamp(Duration::from_secs(10).try_into().unwrap());
+        state2.offset = GameTimestampDifference::from_millis(10_000);
         state2.scroll_speed = ScrollSpeed(5);
         state2.lane_states[0].first_active_object = 1;
         state2.lane_states[0].object_states[0] = ObjectState::Regular { hit: true };
@@ -717,7 +704,7 @@ mod tests {
             audio_file: None,
             lanes: vec![Lane {
                 objects: vec![Object::Regular {
-                    timestamp: MapTimestamp(Duration::from_secs(20).try_into().unwrap()),
+                    timestamp: MapTimestamp::from_millis(20_000),
                 }],
             }],
         };

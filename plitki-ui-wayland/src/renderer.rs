@@ -192,16 +192,13 @@ impl Renderer {
         let from_scroll_speed_coord = |x| x / 5.;
 
         let note_height = 0.1;
-        let first_visible_timestamp = state.game_to_map(
-            elapsed_timestamp
-                - to_scroll_speed_coord(judgement_line_position - self.ortho.bottom + note_height)
-                    / state.scroll_speed,
-        );
-        let one_past_last_visible_timestamp = state.game_to_map(
-            elapsed_timestamp
-                + to_scroll_speed_coord(self.ortho.top - judgement_line_position)
-                    / state.scroll_speed,
-        );
+        let first_visible_timestamp = (elapsed_timestamp
+            - to_scroll_speed_coord(judgement_line_position - self.ortho.bottom + note_height)
+                / state.scroll_speed)
+            .to_map(state);
+        let one_past_last_visible_timestamp = (elapsed_timestamp
+            + to_scroll_speed_coord(self.ortho.top - judgement_line_position) / state.scroll_speed)
+            .to_map(state);
 
         for (lane, objects, object_states) in (0..state.map.lanes.len()).map(|lane| {
             (
@@ -252,9 +249,9 @@ impl Renderer {
 
                 let height = match *object {
                     Object::Regular { .. } => note_height,
-                    Object::LongNote { end, .. } => from_scroll_speed_coord(
-                        state.map_to_game_duration(end - start) * state.scroll_speed,
-                    ),
+                    Object::LongNote { end, .. } => {
+                        from_scroll_speed_coord((end - start).to_game(state) * state.scroll_speed)
+                    }
                 };
 
                 let mut color = if lane == 0 || lane == 3 {
