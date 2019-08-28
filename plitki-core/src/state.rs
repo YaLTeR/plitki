@@ -28,9 +28,11 @@ pub struct GameState {
     pub lane_states: Vec<LaneState>,
 }
 
-/// Scrolling speed, measured in <sup>1</sup>⁄<sub>10</sub>ths of vertical square screens per
-/// second. That is, on a square 1:1 screen, 10 means a note travels from the very top to the very
-/// bottom of the screen in one second; 5 means in two seconds and 20 means in half a second.
+/// Scrolling speed.
+///
+/// Measured in <sup>1</sup>⁄<sub>10</sub>ths of vertical square screens per second. That is, on a
+/// square 1:1 screen, 10 means a note travels from the very top to the very bottom of the screen
+/// in one second; 5 means in two seconds and 20 means in half a second.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ScrollSpeed(pub u8);
 
