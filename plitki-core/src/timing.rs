@@ -128,6 +128,22 @@ impl TryFrom<Timestamp> for Duration {
     }
 }
 
+
+impl MapTimestamp {
+    /// Converts the game timestamp to a map timestamp.
+    #[inline]
+    pub fn to_game(self, state: &GameState) -> GameTimestamp {
+        state.map_to_game(self)
+    }
+}
+
+impl GameTimestamp {
+    /// Converts the game timestamp to a map timestamp.
+    #[inline]
+    pub fn to_map(self, state: &GameState) -> MapTimestamp {
+        state.game_to_map(self)
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
