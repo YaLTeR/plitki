@@ -37,16 +37,22 @@ pub struct GameState {
 pub struct ScrollSpeed(pub u8);
 
 /// States of a long note object.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum LongNoteState {
     /// The long note has not been hit.
     NotHit,
     /// The long note is currently held.
     Held,
-    /// The long note has been hit, that is, held and released.
+    /// The long note has been hit, that is, held and released on time or later.
     Hit,
     /// The long note has not been hit in time, or has been released early.
-    Missed,
+    Missed {
+        /// The timestamp when the LN was released.
+        ///
+        /// This may be before the start timestamp if the player presses and releases the LN
+        /// quickly during the hit window before the LN start.
+        held_until: Option<MapTimestamp>,
+    },
 }
 
 /// State of an individual object.
@@ -223,7 +229,7 @@ impl GameState {
                     if *state == LongNoteState::Held {
                         *state = LongNoteState::Hit;
                     } else if *state == LongNoteState::NotHit {
-                        *state = LongNoteState::Missed;
+                        *state = LongNoteState::Missed { held_until: None };
                     } else {
                         unreachable!()
                     }
@@ -239,7 +245,7 @@ impl GameState {
                 if let ObjectState::LongNote { state } = state {
                     // Mark this long note as missed.
                     if *state == LongNoteState::NotHit {
-                        *state = LongNoteState::Missed;
+                        *state = LongNoteState::Missed { held_until: None };
                         continue;
                     }
 
@@ -308,7 +314,9 @@ impl GameState {
                     *state = LongNoteState::Hit;
                 } else {
                     // Released too early.
-                    *state = LongNoteState::Missed;
+                    *state = LongNoteState::Missed {
+                        held_until: Some(map_timestamp),
+                    };
                 }
 
                 // This object is no longer active.
@@ -553,7 +561,12 @@ mod tests {
         assert_eq!(
             &state.lane_states[0].object_states[..],
             &[ObjectState::LongNote {
-                state: LongNoteState::Missed,
+                state: LongNoteState::Missed {
+                    held_until: Some(
+                        state
+                            .game_to_map(GameTimestamp(Duration::from_secs(7).try_into().unwrap()))
+                    )
+                },
             }][..]
         );
     }
@@ -584,7 +597,7 @@ mod tests {
         assert_eq!(
             &state.lane_states[0].object_states[..],
             &[ObjectState::LongNote {
-                state: LongNoteState::Missed,
+                state: LongNoteState::Missed { held_until: None },
             }][..]
         );
     }

@@ -9,7 +9,7 @@ use glium::{
     backend::Context, implement_vertex, index::PrimitiveType, uniform, Frame, IndexBuffer, Program,
     Surface, VertexBuffer,
 };
-use palette::Srgba;
+use palette::{ComponentWise, Srgba};
 use plitki_core::{
     object::Object,
     state::{LongNoteState, ObjectState},
@@ -224,36 +224,51 @@ impl Renderer {
                 .rev()
                 .filter(|(_, s)| !s.is_hit())
             {
+                let start = match *object {
+                    Object::Regular { .. } => object.start_timestamp(),
+                    Object::LongNote { start, end } => match *object_state {
+                        ObjectState::LongNote {
+                            state: LongNoteState::Held,
+                        } => state.game_to_map(elapsed_timestamp).min(end).max(start),
+
+                        ObjectState::LongNote {
+                            state:
+                                LongNoteState::Missed {
+                                    held_until: Some(held_until),
+                                },
+                        } => held_until.max(start),
+
+                        _ => start,
+                    },
+                };
+
                 let pos = Point2::new(
                     -border_offset + lane_width * lane as f32,
                     judgement_line_position
                         + from_scroll_speed_coord(
-                            (state.map_to_game(object.start_timestamp()) - elapsed_timestamp)
-                                * state.scroll_speed,
+                            (state.map_to_game(start) - elapsed_timestamp) * state.scroll_speed,
                         ),
                 );
 
                 let height = match *object {
                     Object::Regular { .. } => note_height,
-                    Object::LongNote { start, end } => from_scroll_speed_coord(
+                    Object::LongNote { end, .. } => from_scroll_speed_coord(
                         state.map_to_game_duration(end - start) * state.scroll_speed,
                     ),
                 };
 
-                let color = match object_state {
-                    ObjectState::LongNote {
-                        state: LongNoteState::Held,
-                    } => Srgba::new(0.1, 0.1, 0.0, 0.1),
-                    ObjectState::LongNote {
-                        state: LongNoteState::Missed,
-                    } => Srgba::new(0.1, 0.0, 0.0, 0.1),
-                    _ => Srgba::new(0.1, 0.1, 0.1, 0.1),
+                let mut color = if lane == 0 || lane == 3 {
+                    Srgba::new(0.5, 0.5, 0.5, 0.5)
+                } else {
+                    Srgba::new(0.00, 0.25, 0.5, 0.5)
                 };
-                // let color = if lane == 0 || lane == 3 {
-                //     Srgba::new(0.1, 0.1, 0.1, 0.1)
-                // } else {
-                //     Srgba::new(0.00, 0.05, 0.1, 0.1)
-                // };
+
+                if let ObjectState::LongNote {
+                    state: LongNoteState::Missed { .. },
+                } = *object_state
+                {
+                    color = color.component_wise_self(|x| x * 0.1);
+                }
 
                 self.sprites.push(Sprite {
                     pos,
