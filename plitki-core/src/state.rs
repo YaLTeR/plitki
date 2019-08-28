@@ -13,7 +13,7 @@ use crate::{
 };
 
 /// State of the game.
-#[derive(Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct GameState {
     /// The map.
     ///
@@ -71,7 +71,7 @@ pub enum ObjectState {
 }
 
 /// States of the objects in a lane.
-#[derive(Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct LaneState {
     /// States of the objects in this lane.
     pub object_states: Vec<ObjectState>,
