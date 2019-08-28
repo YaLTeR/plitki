@@ -132,15 +132,25 @@ impl GameState {
     pub fn update_to_latest(&mut self, latest: &GameState) {
         self.cap_fps = latest.cap_fps;
         self.scroll_speed = latest.scroll_speed;
+        self.offset = latest.offset;
 
         for (lane, latest_lane) in self.lane_states.iter_mut().zip(latest.lane_states.iter()) {
             assert!(lane.first_active_object <= latest_lane.first_active_object);
 
             // The range is inclusive because `first_active_object` can be an LN that's changing
             // states.
-            let update_range = lane.first_active_object..=latest_lane.first_active_object;
-            lane.object_states[update_range.clone()]
-                .copy_from_slice(&latest_lane.object_states[update_range]);
+            if latest_lane.first_active_object < lane.object_states.len() {
+                let update_range = lane.first_active_object..=latest_lane.first_active_object;
+                lane.object_states[update_range.clone()]
+                    .copy_from_slice(&latest_lane.object_states[update_range]);
+            } else {
+                // Exclusive range so we don't panic.
+                let update_range = lane.first_active_object..latest_lane.first_active_object;
+                lane.object_states[update_range.clone()]
+                    .copy_from_slice(&latest_lane.object_states[update_range]);
+            };
+
+            lane.first_active_object = latest_lane.first_active_object;
         }
     }
 
@@ -661,5 +671,82 @@ mod tests {
             &state.lane_states[0].object_states[..],
             &[ObjectState::Regular { hit: true }][..]
         );
+    }
+
+    #[test]
+    fn game_state_update_to_latest() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            lanes: vec![Lane {
+                objects: vec![
+                    Object::Regular {
+                        timestamp: MapTimestamp(Duration::from_secs(20).try_into().unwrap()),
+                    },
+                    Object::Regular {
+                        timestamp: MapTimestamp(Duration::from_secs(30).try_into().unwrap()),
+                    },
+                ],
+            }],
+        };
+
+        let mut state = GameState::new(map);
+
+        let mut state2 = state.clone();
+        state2.cap_fps = true;
+        state2.offset = GameTimestamp(Duration::from_secs(10).try_into().unwrap());
+        state2.scroll_speed = ScrollSpeed(5);
+        state2.lane_states[0].first_active_object = 1;
+        state2.lane_states[0].object_states[0] = ObjectState::Regular { hit: true };
+        assert_ne!(state, state2);
+
+        state.update_to_latest(&state2);
+        assert_eq!(state, state2);
+    }
+
+    #[test]
+    fn game_state_update_to_latest_last_first_active_object() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            lanes: vec![Lane {
+                objects: vec![Object::Regular {
+                    timestamp: MapTimestamp(Duration::from_secs(20).try_into().unwrap()),
+                }],
+            }],
+        };
+
+        let mut state = GameState::new(map);
+
+        let mut state2 = state.clone();
+        state2.lane_states[0].first_active_object = 1;
+        assert_ne!(state, state2);
+
+        state.update_to_latest(&state2);
+        assert_eq!(state, state2);
+    }
+
+    #[test]
+    fn game_state_update_to_latest_zero_objects() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            lanes: vec![Lane { objects: vec![] }],
+        };
+
+        let mut state = GameState::new(map);
+        let state2 = state.clone();
+
+        state.update_to_latest(&state2);
+        assert_eq!(state, state2);
     }
 }
