@@ -224,16 +224,13 @@ impl Renderer {
                 let start = match *object {
                     Object::Regular { .. } => object.start_timestamp(),
                     Object::LongNote { start, end } => match *object_state {
-                        ObjectState::LongNote {
-                            state: LongNoteState::Held,
-                        } => state.game_to_map(elapsed_timestamp).min(end).max(start),
+                        ObjectState::LongNote(LongNoteState::Held) => {
+                            state.game_to_map(elapsed_timestamp).min(end).max(start)
+                        }
 
-                        ObjectState::LongNote {
-                            state:
-                                LongNoteState::Missed {
-                                    held_until: Some(held_until),
-                                },
-                        } => held_until.max(start),
+                        ObjectState::LongNote(LongNoteState::Missed {
+                            held_until: Some(held_until),
+                        }) => held_until.max(start),
 
                         _ => start,
                     },
@@ -260,10 +257,7 @@ impl Renderer {
                     Srgba::new(0.00, 0.25, 0.5, 0.5)
                 };
 
-                if let ObjectState::LongNote {
-                    state: LongNoteState::Missed { .. },
-                } = *object_state
-                {
+                if let ObjectState::LongNote(LongNoteState::Missed { .. }) = *object_state {
                     color = color.component_wise_self(|x| x * 0.1);
                 }
 
