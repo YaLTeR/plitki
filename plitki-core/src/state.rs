@@ -216,6 +216,8 @@ impl GameState {
                             release_difference: hit_window,
                         };
                     } else if *state == LongNoteState::NotHit {
+                        // I kind of dislike how this branch exists both here and in the condition
+                        // below...
                         *state = LongNoteState::Missed {
                             held_until: None,
                             press_difference: None,
@@ -659,6 +661,34 @@ mod tests {
             &state.lane_states[0].object_states[..],
             &[ObjectState::LongNote(LongNoteState::Held {
                 press_difference: GameTimestampDifference::from_millis(0)
+            })][..]
+        );
+    }
+
+    #[test]
+    fn game_state_long_note_missed_update_after_end_time() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            lanes: vec![Lane {
+                objects: vec![Object::LongNote {
+                    start: MapTimestamp::from_millis(5_000),
+                    end: MapTimestamp::from_millis(10_000),
+                }],
+            }],
+        };
+
+        let mut state = GameState::new(map);
+        state.update(0, GameTimestamp::from_millis(15_000));
+
+        assert_eq!(
+            &state.lane_states[0].object_states[..],
+            &[ObjectState::LongNote(LongNoteState::Missed {
+                held_until: None,
+                press_difference: None,
             })][..]
         );
     }
