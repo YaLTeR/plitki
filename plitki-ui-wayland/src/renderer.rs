@@ -323,7 +323,7 @@ impl<'a> SingleFrameRenderer<'a> {
         let start = match *object {
             Object::Regular { .. } => object.start_timestamp(),
             Object::LongNote { start, end } => match *object_state {
-                ObjectState::LongNote(LongNoteState::Held) => self
+                ObjectState::LongNote(LongNoteState::Held { .. }) => self
                     .elapsed_timestamp
                     .to_map(self.state)
                     .min(end)
@@ -331,6 +331,7 @@ impl<'a> SingleFrameRenderer<'a> {
 
                 ObjectState::LongNote(LongNoteState::Missed {
                     held_until: Some(held_until),
+                    ..
                 }) => held_until.max(start),
 
                 _ => start,

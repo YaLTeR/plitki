@@ -42,7 +42,10 @@ pub enum RegularObjectState {
     /// The object has not been hit.
     NotHit,
     /// The object has been hit.
-    Hit,
+    Hit {
+        /// Difference between the actual hit timestamp and the object timestamp.
+        difference: GameTimestampDifference,
+    },
 }
 
 /// States of a long note object.
@@ -51,16 +54,28 @@ pub enum LongNoteState {
     /// The long note has not been hit.
     NotHit,
     /// The long note is currently held.
-    Held,
+    Held {
+        /// Difference between the actual hit timestamp and the start timestamp.
+        press_difference: GameTimestampDifference,
+    },
     /// The long note has been hit, that is, held and released on time or later.
-    Hit,
+    Hit {
+        /// Difference between the actual press timestamp and the start timestamp.
+        press_difference: GameTimestampDifference,
+        /// Difference between the actual release timestamp and the end timestamp.
+        release_difference: GameTimestampDifference,
+    },
     /// The long note has not been hit in time, or has been released early.
     Missed {
+        // TODO: these two fields can only be either both None or both Some.
         /// The timestamp when the LN was released.
         ///
         /// This may be before the start timestamp if the player presses and releases the LN
         /// quickly during the hit window before the LN start.
         held_until: Option<MapTimestamp>,
+        /// Difference between the actual press timestamp and the start timestamp, if the LN had
+        /// been held.
+        press_difference: Option<GameTimestampDifference>,
     },
 }
 
@@ -243,10 +258,16 @@ impl GameState {
                 // TODO: mark the object as missed
 
                 if let ObjectState::LongNote(state) = state {
-                    if *state == LongNoteState::Held {
-                        *state = LongNoteState::Hit;
+                    if let LongNoteState::Held { press_difference } = *state {
+                        *state = LongNoteState::Hit {
+                            press_difference,
+                            release_difference: hit_window,
+                        };
                     } else if *state == LongNoteState::NotHit {
-                        *state = LongNoteState::Missed { held_until: None };
+                        *state = LongNoteState::Missed {
+                            held_until: None,
+                            press_difference: None,
+                        };
                     } else {
                         unreachable!()
                     }
@@ -262,11 +283,18 @@ impl GameState {
                 if let ObjectState::LongNote(state) = state {
                     // Mark this long note as missed.
                     if *state == LongNoteState::NotHit {
-                        *state = LongNoteState::Missed { held_until: None };
+                        *state = LongNoteState::Missed {
+                            held_until: None,
+                            press_difference: None,
+                        };
                         continue;
                     }
 
-                    assert!(*state == LongNoteState::Held);
+                    if let LongNoteState::Held { .. } = state {
+                        // All good.
+                    } else {
+                        unreachable!()
+                    }
                 } else {
                     // Regular objects would be skipped over in the previous if.
                     unreachable!()
@@ -291,20 +319,26 @@ impl GameState {
         let map_timestamp = self.game_to_map(timestamp);
         let map_hit_window = self.game_to_map_difference(hit_window);
 
-        let lane_state = &mut self.lane_states[lane];
+        let lane_state = &self.lane_states[lane];
         let object = &self.map.lanes[lane].objects[lane_state.first_active_object];
-        let state = &mut lane_state.object_states[lane_state.first_active_object];
 
         if map_timestamp >= object.start_timestamp() - map_hit_window {
             // The object can be hit.
-            match state {
+            let difference = (map_timestamp - object.start_timestamp()).to_game(self);
+
+            let lane_state = &mut self.lane_states[lane];
+            match lane_state.object_states[lane_state.first_active_object] {
                 ObjectState::Regular(ref mut state) => {
-                    *state = RegularObjectState::Hit;
+                    *state = RegularObjectState::Hit { difference };
 
                     // This object is no longer active.
                     lane_state.first_active_object += 1;
                 }
-                ObjectState::LongNote(ref mut state) => *state = LongNoteState::Held,
+                ObjectState::LongNote(ref mut state) => {
+                    *state = LongNoteState::Held {
+                        press_difference: difference,
+                    }
+                }
             }
         }
     }
@@ -321,20 +355,28 @@ impl GameState {
         let map_timestamp = self.game_to_map(timestamp);
         let map_hit_window = self.game_to_map_difference(hit_window);
 
-        let lane_state = &mut self.lane_states[lane];
+        let lane_state = &self.lane_states[lane];
         let object = &self.map.lanes[lane].objects[lane_state.first_active_object];
-        let state = &mut lane_state.object_states[lane_state.first_active_object];
+        let state = &lane_state.object_states[lane_state.first_active_object];
 
         if let ObjectState::LongNote(state) = state {
-            if *state == LongNoteState::Held {
-                if map_timestamp >= object.end_timestamp() - map_hit_window {
-                    *state = LongNoteState::Hit;
+            if let LongNoteState::Held { press_difference } = *state {
+                let new_state = if map_timestamp >= object.end_timestamp() - map_hit_window {
+                    LongNoteState::Hit {
+                        press_difference,
+                        release_difference: (map_timestamp - object.end_timestamp()).to_game(self),
+                    }
                 } else {
                     // Released too early.
-                    *state = LongNoteState::Missed {
+                    LongNoteState::Missed {
                         held_until: Some(map_timestamp),
-                    };
-                }
+                        press_difference: Some(press_difference),
+                    }
+                };
+
+                let lane_state = &mut self.lane_states[lane];
+                let state = &mut lane_state.object_states[lane_state.first_active_object];
+                *state = ObjectState::LongNote(new_state);
 
                 // This object is no longer active.
                 lane_state.first_active_object += 1;
@@ -375,8 +417,9 @@ impl ObjectState {
     /// Returns `true` if the object has been hit.
     pub fn is_hit(&self) -> bool {
         match self {
-            Self::Regular(state) => *state == RegularObjectState::Hit,
-            Self::LongNote(state) => *state == LongNoteState::Hit,
+            Self::Regular(RegularObjectState::Hit { .. })
+            | Self::LongNote(LongNoteState::Hit { .. }) => true,
+            _ => false,
         }
     }
 }
@@ -482,7 +525,9 @@ mod tests {
             &state.lane_states[0].object_states[..],
             &[
                 ObjectState::Regular(RegularObjectState::NotHit),
-                ObjectState::Regular(RegularObjectState::Hit),
+                ObjectState::Regular(RegularObjectState::Hit {
+                    difference: GameTimestampDifference::from_millis(0)
+                }),
             ][..]
         );
     }
@@ -513,7 +558,9 @@ mod tests {
         assert_eq!(
             &state.lane_states[0].object_states[..],
             &[
-                ObjectState::Regular(RegularObjectState::Hit),
+                ObjectState::Regular(RegularObjectState::Hit {
+                    difference: GameTimestampDifference::from_millis(10)
+                }),
                 ObjectState::Regular(RegularObjectState::NotHit),
             ][..]
         );
@@ -541,7 +588,10 @@ mod tests {
 
         assert_eq!(
             &state.lane_states[0].object_states[..],
-            &[ObjectState::LongNote(LongNoteState::Hit)][..]
+            &[ObjectState::LongNote(LongNoteState::Hit {
+                press_difference: GameTimestampDifference::from_millis(0),
+                release_difference: GameTimestampDifference::from_millis(0)
+            })][..]
         );
     }
 
@@ -568,7 +618,37 @@ mod tests {
         assert_eq!(
             &state.lane_states[0].object_states[..],
             &[ObjectState::LongNote(LongNoteState::Missed {
-                held_until: Some(state.game_to_map(GameTimestamp::from_millis(7_000)))
+                held_until: Some(state.game_to_map(GameTimestamp::from_millis(7_000))),
+                press_difference: Some(GameTimestampDifference::from_millis(0)),
+            })][..]
+        );
+    }
+
+    #[test]
+    fn game_state_long_note_released_late() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            lanes: vec![Lane {
+                objects: vec![Object::LongNote {
+                    start: MapTimestamp::from_millis(5_000),
+                    end: MapTimestamp::from_millis(10_000),
+                }],
+            }],
+        };
+
+        let mut state = GameState::new(map);
+        state.key_press(0, GameTimestamp::from_millis(5_000));
+        state.key_release(0, GameTimestamp::from_millis(15_000));
+
+        assert_eq!(
+            &state.lane_states[0].object_states[..],
+            &[ObjectState::LongNote(LongNoteState::Hit {
+                press_difference: GameTimestampDifference::from_millis(0),
+                release_difference: GameTimestampDifference::from_millis(76), // TODO: un-hardcode
             })][..]
         );
     }
@@ -596,7 +676,8 @@ mod tests {
         assert_eq!(
             &state.lane_states[0].object_states[..],
             &[ObjectState::LongNote(LongNoteState::Missed {
-                held_until: None
+                held_until: None,
+                press_difference: None,
             })][..]
         );
     }
@@ -622,7 +703,9 @@ mod tests {
 
         assert_eq!(
             &state.lane_states[0].object_states[..],
-            &[ObjectState::LongNote(LongNoteState::Held)][..]
+            &[ObjectState::LongNote(LongNoteState::Held {
+                press_difference: GameTimestampDifference::from_millis(0)
+            })][..]
         );
     }
 
@@ -653,7 +736,9 @@ mod tests {
         state.key_press(0, GameTimestamp::from_millis(10_000));
         assert_eq!(
             &state.lane_states[0].object_states[..],
-            &[ObjectState::Regular(RegularObjectState::Hit)][..]
+            &[ObjectState::Regular(RegularObjectState::Hit {
+                difference: GameTimestampDifference::from_millis(0)
+            })][..]
         );
     }
 
@@ -684,7 +769,9 @@ mod tests {
         state2.offset = GameTimestampDifference::from_millis(10_000);
         state2.scroll_speed = ScrollSpeed(5);
         state2.lane_states[0].first_active_object = 1;
-        state2.lane_states[0].object_states[0] = ObjectState::Regular(RegularObjectState::Hit);
+        state2.lane_states[0].object_states[0] = ObjectState::Regular(RegularObjectState::Hit {
+            difference: GameTimestampDifference::from_millis(0),
+        });
         assert_ne!(state, state2);
 
         state.update_to_latest(&state2);
