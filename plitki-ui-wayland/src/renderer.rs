@@ -219,7 +219,7 @@ impl Renderer {
             .unwrap();
 
         if state.cap_fps {
-            std::thread::sleep(Duration::from_millis(1000));
+            std::thread::sleep(Duration::from_millis(1000 / 15));
         }
 
         frame.finish().unwrap();
