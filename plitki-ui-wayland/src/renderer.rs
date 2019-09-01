@@ -238,11 +238,11 @@ impl<'a> SingleFrameRenderer<'a> {
         let first_visible_timestamp = (elapsed_timestamp
             - to_scroll_speed_coord(judgement_line_position - renderer.ortho.bottom + note_height)
                 / state.scroll_speed)
-            .to_map(state);
+            .to_map(&state.timestamp_converter);
         let one_past_last_visible_timestamp = (elapsed_timestamp
             + to_scroll_speed_coord(renderer.ortho.top - judgement_line_position)
                 / state.scroll_speed)
-            .to_map(state);
+            .to_map(&state.timestamp_converter);
 
         renderer.sprites.clear();
 
@@ -325,7 +325,7 @@ impl<'a> SingleFrameRenderer<'a> {
             Object::LongNote { start, end } => match *object_state {
                 ObjectState::LongNote(LongNoteState::Held { .. }) => self
                     .elapsed_timestamp
-                    .to_map(self.state)
+                    .to_map(&self.state.timestamp_converter)
                     .min(end)
                     .max(start),
 
@@ -342,16 +342,16 @@ impl<'a> SingleFrameRenderer<'a> {
             -self.border_offset + self.lane_width * lane as f32,
             self.judgement_line_position
                 + from_scroll_speed_coord(
-                    (self.state.map_to_game(start) - self.elapsed_timestamp)
+                    (start.to_game(&self.state.timestamp_converter) - self.elapsed_timestamp)
                         * self.state.scroll_speed,
                 ),
         );
 
         let height = match *object {
             Object::Regular { .. } => self.note_height,
-            Object::LongNote { end, .. } => {
-                from_scroll_speed_coord((end - start).to_game(self.state) * self.state.scroll_speed)
-            }
+            Object::LongNote { end, .. } => from_scroll_speed_coord(
+                (end - start).to_game(&self.state.timestamp_converter) * self.state.scroll_speed,
+            ),
         };
 
         let mut color = if lane == 0 || lane == 3 {

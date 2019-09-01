@@ -7,8 +7,6 @@ use core::{
     time::Duration,
 };
 
-use crate::state::GameState;
-
 /// A point in time.
 ///
 /// Timestamps are represented as `i32`s in <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
@@ -42,6 +40,17 @@ pub struct GameTimestamp(pub Timestamp);
 /// [`GameTimestamp`]: struct.GameTimestamp.html
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct GameTimestampDifference(pub TimestampDifference);
+
+/// Contains data necessary to convert between game and map timestamps.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct TimestampConverter {
+    /// Global offset.
+    ///
+    /// Global offset is used to adjust for the audio playback latency of the underlying audio
+    /// device. This latency affects any sound regardless of rate or other parameters. Therefore,
+    /// the global offset is not affected by rate.
+    pub global_offset: GameTimestampDifference,
+}
 
 /// The error type returned when a duration to timestamp conversion fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -252,32 +261,84 @@ impl_ops!(GameTimestamp, GameTimestampDifference);
 impl MapTimestamp {
     /// Converts the game timestamp to a map timestamp.
     #[inline]
-    pub fn to_game(self, state: &GameState) -> GameTimestamp {
-        state.map_to_game(self)
+    pub fn to_game(self, converter: &TimestampConverter) -> GameTimestamp {
+        converter.map_to_game(self)
     }
 }
 
 impl MapTimestampDifference {
     /// Converts the game timestamp difference to a map timestamp difference.
     #[inline]
-    pub fn to_game(self, state: &GameState) -> GameTimestampDifference {
-        state.map_to_game_difference(self)
+    pub fn to_game(self, converter: &TimestampConverter) -> GameTimestampDifference {
+        converter.map_to_game_difference(self)
     }
 }
 
 impl GameTimestamp {
     /// Converts the game timestamp to a map timestamp.
     #[inline]
-    pub fn to_map(self, state: &GameState) -> MapTimestamp {
-        state.game_to_map(self)
+    pub fn to_map(self, converter: &TimestampConverter) -> MapTimestamp {
+        converter.game_to_map(self)
     }
 }
 
 impl GameTimestampDifference {
     /// Converts the game timestamp difference to a map timestamp difference.
     #[inline]
-    pub fn to_map(self, state: &GameState) -> MapTimestampDifference {
-        state.game_to_map_difference(self)
+    pub fn to_map(self, converter: &TimestampConverter) -> MapTimestampDifference {
+        converter.game_to_map_difference(self)
+    }
+}
+
+impl TimestampConverter {
+    /// Converts a game timestamp into a map timestamp.
+    ///
+    /// Takes global offset into account. For differences (which do _not_ need to consider global
+    /// offset) use [`game_to_map_difference`].
+    ///
+    /// [`game_to_map_difference`]: #method.game_to_map_difference
+    #[inline]
+    pub fn game_to_map(&self, timestamp: GameTimestamp) -> MapTimestamp {
+        MapTimestamp((timestamp + self.global_offset).0)
+    }
+
+    /// Converts a map timestamp into a game timestamp.
+    ///
+    /// Takes global offset into account. For differences (which do _not_ need to consider global
+    /// offset) use [`map_to_game_difference`].
+    ///
+    /// [`map_to_game_difference`]: #method.map_to_game_difference
+    #[inline]
+    pub fn map_to_game(&self, timestamp: MapTimestamp) -> GameTimestamp {
+        GameTimestamp(timestamp.0) - self.global_offset
+    }
+
+    /// Converts a game difference into a map difference.
+    ///
+    /// Difference conversion does _not_ consider global offset. For timestamps (which need to
+    /// consider global offset) use [`game_to_map`].
+    ///
+    /// [`game_to_map`]: #method.game_to_map
+    #[inline]
+    pub fn game_to_map_difference(
+        &self,
+        difference: GameTimestampDifference,
+    ) -> MapTimestampDifference {
+        MapTimestampDifference(difference.0)
+    }
+
+    /// Converts a map difference into a game difference.
+    ///
+    /// Difference conversion does _not_ consider global offset. For timestamps (which need to
+    /// consider global offset) use [`map_to_game`].
+    ///
+    /// [`map_to_game`]: #method.map_to_game
+    #[inline]
+    pub fn map_to_game_difference(
+        &self,
+        difference: MapTimestampDifference,
+    ) -> GameTimestampDifference {
+        GameTimestampDifference(difference.0)
     }
 }
 

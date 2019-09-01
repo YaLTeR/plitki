@@ -102,7 +102,7 @@ fn main() {
     // previous game state (for example, toggling a bool), and then refreshes the triple buffered
     // state accordingly.
     let mut latest_game_state = GameState::new(map);
-    latest_game_state.offset = GameTimestampDifference::from_millis(-80);
+    latest_game_state.timestamp_converter.global_offset = GameTimestampDifference::from_millis(-80);
 
     let state_buffer = TripleBuffer::new(latest_game_state.clone());
     let (buf_input, buf_output) = state_buffer.split();

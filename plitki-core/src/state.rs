@@ -5,9 +5,7 @@ use core::ops::{Div, Mul};
 use crate::{
     map::Map,
     object::Object,
-    timing::{
-        GameTimestamp, GameTimestampDifference, MapTimestamp, MapTimestampDifference, Timestamp,
-    },
+    timing::{GameTimestamp, GameTimestampDifference, MapTimestamp, Timestamp, TimestampConverter},
 };
 
 /// State of the game.
@@ -22,8 +20,8 @@ pub struct GameState {
     pub cap_fps: bool,
     /// Note scrolling speed.
     pub scroll_speed: ScrollSpeed,
-    /// Global offset.
-    pub offset: GameTimestampDifference,
+    /// Converter between game timestamps and map timestamps.
+    pub timestamp_converter: TimestampConverter,
     /// Contains states of the objects in lanes.
     pub lane_states: Vec<LaneState>,
 }
@@ -130,11 +128,15 @@ impl GameState {
             });
         }
 
+        let timestamp_converter = TimestampConverter {
+            global_offset: GameTimestampDifference::from_millis(0),
+        };
+
         Self {
             map: Arc::new(map),
             cap_fps: false,
             scroll_speed: ScrollSpeed(16),
-            offset: GameTimestampDifference::from_millis(0),
+            timestamp_converter,
             lane_states,
         }
     }
@@ -148,7 +150,7 @@ impl GameState {
     pub fn update_to_latest(&mut self, latest: &GameState) {
         self.cap_fps = latest.cap_fps;
         self.scroll_speed = latest.scroll_speed;
-        self.offset = latest.offset;
+        self.timestamp_converter = latest.timestamp_converter;
 
         for (lane, latest_lane) in self.lane_states.iter_mut().zip(latest.lane_states.iter()) {
             assert!(lane.first_active_object <= latest_lane.first_active_object);
@@ -168,56 +170,6 @@ impl GameState {
 
             lane.first_active_object = latest_lane.first_active_object;
         }
-    }
-
-    /// Converts a game timestamp into a map timestamp.
-    ///
-    /// Takes global offset into account. For differences (which do _not_ need to consider global
-    /// offset) use [`game_to_map_difference`].
-    ///
-    /// [`game_to_map_difference`]: #method.game_to_map_difference
-    #[inline]
-    pub fn game_to_map(&self, timestamp: GameTimestamp) -> MapTimestamp {
-        MapTimestamp((timestamp + self.offset).0)
-    }
-
-    /// Converts a map timestamp into a game timestamp.
-    ///
-    /// Takes global offset into account. For differences (which do _not_ need to consider global
-    /// offset) use [`map_to_game_difference`].
-    ///
-    /// [`map_to_game_difference`]: #method.map_to_game_difference
-    #[inline]
-    pub fn map_to_game(&self, timestamp: MapTimestamp) -> GameTimestamp {
-        GameTimestamp(timestamp.0) - self.offset
-    }
-
-    /// Converts a game difference into a map difference.
-    ///
-    /// Difference conversion does _not_ consider global offset. For timestamps (which need to
-    /// consider global offset) use [`game_to_map`].
-    ///
-    /// [`game_to_map`]: #method.game_to_map
-    #[inline]
-    pub fn game_to_map_difference(
-        &self,
-        difference: GameTimestampDifference,
-    ) -> MapTimestampDifference {
-        MapTimestampDifference(difference.0)
-    }
-
-    /// Converts a map difference into a game difference.
-    ///
-    /// Difference conversion does _not_ consider global offset. For timestamps (which need to
-    /// consider global offset) use [`map_to_game`].
-    ///
-    /// [`map_to_game`]: #method.map_to_game
-    #[inline]
-    pub fn map_to_game_difference(
-        &self,
-        difference: MapTimestampDifference,
-    ) -> GameTimestampDifference {
-        GameTimestampDifference(difference.0)
     }
 
     /// Returns `true` if the lane has active objects remaining.
@@ -242,8 +194,8 @@ impl GameState {
 
         let hit_window = GameTimestampDifference::from_millis(76);
 
-        let map_timestamp = self.game_to_map(timestamp);
-        let map_hit_window = self.game_to_map_difference(hit_window);
+        let map_timestamp = timestamp.to_map(&self.timestamp_converter);
+        let map_hit_window = hit_window.to_map(&self.timestamp_converter);
 
         let lane_state = &mut self.lane_states[lane];
         let objects = &self.map.lanes[lane].objects[lane_state.first_active_object..];
@@ -316,18 +268,19 @@ impl GameState {
 
         let hit_window = GameTimestampDifference::from_millis(76);
 
-        let map_timestamp = self.game_to_map(timestamp);
-        let map_hit_window = self.game_to_map_difference(hit_window);
+        let map_timestamp = timestamp.to_map(&self.timestamp_converter);
+        let map_hit_window = hit_window.to_map(&self.timestamp_converter);
 
-        let lane_state = &self.lane_states[lane];
+        let lane_state = &mut self.lane_states[lane];
         let object = &self.map.lanes[lane].objects[lane_state.first_active_object];
+        let state = &mut lane_state.object_states[lane_state.first_active_object];
 
         if map_timestamp >= object.start_timestamp() - map_hit_window {
             // The object can be hit.
-            let difference = (map_timestamp - object.start_timestamp()).to_game(self);
+            let difference =
+                (map_timestamp - object.start_timestamp()).to_game(&self.timestamp_converter);
 
-            let lane_state = &mut self.lane_states[lane];
-            match lane_state.object_states[lane_state.first_active_object] {
+            match state {
                 ObjectState::Regular(ref mut state) => {
                     *state = RegularObjectState::Hit { difference };
 
@@ -352,31 +305,30 @@ impl GameState {
 
         let hit_window = GameTimestampDifference::from_millis(76);
 
-        let map_timestamp = self.game_to_map(timestamp);
-        let map_hit_window = self.game_to_map_difference(hit_window);
+        let map_timestamp = timestamp.to_map(&self.timestamp_converter);
+        let map_hit_window = hit_window.to_map(&self.timestamp_converter);
 
-        let lane_state = &self.lane_states[lane];
+        let lane_state = &mut self.lane_states[lane];
         let object = &self.map.lanes[lane].objects[lane_state.first_active_object];
-        let state = &lane_state.object_states[lane_state.first_active_object];
+        let state = &mut lane_state.object_states[lane_state.first_active_object];
 
         if let ObjectState::LongNote(state) = state {
             if let LongNoteState::Held { press_difference } = *state {
-                let new_state = if map_timestamp >= object.end_timestamp() - map_hit_window {
-                    LongNoteState::Hit {
+                if map_timestamp >= object.end_timestamp() - map_hit_window {
+                    let difference =
+                        (map_timestamp - object.end_timestamp()).to_game(&self.timestamp_converter);
+
+                    *state = LongNoteState::Hit {
                         press_difference,
-                        release_difference: (map_timestamp - object.end_timestamp()).to_game(self),
-                    }
+                        release_difference: difference,
+                    };
                 } else {
                     // Released too early.
-                    LongNoteState::Missed {
+                    *state = LongNoteState::Missed {
                         held_until: Some(map_timestamp),
                         press_difference: Some(press_difference),
-                    }
-                };
-
-                let lane_state = &mut self.lane_states[lane];
-                let state = &mut lane_state.object_states[lane_state.first_active_object];
-                *state = ObjectState::LongNote(new_state);
+                    };
+                }
 
                 // This object is no longer active.
                 lane_state.first_active_object += 1;
@@ -618,7 +570,9 @@ mod tests {
         assert_eq!(
             &state.lane_states[0].object_states[..],
             &[ObjectState::LongNote(LongNoteState::Missed {
-                held_until: Some(state.game_to_map(GameTimestamp::from_millis(7_000))),
+                held_until: Some(
+                    GameTimestamp::from_millis(7_000).to_map(&state.timestamp_converter)
+                ),
                 press_difference: Some(GameTimestampDifference::from_millis(0)),
             })][..]
         );
@@ -725,7 +679,7 @@ mod tests {
         };
 
         let mut state = GameState::new(map);
-        state.offset = GameTimestampDifference::from_millis(10_000);
+        state.timestamp_converter.global_offset = GameTimestampDifference::from_millis(10_000);
 
         state.key_press(0, GameTimestamp::from_millis(0));
         assert_eq!(
@@ -766,7 +720,7 @@ mod tests {
 
         let mut state2 = state.clone();
         state2.cap_fps = true;
-        state2.offset = GameTimestampDifference::from_millis(10_000);
+        state2.timestamp_converter.global_offset = GameTimestampDifference::from_millis(10_000);
         state2.scroll_speed = ScrollSpeed(5);
         state2.lane_states[0].first_active_object = 1;
         state2.lane_states[0].object_states[0] = ObjectState::Regular(RegularObjectState::Hit {
