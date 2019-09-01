@@ -6,14 +6,14 @@ use std::{
 
 use cgmath::{Matrix4, Ortho, Point2, Vector2};
 use glium::{
-    backend::Context, implement_vertex, index::PrimitiveType, uniform, Frame, IndexBuffer, Program,
-    Surface, VertexBuffer,
+    backend::Context, implement_vertex, index::PrimitiveType, uniform, Blend, DrawParameters,
+    Frame, IndexBuffer, Program, Surface, VertexBuffer,
 };
 use palette::{ComponentWise, Srgba};
 use plitki_core::{
     object::Object,
-    state::{LongNoteState, ObjectState},
-    timing::{GameTimestamp, MapTimestamp},
+    state::{Hit, LongNoteState, ObjectState},
+    timing::{GameTimestamp, GameTimestampDifference, MapTimestamp},
 };
 use slog_scope::{debug, trace};
 
@@ -189,6 +189,7 @@ impl Renderer {
             renderer.push_borders();
             renderer.push_objects();
             renderer.push_judgement_line();
+            renderer.push_error_bar();
         }
 
         let instance_data = self.build_instance_data();
@@ -210,7 +211,10 @@ impl Renderer {
                 &uniform! {
                     projection: projection,
                 },
-                &Default::default(),
+                &DrawParameters {
+                    blend: Blend::alpha_blending(),
+                    ..Default::default()
+                },
             )
             .unwrap();
 
@@ -355,13 +359,13 @@ impl<'a> SingleFrameRenderer<'a> {
         };
 
         let mut color = if lane == 0 || lane == 3 {
-            Srgba::new(0.5, 0.5, 0.5, 0.5)
+            Srgba::new(1., 1., 1., 0.5)
         } else {
-            Srgba::new(0.00, 0.25, 0.5, 0.5)
+            Srgba::new(0., 0.5, 1., 0.5)
         };
 
         if let ObjectState::LongNote(LongNoteState::Missed { .. }) = *object_state {
-            color = color.component_wise_self(|x| x * 0.1);
+            color = color.component_wise_self(|x| x * 0.5);
         }
 
         Sprite {
@@ -376,6 +380,68 @@ impl<'a> SingleFrameRenderer<'a> {
             pos: Point2::new(-self.border_offset, self.judgement_line_position),
             scale: Vector2::new(self.border_offset * 2., self.border_width),
             color: Srgba::new(1., 1., 1., 1.),
+        });
+    }
+
+    fn push_error_bar(&mut self) {
+        let error_bar_width = 0.5;
+        let error_bar_offset = error_bar_width / 2.;
+        let error_bar_position = self.renderer.ortho.bottom + 1.;
+        let error_bar_height = 0.003;
+        let error_bar_hit_height = 0.05;
+        let error_bar_hit_width = 0.01;
+        let error_bar_perfect_hit_width = 0.003;
+
+        let zero_error_bar_hit_position = -error_bar_hit_width / 2.;
+        let rightmost_error_bar_hit_position = error_bar_offset - error_bar_hit_width;
+        let highest_hit_difference = GameTimestampDifference::from_millis(76);
+        let highest_hit_difference = (GameTimestamp::from_millis(0) + highest_hit_difference)
+            .0
+            .as_secs_f32();
+        let hit_difference_offset_factor = (rightmost_error_bar_hit_position
+            - zero_error_bar_hit_position)
+            / highest_hit_difference;
+
+        self.renderer.sprites.push(Sprite {
+            pos: Point2::new(
+                -error_bar_offset,
+                error_bar_position - error_bar_height / 2.,
+            ),
+            scale: Vector2::new(error_bar_width, error_bar_height),
+            color: Srgba::new(1., 1., 1., 0.1),
+        });
+
+        for Hit {
+            timestamp,
+            difference,
+        } in self.state.last_hits.iter()
+        {
+            let offset = (GameTimestamp::from_millis(0) + *difference)
+                .0
+                .as_secs_f32()
+                * hit_difference_offset_factor
+                + zero_error_bar_hit_position;
+            let alpha = (0.3
+                - (GameTimestamp::from_millis(0) + (self.elapsed_timestamp - *timestamp))
+                    .0
+                    .as_secs_f32()
+                    / 5.)
+                .max(0.);
+
+            self.renderer.sprites.push(Sprite {
+                pos: Point2::new(offset, error_bar_position - error_bar_hit_height / 2.),
+                scale: Vector2::new(error_bar_hit_width, error_bar_hit_height),
+                color: Srgba::new(1., 1., 1., alpha),
+            });
+        }
+
+        self.renderer.sprites.push(Sprite {
+            pos: Point2::new(
+                -error_bar_perfect_hit_width / 2.,
+                error_bar_position - error_bar_hit_height / 2.,
+            ),
+            scale: Vector2::new(error_bar_perfect_hit_width, error_bar_hit_height),
+            color: Srgba::new(1., 0., 0., 1.),
         });
     }
 }
