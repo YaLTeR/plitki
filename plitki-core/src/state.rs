@@ -2,6 +2,8 @@
 use alloc::{sync::Arc, vec::Vec};
 use core::ops::{Div, Mul};
 
+use circular_queue::CircularQueue;
+
 use crate::{
     map::Map,
     object::Object,
@@ -24,6 +26,10 @@ pub struct GameState {
     pub timestamp_converter: TimestampConverter,
     /// Contains states of the objects in lanes.
     pub lane_states: Vec<LaneState>,
+    /// Contains a number of last hits.
+    ///
+    /// Useful for implementing an error bar.
+    pub last_hits: CircularQueue<Hit>,
 }
 
 /// Scrolling speed.
@@ -97,6 +103,17 @@ pub struct LaneState {
     first_active_object: usize,
 }
 
+/// Information about a hit.
+///
+/// A hit is either a press or a release that resulted in a judgement.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct Hit {
+    /// Timestamp of the hit.
+    pub timestamp: GameTimestamp,
+    /// Difference between the actual press or release and the perfect timing.
+    pub difference: GameTimestampDifference,
+}
+
 impl GameState {
     /// Creates a new `GameState` given a map.
     pub fn new(mut map: Map) -> Self {
@@ -138,6 +155,7 @@ impl GameState {
             scroll_speed: ScrollSpeed(16),
             timestamp_converter,
             lane_states,
+            last_hits: CircularQueue::with_capacity(32),
         }
     }
 
@@ -151,6 +169,7 @@ impl GameState {
         self.cap_fps = latest.cap_fps;
         self.scroll_speed = latest.scroll_speed;
         self.timestamp_converter = latest.timestamp_converter;
+        self.last_hits = latest.last_hits.clone();
 
         for (lane, latest_lane) in self.lane_states.iter_mut().zip(latest.lane_states.iter()) {
             assert!(lane.first_active_object <= latest_lane.first_active_object);
@@ -215,6 +234,12 @@ impl GameState {
                             press_difference,
                             release_difference: hit_window,
                         };
+
+                        self.last_hits.push(Hit {
+                            timestamp: (object.end_timestamp() + map_hit_window)
+                                .to_game(&self.timestamp_converter),
+                            difference: hit_window,
+                        });
                     } else if *state == LongNoteState::NotHit {
                         // I kind of dislike how this branch exists both here and in the condition
                         // below...
@@ -295,6 +320,11 @@ impl GameState {
                     }
                 }
             }
+
+            self.last_hits.push(Hit {
+                timestamp,
+                difference,
+            });
         }
     }
 
@@ -324,6 +354,11 @@ impl GameState {
                         press_difference,
                         release_difference: difference,
                     };
+
+                    self.last_hits.push(Hit {
+                        timestamp,
+                        difference,
+                    });
                 } else {
                     // Released too early.
                     *state = LongNoteState::Missed {
@@ -484,6 +519,13 @@ mod tests {
                 }),
             ][..]
         );
+
+        let mut hits = CircularQueue::with_capacity(1);
+        hits.push(Hit {
+            timestamp: GameTimestamp::from_millis(10_000),
+            difference: GameTimestampDifference::from_millis(0),
+        });
+        assert_eq!(state.last_hits, hits);
     }
 
     #[test]
@@ -518,6 +560,13 @@ mod tests {
                 ObjectState::Regular(RegularObjectState::NotHit),
             ][..]
         );
+
+        let mut hits = CircularQueue::with_capacity(1);
+        hits.push(Hit {
+            timestamp: GameTimestamp::from_millis(10),
+            difference: GameTimestampDifference::from_millis(10),
+        });
+        assert_eq!(state.last_hits, hits);
     }
 
     #[test]
@@ -547,6 +596,17 @@ mod tests {
                 release_difference: GameTimestampDifference::from_millis(0)
             })][..]
         );
+
+        let mut hits = CircularQueue::with_capacity(2);
+        hits.push(Hit {
+            timestamp: GameTimestamp::from_millis(5_000),
+            difference: GameTimestampDifference::from_millis(0),
+        });
+        hits.push(Hit {
+            timestamp: GameTimestamp::from_millis(10_000),
+            difference: GameTimestampDifference::from_millis(0),
+        });
+        assert_eq!(state.last_hits, hits);
     }
 
     #[test]
@@ -578,6 +638,13 @@ mod tests {
                 press_difference: Some(GameTimestampDifference::from_millis(0)),
             })][..]
         );
+
+        let mut hits = CircularQueue::with_capacity(1);
+        hits.push(Hit {
+            timestamp: GameTimestamp::from_millis(5_000),
+            difference: GameTimestampDifference::from_millis(0),
+        });
+        assert_eq!(state.last_hits, hits);
     }
 
     #[test]
@@ -607,6 +674,17 @@ mod tests {
                 release_difference: GameTimestampDifference::from_millis(76), // TODO: un-hardcode
             })][..]
         );
+
+        let mut hits = CircularQueue::with_capacity(2);
+        hits.push(Hit {
+            timestamp: GameTimestamp::from_millis(5_000),
+            difference: GameTimestampDifference::from_millis(0),
+        });
+        hits.push(Hit {
+            timestamp: GameTimestamp::from_millis(10_076),
+            difference: GameTimestampDifference::from_millis(76),
+        });
+        assert_eq!(state.last_hits, hits);
     }
 
     #[test]
@@ -636,6 +714,9 @@ mod tests {
                 press_difference: None,
             })][..]
         );
+
+        let hits = CircularQueue::with_capacity(1);
+        assert_eq!(state.last_hits, hits);
     }
 
     #[test]
@@ -663,6 +744,13 @@ mod tests {
                 press_difference: GameTimestampDifference::from_millis(0)
             })][..]
         );
+
+        let mut hits = CircularQueue::with_capacity(1);
+        hits.push(Hit {
+            timestamp: GameTimestamp::from_millis(5_000),
+            difference: GameTimestampDifference::from_millis(0),
+        });
+        assert_eq!(state.last_hits, hits);
     }
 
     #[test]
@@ -691,6 +779,9 @@ mod tests {
                 press_difference: None,
             })][..]
         );
+
+        let hits = CircularQueue::with_capacity(1);
+        assert_eq!(state.last_hits, hits);
     }
 
     #[test]
@@ -724,6 +815,13 @@ mod tests {
                 difference: GameTimestampDifference::from_millis(0)
             })][..]
         );
+
+        let mut hits = CircularQueue::with_capacity(1);
+        hits.push(Hit {
+            timestamp: GameTimestamp::from_millis(10_000),
+            difference: GameTimestampDifference::from_millis(0),
+        });
+        assert_eq!(state.last_hits, hits);
     }
 
     #[test]
@@ -754,6 +852,10 @@ mod tests {
         state2.scroll_speed = ScrollSpeed(5);
         state2.lane_states[0].first_active_object = 1;
         state2.lane_states[0].object_states[0] = ObjectState::Regular(RegularObjectState::Hit {
+            difference: GameTimestampDifference::from_millis(0),
+        });
+        state2.last_hits.push(Hit {
+            timestamp: GameTimestamp::from_millis(10_000),
             difference: GameTimestampDifference::from_millis(0),
         });
         assert_ne!(state, state2);

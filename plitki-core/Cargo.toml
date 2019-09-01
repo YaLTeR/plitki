@@ -4,5 +4,8 @@ version = "0.1.0"
 authors = ["Ivan Molodetskikh <yalterz@gmail.com>"]
 edition = "2018"
 
+[dependencies]
+circular-queue = "0.2.2"
+
 [dev-dependencies]
 proptest = "0.9.4"
