@@ -90,11 +90,7 @@ fn main() {
         )
     } else {
         (
-            Cow::from(
-                &include_bytes!(
-                    "/home/yalter/Source/rust/plitki/plitki-map-qua/tests/data/actual_map.qua"
-                )[..],
-            ),
+            Cow::from(&include_bytes!("../../plitki-map-qua/tests/data/actual_map.qua")[..]),
             None,
         )
     };
