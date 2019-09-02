@@ -20,7 +20,7 @@ use plitki_core::{
 use plitki_map_qua::from_reader;
 use rodio::Source;
 use slog::{o, Drain};
-use slog_scope::{debug, trace};
+use slog_scope::{debug, trace, warn};
 use smithay_client_toolkit::{
     keyboard::{
         keysyms, map_keyboard_auto_with_repeat, Event as KbEvent, KeyRepeatEvent, KeyRepeatKind,
@@ -59,6 +59,13 @@ enum RenderThreadEvent {
         new_dimensions: Option<(u32, u32)>,
         refresh_decorations: bool,
     },
+}
+
+#[derive(Debug, Clone)]
+struct PresentationInfo {
+    last_presentation: Duration,
+    refresh_time: Duration,
+    latency: u32,
 }
 
 fn main() {
@@ -477,7 +484,8 @@ fn render_thread(
 
     let mut start = None;
     let mut clk_id = None;
-    let next_frame_timestamp = Arc::new(Mutex::new(None));
+
+    let presentation_info = Arc::new(Mutex::new(None));
 
     let &(ref lock, ref cvar) = &*pair;
     loop {
@@ -528,32 +536,43 @@ fn render_thread(
                 state_buffer.raw_update();
                 let state = state_buffer.raw_output_buffer();
 
-                let elapsed = clock_gettime(clk_id.unwrap()) - start.unwrap();
-                // TODO: handle low fps and subsequent too high fps (also applies to refresh rate
-                // changes)
-                let target_time = if let Some(next_frame_timestamp) =
-                    next_frame_timestamp.lock().unwrap().as_ref().cloned()
+                let current_time = clock_gettime(clk_id.unwrap());
+                let elapsed = current_time - start.unwrap();
+
+                let target_time = if let Some(PresentationInfo {
+                    last_presentation,
+                    refresh_time,
+                    latency,
+                }) = presentation_info.lock().unwrap().as_ref().cloned()
                 {
-                    next_frame_timestamp
+                    let mut next_refresh = last_presentation;
+                    while next_refresh < current_time {
+                        next_refresh += refresh_time;
+                    }
+
+                    let projected_presentation_time = next_refresh + refresh_time * latency;
+                    elapsed + (projected_presentation_time - current_time)
+                    // elapsed
                 } else {
                     elapsed
                 };
 
-                debug!(
+                trace!(
                     "starting render";
                     "elapsed" => ?elapsed,
                     "target_time" => ?target_time
                 );
 
                 {
-                    let next_frame_timestamp = next_frame_timestamp.clone();
+                    let presentation_info = presentation_info.clone();
+                    let render_start_time = current_time;
 
                     wp_presentation
                         .feedback(window.surface(), move |proxy| {
                             proxy.implement_closure_threadsafe(
                                 move |event, _| match event {
                                     wp_presentation_feedback::Event::Discarded => {
-                                        debug!(
+                                        warn!(
                                             "frame discarded";
                                             "target_time" => ?target_time
                                         );
@@ -565,10 +584,30 @@ fn render_thread(
                                         refresh,
                                         ..
                                     } => {
-                                        let presentation_time = Duration::new(
+                                        let last_presentation = Duration::new(
                                             (u64::from(tv_sec_hi) << 32) | u64::from(tv_sec_lo),
                                             tv_nsec,
-                                        ) - start.unwrap();
+                                        );
+                                        let refresh_time = Duration::new(0, refresh);
+
+                                        let mut first_refresh_after_render_start =
+                                            last_presentation - refresh_time;
+                                        let mut latency = 1;
+                                        while first_refresh_after_render_start > render_start_time {
+                                            first_refresh_after_render_start -= refresh_time;
+                                            latency += 1;
+                                        }
+                                        first_refresh_after_render_start += refresh_time;
+                                        latency -= 1;
+
+                                        *presentation_info.lock().unwrap() =
+                                            Some(PresentationInfo {
+                                                last_presentation,
+                                                refresh_time,
+                                                latency,
+                                            });
+
+                                        let presentation_time = last_presentation - start.unwrap();
                                         let (presentation_latency, sign) = presentation_time
                                             .checked_sub(target_time)
                                             .map(|x| (x, ""))
@@ -576,18 +615,13 @@ fn render_thread(
                                                 (target_time - presentation_time, "-")
                                             });
 
-                                        let refresh = Duration::new(0, refresh);
-
-                                        *next_frame_timestamp.lock().unwrap() =
-                                            Some(presentation_time + refresh);
-
                                         debug!(
                                             "frame presented";
                                             "target_time" => ?target_time,
                                             "presentation_time" => ?presentation_time,
                                             "presentation_latency"
                                                 => &format!("{}{:?}", sign, presentation_latency),
-                                            "refresh" => ?refresh
+                                            "refresh" => ?refresh_time
                                         );
                                     }
                                     _ => (),
