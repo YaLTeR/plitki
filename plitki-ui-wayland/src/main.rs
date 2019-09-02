@@ -45,6 +45,9 @@ use wayland_protocols::presentation_time::client::{
 mod clock_gettime;
 use clock_gettime::clock_gettime;
 
+mod frame_scheduler;
+use frame_scheduler::FrameScheduler;
+
 mod backend;
 use backend::create_context;
 
@@ -59,13 +62,6 @@ enum RenderThreadEvent {
         new_dimensions: Option<(u32, u32)>,
         refresh_decorations: bool,
     },
-}
-
-#[derive(Debug, Clone)]
-struct PresentationInfo {
-    last_presentation: Duration,
-    refresh_time: Duration,
-    latency: u32,
 }
 
 fn main() {
@@ -485,7 +481,7 @@ fn render_thread(
     let mut start = None;
     let mut clk_id = None;
 
-    let presentation_info = Arc::new(Mutex::new(None));
+    let frame_scheduler = FrameScheduler::new();
 
     let &(ref lock, ref cvar) = &*pair;
     loop {
@@ -538,24 +534,8 @@ fn render_thread(
 
                 let current_time = clock_gettime(clk_id.unwrap());
                 let elapsed = current_time - start.unwrap();
-
-                let target_time = if let Some(PresentationInfo {
-                    last_presentation,
-                    refresh_time,
-                    latency,
-                }) = presentation_info.lock().unwrap().as_ref().cloned()
-                {
-                    let mut next_refresh = last_presentation;
-                    while next_refresh < current_time {
-                        next_refresh += refresh_time;
-                    }
-
-                    let projected_presentation_time = next_refresh + refresh_time * latency;
-                    elapsed + (projected_presentation_time - current_time)
-                    // elapsed
-                } else {
-                    elapsed
-                };
+                let target_time =
+                    frame_scheduler.get_target_time(current_time) - current_time + elapsed;
 
                 trace!(
                     "starting render";
@@ -564,7 +544,7 @@ fn render_thread(
                 );
 
                 {
-                    let presentation_info = presentation_info.clone();
+                    let frame_scheduler = frame_scheduler.clone();
                     let render_start_time = current_time;
 
                     wp_presentation
@@ -590,22 +570,11 @@ fn render_thread(
                                         );
                                         let refresh_time = Duration::new(0, refresh);
 
-                                        let mut first_refresh_after_render_start =
-                                            last_presentation - refresh_time;
-                                        let mut latency = 1;
-                                        while first_refresh_after_render_start > render_start_time {
-                                            first_refresh_after_render_start -= refresh_time;
-                                            latency += 1;
-                                        }
-                                        first_refresh_after_render_start += refresh_time;
-                                        latency -= 1;
-
-                                        *presentation_info.lock().unwrap() =
-                                            Some(PresentationInfo {
-                                                last_presentation,
-                                                refresh_time,
-                                                latency,
-                                            });
+                                        frame_scheduler.presented(
+                                            render_start_time,
+                                            last_presentation,
+                                            refresh_time,
+                                        );
 
                                         let presentation_time = last_presentation - start.unwrap();
                                         let (presentation_latency, sign) = presentation_time
