@@ -17,7 +17,7 @@ matrix:
   allow_failures:
     - rust: nightly
   include:
-    - stage: coverage
+    - stage: "Coverage"
       rust: beta # https://github.com/rust-lang/rust/issues/52478
       script:
         - cargo install cargo-tarpaulin -f
