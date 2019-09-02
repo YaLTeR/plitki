@@ -6,6 +6,7 @@ addons:
       - libasound2-dev
       - libxxf86vm-dev
       - libosmesa6-dev
+      - libssl-dev
 
 rust:
   - stable
@@ -15,6 +16,13 @@ rust:
 matrix:
   allow_failures:
     - rust: nightly
+  include:
+    - stage: coverage
+      rust: beta # https://github.com/rust-lang/rust/issues/52478
+      script:
+        - cargo install cargo-tarpaulin -f
+        - cargo tarpaulin --out Xml
+        - bash <(curl -s https://codecov.io/bash)
 
 cache: cargo
 
