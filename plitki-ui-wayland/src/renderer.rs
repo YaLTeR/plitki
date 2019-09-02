@@ -15,7 +15,7 @@ use plitki_core::{
     state::{Hit, LongNoteState, ObjectState},
     timing::{GameTimestamp, GameTimestampDifference, MapTimestamp},
 };
-use slog_scope::{debug, trace};
+use slog_scope::trace;
 
 use crate::GameState;
 
