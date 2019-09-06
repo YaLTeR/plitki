@@ -75,6 +75,12 @@ impl Timestamp {
         )
     }
 
+    /// Returns the total number of whole milliseconds represented by this timestamp.
+    #[inline]
+    pub fn as_millis(self) -> i32 {
+        self.0 / 100
+    }
+
     /// Creates a new `Timestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths of a
     /// millisecond.
     #[inline]
@@ -100,6 +106,12 @@ impl MapTimestamp {
         Self(Timestamp::from_millis(millis))
     }
 
+    /// Returns the total number of whole milliseconds represented by this timestamp.
+    #[inline]
+    pub fn as_millis(self) -> i32 {
+        self.0.as_millis()
+    }
+
     /// Creates a new `MapTimestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths of
     /// a millisecond.
     #[inline]
@@ -123,6 +135,12 @@ impl GameTimestamp {
     #[inline]
     pub fn from_millis(millis: i32) -> Self {
         Self(Timestamp::from_millis(millis))
+    }
+
+    /// Returns the total number of whole milliseconds represented by this timestamp.
+    #[inline]
+    pub fn as_millis(self) -> i32 {
+        self.0.as_millis()
     }
 
     /// Creates a new `GameTimestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths
@@ -154,6 +172,12 @@ impl TimestampDifference {
         )
     }
 
+    /// Returns the total number of whole milliseconds represented by this timestamp.
+    #[inline]
+    pub fn as_millis(self) -> i32 {
+        self.0 / 100
+    }
+
     /// Creates a new `TimestampDifference` from the specified number of
     /// <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
     #[inline]
@@ -180,6 +204,12 @@ impl MapTimestampDifference {
         Self(TimestampDifference::from_millis(millis))
     }
 
+    /// Returns the total number of whole milliseconds represented by this timestamp.
+    #[inline]
+    pub fn as_millis(self) -> i32 {
+        self.0.as_millis()
+    }
+
     /// Creates a new `MapTimestampDifference` from the specified number of
     /// <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
     #[inline]
@@ -204,6 +234,12 @@ impl GameTimestampDifference {
     #[inline]
     pub fn from_millis(millis: i32) -> Self {
         Self(TimestampDifference::from_millis(millis))
+    }
+
+    /// Returns the total number of whole milliseconds represented by this timestamp.
+    #[inline]
+    pub fn as_millis(self) -> i32 {
+        self.0.as_millis()
     }
 
     /// Creates a new `GameTimestampDifference` from the specified number of
