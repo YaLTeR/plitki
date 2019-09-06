@@ -96,6 +96,19 @@ impl Timestamp {
                 .expect("overflow when converting milliseconds to Timestamp"),
         )
     }
+
+    /// Creates a new `Timestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths of a
+    /// millisecond.
+    #[inline]
+    pub fn from_milli_hundredths(milli_hundredths: i32) -> Self {
+        Self(milli_hundredths)
+    }
+
+    /// Returns the timestamp as the number of <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
+    #[inline]
+    pub fn into_milli_hundredths(self) -> i32 {
+        self.0
+    }
 }
 
 impl MapTimestamp {
@@ -108,6 +121,19 @@ impl MapTimestamp {
     pub fn from_millis(millis: i32) -> Self {
         Self(Timestamp::from_millis(millis))
     }
+
+    /// Creates a new `MapTimestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths of
+    /// a millisecond.
+    #[inline]
+    pub fn from_milli_hundredths(milli_hundredths: i32) -> Self {
+        Self(Timestamp::from_milli_hundredths(milli_hundredths))
+    }
+
+    /// Returns the timestamp as the number of <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
+    #[inline]
+    pub fn into_milli_hundredths(self) -> i32 {
+        self.0.into_milli_hundredths()
+    }
 }
 
 impl GameTimestamp {
@@ -119,6 +145,19 @@ impl GameTimestamp {
     #[inline]
     pub fn from_millis(millis: i32) -> Self {
         Self(Timestamp::from_millis(millis))
+    }
+
+    /// Creates a new `GameTimestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths
+    /// of a millisecond.
+    #[inline]
+    pub fn from_milli_hundredths(milli_hundredths: i32) -> Self {
+        Self(Timestamp::from_milli_hundredths(milli_hundredths))
+    }
+
+    /// Returns the timestamp as the number of <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
+    #[inline]
+    pub fn into_milli_hundredths(self) -> i32 {
+        self.0.into_milli_hundredths()
     }
 }
 
@@ -136,6 +175,20 @@ impl TimestampDifference {
                 .expect("overflow when converting milliseconds to TimestampDifference"),
         )
     }
+
+    /// Creates a new `TimestampDifference` from the specified number of
+    /// <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
+    #[inline]
+    pub fn from_milli_hundredths(milli_hundredths: i32) -> Self {
+        Self(milli_hundredths)
+    }
+
+    /// Returns the timestamp difference as the number of <sup>1</sup>⁄<sub>100</sub>ths of a
+    /// millisecond.
+    #[inline]
+    pub fn into_milli_hundredths(self) -> i32 {
+        self.0
+    }
 }
 
 impl MapTimestampDifference {
@@ -148,6 +201,20 @@ impl MapTimestampDifference {
     pub fn from_millis(millis: i32) -> Self {
         Self(TimestampDifference::from_millis(millis))
     }
+
+    /// Creates a new `MapTimestampDifference` from the specified number of
+    /// <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
+    #[inline]
+    pub fn from_milli_hundredths(milli_hundredths: i32) -> Self {
+        Self(TimestampDifference::from_milli_hundredths(milli_hundredths))
+    }
+
+    /// Returns the timestamp difference as the number of <sup>1</sup>⁄<sub>100</sub>ths of a
+    /// millisecond.
+    #[inline]
+    pub fn into_milli_hundredths(self) -> i32 {
+        self.0.into_milli_hundredths()
+    }
 }
 
 impl GameTimestampDifference {
@@ -159,6 +226,20 @@ impl GameTimestampDifference {
     #[inline]
     pub fn from_millis(millis: i32) -> Self {
         Self(TimestampDifference::from_millis(millis))
+    }
+
+    /// Creates a new `GameTimestampDifference` from the specified number of
+    /// <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
+    #[inline]
+    pub fn from_milli_hundredths(milli_hundredths: i32) -> Self {
+        Self(TimestampDifference::from_milli_hundredths(milli_hundredths))
+    }
+
+    /// Returns the timestamp difference as the number of <sup>1</sup>⁄<sub>100</sub>ths of a
+    /// millisecond.
+    #[inline]
+    pub fn into_milli_hundredths(self) -> i32 {
+        self.0.into_milli_hundredths()
     }
 }
 
