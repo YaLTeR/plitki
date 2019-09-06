@@ -12,6 +12,7 @@ use glium::{
 use palette::{ComponentWise, Srgba};
 use plitki_core::{
     object::Object,
+    scroll::Position,
     state::{Hit, LongNoteState, ObjectState},
     timing::{GameTimestamp, GameTimestampDifference, MapTimestamp},
 };
@@ -82,12 +83,12 @@ fn compute_ortho(dimensions: (u32, u32)) -> Ortho<f32> {
     }
 }
 
-fn to_scroll_speed_coord(x: f32) -> f32 {
-    x * 5.
+fn to_core_position(x: f32) -> Position {
+    Position((f64::from(x) * 1_000_000_000.) as i64)
 }
 
-fn from_scroll_speed_coord(x: f32) -> f32 {
-    x / 5.
+fn from_core_position(x: Position) -> f32 {
+    (x.0 as f64 / 1_000_000_000.) as f32
 }
 
 impl Renderer {
@@ -240,12 +241,11 @@ impl<'a> SingleFrameRenderer<'a> {
         let note_height = 0.1;
 
         let first_visible_timestamp = (elapsed_timestamp
-            - to_scroll_speed_coord(judgement_line_position - renderer.ortho.bottom + note_height)
+            - to_core_position(judgement_line_position - renderer.ortho.bottom + note_height)
                 / state.scroll_speed)
             .to_map(&state.timestamp_converter);
         let one_past_last_visible_timestamp = (elapsed_timestamp
-            + to_scroll_speed_coord(renderer.ortho.top - judgement_line_position)
-                / state.scroll_speed)
+            + to_core_position(renderer.ortho.top - judgement_line_position) / state.scroll_speed)
             .to_map(&state.timestamp_converter);
 
         renderer.sprites.clear();
@@ -345,7 +345,7 @@ impl<'a> SingleFrameRenderer<'a> {
         let pos = Point2::new(
             -self.border_offset + self.lane_width * lane as f32,
             self.judgement_line_position
-                + from_scroll_speed_coord(
+                + from_core_position(
                     (start.to_game(&self.state.timestamp_converter) - self.elapsed_timestamp)
                         * self.state.scroll_speed,
                 ),
@@ -353,7 +353,7 @@ impl<'a> SingleFrameRenderer<'a> {
 
         let height = match *object {
             Object::Regular { .. } => self.note_height,
-            Object::LongNote { end, .. } => from_scroll_speed_coord(
+            Object::LongNote { end, .. } => from_core_position(
                 (end - start).to_game(&self.state.timestamp_converter) * self.state.scroll_speed,
             ),
         };
@@ -395,9 +395,7 @@ impl<'a> SingleFrameRenderer<'a> {
         let zero_error_bar_hit_position = -error_bar_hit_width / 2.;
         let rightmost_error_bar_hit_position = error_bar_offset - error_bar_hit_width;
         let highest_hit_difference = GameTimestampDifference::from_millis(76);
-        let highest_hit_difference = (GameTimestamp::from_millis(0) + highest_hit_difference)
-            .0
-            .as_secs_f32();
+        let highest_hit_difference = highest_hit_difference.into_milli_hundredths() as f32;
         let hit_difference_offset_factor = (rightmost_error_bar_hit_position
             - zero_error_bar_hit_position)
             / highest_hit_difference;
@@ -416,16 +414,10 @@ impl<'a> SingleFrameRenderer<'a> {
             difference,
         } in self.state.last_hits.iter()
         {
-            let offset = (GameTimestamp::from_millis(0) + *difference)
-                .0
-                .as_secs_f32()
-                * hit_difference_offset_factor
+            let offset = difference.into_milli_hundredths() as f32 * hit_difference_offset_factor
                 + zero_error_bar_hit_position;
             let alpha = (0.3
-                - (GameTimestamp::from_millis(0) + (self.elapsed_timestamp - *timestamp))
-                    .0
-                    .as_secs_f32()
-                    / 5.)
+                - (self.elapsed_timestamp - *timestamp).into_milli_hundredths() as f32 / 500_000.)
                 .max(0.);
 
             self.renderer.sprites.push(Sprite {

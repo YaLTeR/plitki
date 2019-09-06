@@ -1,13 +1,13 @@
 //! Functionality related to managing the game state.
 use alloc::{sync::Arc, vec::Vec};
-use core::ops::{Div, Mul};
 
 use circular_queue::CircularQueue;
 
 use crate::{
     map::Map,
     object::Object,
-    timing::{GameTimestamp, GameTimestampDifference, MapTimestamp, Timestamp, TimestampConverter},
+    scroll::ScrollSpeed,
+    timing::{GameTimestamp, GameTimestampDifference, MapTimestamp, TimestampConverter},
 };
 
 /// State of the game.
@@ -31,14 +31,6 @@ pub struct GameState {
     /// Useful for implementing an error bar.
     pub last_hits: CircularQueue<Hit>,
 }
-
-/// Scrolling speed.
-///
-/// Measured in <sup>1</sup>⁄<sub>10</sub>ths of vertical square screens per second. That is, on a
-/// square 1:1 screen, 10 means a note travels from the very top to the very bottom of the screen
-/// in one second; 5 means in two seconds and 20 means in half a second.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct ScrollSpeed(pub u8);
 
 /// States of a regular object.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -152,7 +144,7 @@ impl GameState {
         Self {
             map: Arc::new(map),
             cap_fps: false,
-            scroll_speed: ScrollSpeed(16),
+            scroll_speed: ScrollSpeed(32),
             timestamp_converter,
             lane_states,
             last_hits: CircularQueue::with_capacity(32),
@@ -371,34 +363,6 @@ impl GameState {
                 lane_state.first_active_object += 1;
             }
         }
-    }
-}
-
-impl Mul<GameTimestampDifference> for ScrollSpeed {
-    type Output = f32;
-
-    #[inline]
-    fn mul(self, rhs: GameTimestampDifference) -> Self::Output {
-        f32::from(self.0) * (GameTimestamp::from_millis(0) + rhs).0.as_secs_f32()
-    }
-}
-
-impl Mul<ScrollSpeed> for GameTimestampDifference {
-    type Output = f32;
-
-    #[inline]
-    fn mul(self, rhs: ScrollSpeed) -> Self::Output {
-        rhs * self
-    }
-}
-
-impl Div<ScrollSpeed> for f32 {
-    type Output = GameTimestampDifference;
-
-    #[inline]
-    fn div(self, rhs: ScrollSpeed) -> Self::Output {
-        GameTimestamp(Timestamp::from_secs_f32(self / f32::from(rhs.0)))
-            - GameTimestamp::from_millis(0)
     }
 }
 

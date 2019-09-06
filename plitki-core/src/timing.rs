@@ -61,28 +61,6 @@ pub struct TryFromDurationError(());
 pub struct TryFromTimestampError(());
 
 impl Timestamp {
-    /// Returns the number of seconds contained in this `Timestamp` as `f32`.
-    #[inline]
-    pub fn as_secs_f32(self) -> f32 {
-        self.0 as f32 / 1_000_00.
-    }
-
-    /// Creates a new `Timestamp` from the specified number of seconds represented as `f32`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `secs` is not finite or overflows the `Timestamp`.
-    #[inline]
-    pub fn from_secs_f32(secs: f32) -> Self {
-        let value = secs * 1_000_00.;
-        assert!(value.is_finite());
-        // Both of these happen to remain within the i32 range when converted to f32.
-        assert!(value <= i32::max_value() as f32);
-        assert!(value >= i32::min_value() as f32);
-
-        Self(value as i32)
-    }
-
     /// Creates a new `Timestamp` from the specified number of milliseconds.
     ///
     /// # Panics
