@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, convert::TryInto, fs::File, time::Duration};
+use std::{cmp::Ordering, fs::File};
 
 extern crate plitki_map_qua;
 use plitki_map_qua::{from_reader, to_writer, GameMode, HitObject, Qua};
@@ -86,44 +86,44 @@ fn convert() {
             Lane {
                 objects: vec![
                     Object::Regular {
-                        timestamp: MapTimestamp(Duration::from_millis(601).try_into().unwrap()),
+                        timestamp: MapTimestamp::from_millis(601),
                     },
                     Object::Regular {
-                        timestamp: MapTimestamp(Duration::from_millis(939).try_into().unwrap()),
+                        timestamp: MapTimestamp::from_millis(939),
                     },
                 ],
             },
             Lane {
                 objects: vec![
                     Object::Regular {
-                        timestamp: MapTimestamp(Duration::from_millis(601).try_into().unwrap()),
+                        timestamp: MapTimestamp::from_millis(601),
                     },
                     Object::LongNote {
-                        start: MapTimestamp(Duration::from_millis(939).try_into().unwrap()),
-                        end: MapTimestamp(Duration::from_millis(1278).try_into().unwrap()),
+                        start: MapTimestamp::from_millis(939),
+                        end: MapTimestamp::from_millis(1278),
                     },
                 ],
             },
             Lane {
                 objects: vec![
                     Object::LongNote {
-                        start: MapTimestamp(Duration::from_millis(601).try_into().unwrap()),
-                        end: MapTimestamp(Duration::from_millis(939).try_into().unwrap()),
+                        start: MapTimestamp::from_millis(601),
+                        end: MapTimestamp::from_millis(939),
                     },
                     Object::Regular {
-                        timestamp: MapTimestamp(Duration::from_millis(1278).try_into().unwrap()),
+                        timestamp: MapTimestamp::from_millis(1278),
                     },
                 ],
             },
             Lane {
                 objects: vec![
                     Object::LongNote {
-                        start: MapTimestamp(Duration::from_millis(601).try_into().unwrap()),
-                        end: MapTimestamp(Duration::from_millis(939).try_into().unwrap()),
+                        start: MapTimestamp::from_millis(601),
+                        end: MapTimestamp::from_millis(939),
                     },
                     Object::LongNote {
-                        start: MapTimestamp(Duration::from_millis(1194).try_into().unwrap()),
-                        end: MapTimestamp(Duration::from_millis(1363).try_into().unwrap()),
+                        start: MapTimestamp::from_millis(1194),
+                        end: MapTimestamp::from_millis(1363),
                     },
                 ],
             },

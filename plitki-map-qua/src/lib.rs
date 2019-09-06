@@ -1,8 +1,4 @@
-use std::{
-    convert::{TryFrom, TryInto},
-    io::{Read, Write},
-    time::Duration,
-};
+use std::io::{Read, Write};
 
 use plitki_core::{
     map::{Lane, Map},
@@ -52,24 +48,12 @@ impl From<HitObject> for Object {
         // TODO: this shouldn't panic and should probably be TryFrom instead.
         if hit_object.is_long_note() {
             Object::LongNote {
-                start: MapTimestamp(
-                    Duration::from_millis(hit_object.start_time as u64)
-                        .try_into()
-                        .unwrap(),
-                ),
-                end: MapTimestamp(
-                    Duration::from_millis(hit_object.end_time as u64)
-                        .try_into()
-                        .unwrap(),
-                ),
+                start: MapTimestamp::from_millis(hit_object.start_time),
+                end: MapTimestamp::from_millis(hit_object.end_time),
             }
         } else {
             Object::Regular {
-                timestamp: MapTimestamp(
-                    Duration::from_millis(hit_object.start_time as u64)
-                        .try_into()
-                        .unwrap(),
-                ),
+                timestamp: MapTimestamp::from_millis(hit_object.start_time),
             }
         }
     }
@@ -148,14 +132,14 @@ impl From<Map> for Qua {
 
                     objects.into_iter().map(move |object| match object {
                         Object::Regular { timestamp } => HitObject {
-                            start_time: Duration::try_from(timestamp.0).unwrap().as_millis() as i32,
+                            start_time: timestamp.as_millis(),
                             lane,
                             end_time: 0,
                         },
                         Object::LongNote { start, end } => HitObject {
-                            start_time: Duration::try_from(start.0).unwrap().as_millis() as i32,
+                            start_time: start.as_millis(),
                             lane,
-                            end_time: Duration::try_from(end.0).unwrap().as_millis() as i32,
+                            end_time: end.as_millis(),
                         },
                     })
                 })
