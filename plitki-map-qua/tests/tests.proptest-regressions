@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 2a0b9ef3698591a7ce7129c241631386dea2e20ae3dcdc18316e5874c16e1ec2 # shrinks to mut qua = Qua { mode: Keys4, title: None, artist: None, creator: None, difficulty_name: None, audio_file: None, timing_points: [TimingPoint { start_time: 0.0, bpm: 1.0, signature: 0 }], slider_velocities: [], hit_objects: [] }
+cc 0b5ae36f08c4bfc6eb419b7518319e5ca2acf331edc120ec338a041f15c7e1b1 # shrinks to mut qua = Qua { mode: Keys4, title: None, artist: None, creator: None, difficulty_name: None, audio_file: None, timing_points: [TimingPoint { start_time: 0.0, bpm: 1.0, signature: 0 }], slider_velocities: [], hit_objects: [] }
+cc 42d8d235683eeda23ae521ac3e2a7972b1f649ac90875a9a25b3ea5536a101b6 # shrinks to mut qua = Qua { mode: Keys4, title: None, artist: None, creator: None, difficulty_name: None, audio_file: None, timing_points: [TimingPoint { start_time: -37700.0, bpm: 64.0, signature: 1 }, TimingPoint { start_time: 0.0, bpm: 128.0, signature: 1 }], slider_velocities: [SliderVelocity { start_time: -37800.0, multiplier: 2.0 }], hit_objects: [HitObject { start_time: 37920, lane: 1, end_time: 0 }] }

@@ -1,11 +1,18 @@
-use std::io::{Read, Write};
+#![allow(clippy::inconsistent_digit_grouping)]
+
+use std::{
+    collections::HashMap,
+    io::{Read, Write},
+    mem,
+};
 
 use plitki_core::{
-    map::{Lane, Map},
+    map::{Lane, Map, ScrollSpeedChange, TimeSignature},
     object::Object,
-    timing::MapTimestamp,
+    scroll::ScrollSpeedMultiplier,
+    timing::{MapTimestamp, MapTimestampDifference},
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum GameMode {
@@ -22,6 +29,70 @@ impl GameMode {
             GameMode::Keys7 => 7,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct TimingPoint {
+    #[serde(default, rename = "StartTime")]
+    pub start_time: f32,
+    #[serde(rename = "Bpm")]
+    pub bpm: f32,
+    #[serde(
+        default = "default_signature",
+        rename = "Signature",
+        deserialize_with = "deserialize_signature"
+    )]
+    pub signature: i32,
+}
+
+fn default_signature() -> i32 {
+    4
+}
+
+fn deserialize_signature<'de, D>(deserializer: D) -> Result<i32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = i32::deserialize(deserializer)?;
+
+    Ok(if value == 0 { 4 } else { value })
+}
+
+impl From<TimingPoint> for plitki_core::map::TimingPoint {
+    #[inline]
+    fn from(timing_point: TimingPoint) -> Self {
+        Self {
+            timestamp: MapTimestamp::from_milli_hundredths((timing_point.start_time * 100.) as i32),
+            beat_duration: MapTimestampDifference::from_milli_hundredths(
+                (60_000_00. / timing_point.bpm) as i32,
+            ),
+            signature: TimeSignature {
+                beat_count: timing_point.signature as u8,
+                beat_unit: 4,
+            },
+        }
+    }
+}
+
+impl From<plitki_core::map::TimingPoint> for TimingPoint {
+    #[inline]
+    fn from(timing_point: plitki_core::map::TimingPoint) -> Self {
+        assert_eq!(timing_point.signature.beat_unit, 4);
+
+        Self {
+            start_time: (timing_point.timestamp.into_milli_hundredths() as f32) / 100.,
+            bpm: 60_000_00. / (timing_point.beat_duration.into_milli_hundredths() as f32),
+            signature: i32::from(timing_point.signature.beat_count),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct SliderVelocity {
+    #[serde(default, rename = "StartTime")]
+    pub start_time: f32,
+    #[serde(rename = "Multiplier")]
+    pub multiplier: f32,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
@@ -59,7 +130,7 @@ impl From<HitObject> for Object {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Qua {
     #[serde(rename = "Mode")]
     pub mode: GameMode,
@@ -73,6 +144,10 @@ pub struct Qua {
     pub difficulty_name: Option<String>,
     #[serde(rename = "AudioFile")]
     pub audio_file: Option<String>,
+    #[serde(rename = "TimingPoints")]
+    pub timing_points: Vec<TimingPoint>,
+    #[serde(rename = "SliderVelocities")]
+    pub slider_velocities: Vec<SliderVelocity>,
     #[serde(rename = "HitObjects")]
     pub hit_objects: Vec<HitObject>,
 }
@@ -83,14 +158,156 @@ impl Qua {
     pub fn lane_count(&self) -> usize {
         self.mode.lane_count()
     }
+
+    /// Computes the base BPM for the scroll speed multiplier.
+    ///
+    /// The base BPM corresponds to the multiplier of `1.0`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if there are no objects or if the timing points are not sorted by the start time.
+    pub fn base_bpm(&self) -> f32 {
+        let last_object_end_time = self
+            .hit_objects
+            .iter()
+            .map(|x| {
+                if x.is_long_note() {
+                    x.end_time
+                } else {
+                    x.start_time
+                }
+            })
+            .max()
+            .unwrap() as f32;
+
+        let mut durations = HashMap::new();
+        self.timing_points
+            .iter()
+            .enumerate()
+            .rev()
+            .filter(|(_, x)| x.start_time <= last_object_end_time)
+            .fold(last_object_end_time, |last_time, (i, timing_point)| {
+                let start_time = if i == 0 { 0. } else { timing_point.start_time };
+                let duration = last_time - timing_point.start_time;
+                assert!(duration >= 0.);
+
+                *durations.entry(timing_point.bpm.to_bits()).or_insert(0.) += duration;
+
+                start_time
+            });
+
+        if durations.is_empty() {
+            self.timing_points[0].bpm
+        } else {
+            let bits = *durations
+                .iter()
+                .max_by(|(bits_1, duration_1), (bits_2, duration_2)| {
+                    duration_1
+                        .partial_cmp(duration_2)
+                        .unwrap()
+                        // TODO: this is here so that in case multiple timing points have the same
+                        // duration the same one is returned every time (since the HashMap
+                        // iteration order is unstable). Quaver seems to have the same issue. Need
+                        // to see which one osu! picks in this case.
+                        .then(
+                            f32::from_bits(**bits_1)
+                                .partial_cmp(&f32::from_bits(**bits_2))
+                                .unwrap(),
+                        )
+                })
+                .unwrap()
+                .0;
+            f32::from_bits(bits)
+        }
+    }
 }
 
 impl From<Qua> for Map {
     #[inline]
-    fn from(qua: Qua) -> Self {
+    fn from(mut qua: Qua) -> Self {
         // TODO: this shouldn't panic and should probably be TryFrom instead.
+        qua.timing_points
+            .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+        qua.slider_velocities
+            .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+
+        // TODO: this fallback isn't really justified...
+        let base_bpm = if qua.hit_objects.is_empty() {
+            qua.timing_points[0].bpm
+        } else {
+            qua.base_bpm()
+        };
+
+        let mut timing_points = Vec::with_capacity(qua.timing_points.len());
+
+        let mut scroll_speed_changes = Vec::new();
+        let mut current_bpm = qua.timing_points.first().map(|x| x.bpm).unwrap_or(base_bpm);
+        let mut current_sv_index = 0;
+        let mut current_sv_multiplier = 1.;
+        let mut current_adjusted_sv_multiplier =
+            ScrollSpeedMultiplier::from_f32(current_sv_multiplier * (current_bpm / base_bpm));
+        let initial_scroll_speed_multiplier = current_adjusted_sv_multiplier;
+
+        for timing_point in qua.timing_points.drain(..) {
+            loop {
+                if current_sv_index >= qua.slider_velocities.len() {
+                    break;
+                }
+
+                let sv = qua.slider_velocities[current_sv_index];
+                if sv.start_time > timing_point.start_time {
+                    break;
+                }
+
+                if sv.start_time < timing_point.start_time {
+                    let multiplier =
+                        ScrollSpeedMultiplier::from_f32(sv.multiplier * (current_bpm / base_bpm));
+                    if multiplier != current_adjusted_sv_multiplier {
+                        scroll_speed_changes.push(ScrollSpeedChange {
+                            timestamp: MapTimestamp::from_milli_hundredths(
+                                (sv.start_time * 100.) as i32,
+                            ),
+                            multiplier,
+                        });
+                        current_adjusted_sv_multiplier = multiplier;
+                    }
+                }
+
+                current_sv_multiplier = sv.multiplier;
+                current_sv_index += 1;
+            }
+
+            current_bpm = timing_point.bpm;
+
+            let multiplier =
+                ScrollSpeedMultiplier::from_f32(current_sv_multiplier * (current_bpm / base_bpm));
+            if multiplier != current_adjusted_sv_multiplier {
+                scroll_speed_changes.push(ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_milli_hundredths(
+                        (timing_point.start_time * 100.) as i32,
+                    ),
+                    multiplier,
+                });
+                current_adjusted_sv_multiplier = multiplier;
+            }
+
+            timing_points.push(timing_point.into());
+        }
+
+        for sv in &qua.slider_velocities[current_sv_index..] {
+            let multiplier =
+                ScrollSpeedMultiplier::from_f32(sv.multiplier * (current_bpm / base_bpm));
+            if multiplier != current_adjusted_sv_multiplier {
+                scroll_speed_changes.push(ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_milli_hundredths((sv.start_time * 100.) as i32),
+                    multiplier,
+                });
+                current_adjusted_sv_multiplier = multiplier;
+            }
+        }
+
         let mut lanes = vec![Lane::new(); qua.lane_count()];
-        for hit_object in qua.hit_objects.into_iter() {
+        for hit_object in qua.hit_objects.drain(..) {
             assert!(hit_object.lane > 0);
             lanes[(hit_object.lane - 1) as usize]
                 .objects
@@ -103,6 +320,9 @@ impl From<Qua> for Map {
             difficulty_name: qua.difficulty_name,
             mapper: qua.creator,
             audio_file: qua.audio_file,
+            timing_points,
+            scroll_speed_changes,
+            initial_scroll_speed_multiplier,
             lanes,
         }
     }
@@ -110,9 +330,13 @@ impl From<Qua> for Map {
 
 impl From<Map> for Qua {
     #[inline]
-    fn from(map: Map) -> Self {
+    fn from(mut map: Map) -> Self {
         // TODO: this shouldn't panic and should probably be TryFrom instead.
-        Self {
+        let mut timing_points = map.timing_points.clone(); // TODO: get rid of the clone.
+        let mut scroll_speed_changes = mem::replace(&mut map.scroll_speed_changes, Vec::new());
+        let initial_scroll_speed_multiplier = map.initial_scroll_speed_multiplier;
+
+        let mut qua = Self {
             mode: match map.lanes.len() {
                 4 => GameMode::Keys4,
                 7 => GameMode::Keys7,
@@ -123,6 +347,8 @@ impl From<Map> for Qua {
             difficulty_name: map.difficulty_name,
             creator: map.mapper,
             audio_file: map.audio_file,
+            timing_points: map.timing_points.into_iter().map(Into::into).collect(),
+            slider_velocities: Vec::new(),
             hit_objects: map
                 .lanes
                 .into_iter()
@@ -144,7 +370,80 @@ impl From<Map> for Qua {
                     })
                 })
                 .collect(),
+        };
+
+        qua.timing_points
+            .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+        timing_points.sort_by_key(|a| a.timestamp);
+        scroll_speed_changes.sort_by_key(|a| a.timestamp);
+
+        // TODO: this fallback isn't really justified...
+        let base_bpm = if qua.hit_objects.is_empty() {
+            qua.timing_points[0].bpm
+        } else {
+            qua.base_bpm()
+        };
+
+        let mut slider_velocities = Vec::new();
+        let mut current_bpm = qua.timing_points.first().map(|x| x.bpm).unwrap_or(base_bpm);
+        let mut current_sv_index = 0;
+        let mut current_sv_multiplier = initial_scroll_speed_multiplier.as_f32();
+        let mut current_adjusted_sv_multiplier =
+            initial_scroll_speed_multiplier.as_f32() / (current_bpm / base_bpm);
+
+        #[allow(clippy::float_cmp)]
+        for timing_point in timing_points.into_iter() {
+            loop {
+                if current_sv_index >= scroll_speed_changes.len() {
+                    break;
+                }
+
+                let sv = &scroll_speed_changes[current_sv_index];
+                if sv.timestamp > timing_point.timestamp {
+                    break;
+                }
+
+                if sv.timestamp < timing_point.timestamp {
+                    let multiplier = sv.multiplier.as_f32() / (current_bpm / base_bpm);
+                    if multiplier != current_adjusted_sv_multiplier {
+                        slider_velocities.push(SliderVelocity {
+                            start_time: (sv.timestamp.into_milli_hundredths() as f32) / 100.,
+                            multiplier,
+                        });
+                        current_adjusted_sv_multiplier = multiplier;
+                    }
+                }
+
+                current_sv_multiplier = sv.multiplier.as_f32();
+                current_sv_index += 1;
+            }
+
+            current_bpm = 60_000_00. / timing_point.beat_duration.into_milli_hundredths() as f32;
+
+            let multiplier = current_sv_multiplier / (current_bpm / base_bpm);
+            if multiplier != current_adjusted_sv_multiplier {
+                slider_velocities.push(SliderVelocity {
+                    start_time: timing_point.timestamp.into_milli_hundredths() as f32 / 100.,
+                    multiplier,
+                });
+                current_adjusted_sv_multiplier = multiplier;
+            }
         }
+
+        #[allow(clippy::float_cmp)]
+        for sv in &scroll_speed_changes[current_sv_index..] {
+            let multiplier = sv.multiplier.as_f32() / (current_bpm / base_bpm);
+            if multiplier != current_adjusted_sv_multiplier {
+                slider_velocities.push(SliderVelocity {
+                    start_time: (sv.timestamp.into_milli_hundredths() as f32) / 100.,
+                    multiplier,
+                });
+                current_adjusted_sv_multiplier = multiplier;
+            }
+        }
+
+        qua.slider_velocities = slider_velocities;
+        qua
     }
 }
 

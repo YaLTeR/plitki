@@ -380,7 +380,7 @@ impl ObjectState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::map::Lane;
+    use crate::{map::Lane, scroll::ScrollSpeedMultiplier};
     use alloc::vec;
 
     #[test]
@@ -391,6 +391,9 @@ mod tests {
             difficulty_name: None,
             mapper: None,
             audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: Vec::new(),
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
             lanes: vec![
                 Lane {
                     objects: vec![
@@ -459,6 +462,9 @@ mod tests {
             difficulty_name: None,
             mapper: None,
             audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: Vec::new(),
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
             lanes: vec![Lane {
                 objects: vec![
                     Object::Regular {
@@ -500,6 +506,9 @@ mod tests {
             difficulty_name: None,
             mapper: None,
             audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: Vec::new(),
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
             lanes: vec![Lane {
                 objects: vec![
                     Object::Regular {
@@ -541,6 +550,9 @@ mod tests {
             difficulty_name: None,
             mapper: None,
             audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: Vec::new(),
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
             lanes: vec![Lane {
                 objects: vec![Object::LongNote {
                     start: MapTimestamp::from_millis(5_000),
@@ -581,6 +593,9 @@ mod tests {
             difficulty_name: None,
             mapper: None,
             audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: Vec::new(),
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
             lanes: vec![Lane {
                 objects: vec![Object::LongNote {
                     start: MapTimestamp::from_millis(5_000),
@@ -619,6 +634,9 @@ mod tests {
             difficulty_name: None,
             mapper: None,
             audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: Vec::new(),
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
             lanes: vec![Lane {
                 objects: vec![Object::LongNote {
                     start: MapTimestamp::from_millis(5_000),
@@ -659,6 +677,9 @@ mod tests {
             difficulty_name: None,
             mapper: None,
             audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: Vec::new(),
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
             lanes: vec![Lane {
                 objects: vec![Object::LongNote {
                     start: MapTimestamp::from_millis(5_000),
@@ -691,6 +712,9 @@ mod tests {
             difficulty_name: None,
             mapper: None,
             audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: Vec::new(),
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
             lanes: vec![Lane {
                 objects: vec![Object::LongNote {
                     start: MapTimestamp::from_millis(5_000),
@@ -725,6 +749,9 @@ mod tests {
             difficulty_name: None,
             mapper: None,
             audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: Vec::new(),
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
             lanes: vec![Lane {
                 objects: vec![Object::LongNote {
                     start: MapTimestamp::from_millis(5_000),
@@ -756,6 +783,9 @@ mod tests {
             difficulty_name: None,
             mapper: None,
             audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: Vec::new(),
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
             lanes: vec![Lane {
                 objects: vec![Object::Regular {
                     timestamp: MapTimestamp::from_millis(20_000),
@@ -796,6 +826,9 @@ mod tests {
             difficulty_name: None,
             mapper: None,
             audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: Vec::new(),
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
             lanes: vec![Lane {
                 objects: vec![
                     Object::Regular {
@@ -836,6 +869,9 @@ mod tests {
             difficulty_name: None,
             mapper: None,
             audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: Vec::new(),
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
             lanes: vec![Lane {
                 objects: vec![Object::Regular {
                     timestamp: MapTimestamp::from_millis(20_000),
@@ -861,6 +897,9 @@ mod tests {
             difficulty_name: None,
             mapper: None,
             audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: Vec::new(),
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
             lanes: vec![Lane { objects: vec![] }],
         };
 

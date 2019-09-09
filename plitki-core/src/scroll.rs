@@ -36,10 +36,30 @@ impl ScrollSpeedMultiplier {
     /// Panics if the `value` is outside of the valid `ScrollSpeedMultiplier` range.
     #[inline]
     pub fn new(value: i32) -> Self {
-        assert!(value <= 2i32.pow(24) - 1);
+        assert!(value < 2i32.pow(24));
         assert!(value >= -(2i32.pow(24)));
 
         Self(value)
+    }
+
+    /// Converts an `f32` to a `ScrollSpeedMultiplier` with bounds checking.
+    ///
+    /// The value is in the conventional range (so `1.0` is the multiplier of `1`).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the converted `value` is outside of the valid `ScrollSpeedMultiplier` range.
+    #[inline]
+    pub fn from_f32(value: f32) -> Self {
+        Self::new((value * 1000.) as i32)
+    }
+
+    /// Converts `ScrollSpeedMultiplier` to an `f32`.
+    ///
+    /// The returned value is in the conventional range (so `1.0` is the multiplier of `1`).
+    #[inline]
+    pub fn as_f32(self) -> f32 {
+        (self.0 as f32) / 1000.
     }
 }
 

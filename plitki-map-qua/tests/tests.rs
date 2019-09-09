@@ -1,12 +1,15 @@
 use std::{cmp::Ordering, fs::File};
 
 extern crate plitki_map_qua;
-use plitki_map_qua::{from_reader, to_writer, GameMode, HitObject, Qua};
+use plitki_map_qua::{
+    from_reader, to_writer, GameMode, HitObject, Qua, SliderVelocity, TimingPoint,
+};
 
 use plitki_core::{
-    map::{Lane, Map},
+    map::{Lane, Map, ScrollSpeedChange, TimeSignature},
     object::Object,
-    timing::MapTimestamp,
+    scroll::ScrollSpeedMultiplier,
+    timing::{MapTimestamp, MapTimestampDifference},
 };
 use pretty_assertions::assert_eq;
 use proptest::prelude::*;
@@ -23,6 +26,27 @@ fn parse_sample() {
         difficulty_name: Some("Easy".to_owned()),
         creator: Some("YaLTeR".to_owned()),
         audio_file: Some("song.mp3".to_owned()),
+        timing_points: vec![
+            TimingPoint {
+                start_time: 0.,
+                bpm: 100.,
+                signature: 4,
+            },
+            TimingPoint {
+                start_time: 200.,
+                bpm: 200.,
+                signature: 3,
+            },
+            TimingPoint {
+                start_time: 400.,
+                bpm: 200.,
+                signature: 4,
+            },
+        ],
+        slider_velocities: vec![SliderVelocity {
+            start_time: 300.,
+            multiplier: 2.,
+        }],
         hit_objects: vec![
             HitObject {
                 start_time: 601,
@@ -82,6 +106,43 @@ fn convert() {
         difficulty_name: Some("Easy".to_owned()),
         mapper: Some("YaLTeR".to_owned()),
         audio_file: Some("song.mp3".to_owned()),
+        timing_points: vec![
+            plitki_core::map::TimingPoint {
+                timestamp: MapTimestamp::from_millis(0),
+                beat_duration: MapTimestampDifference::from_millis(600),
+                signature: TimeSignature {
+                    beat_count: 4,
+                    beat_unit: 4,
+                },
+            },
+            plitki_core::map::TimingPoint {
+                timestamp: MapTimestamp::from_millis(200),
+                beat_duration: MapTimestampDifference::from_millis(300),
+                signature: TimeSignature {
+                    beat_count: 3,
+                    beat_unit: 4,
+                },
+            },
+            plitki_core::map::TimingPoint {
+                timestamp: MapTimestamp::from_millis(400),
+                beat_duration: MapTimestampDifference::from_millis(300),
+                signature: TimeSignature {
+                    beat_count: 4,
+                    beat_unit: 4,
+                },
+            },
+        ],
+        scroll_speed_changes: vec![
+            ScrollSpeedChange {
+                timestamp: MapTimestamp::from_millis(200),
+                multiplier: ScrollSpeedMultiplier::new(1000),
+            },
+            ScrollSpeedChange {
+                timestamp: MapTimestamp::from_millis(300),
+                multiplier: ScrollSpeedMultiplier::new(2000),
+            },
+        ],
+        initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(500),
         lanes: vec![
             Lane {
                 objects: vec![
@@ -146,11 +207,398 @@ fn convert_actual_map() {
     let _map: Map = qua.into();
 }
 
+#[test]
+fn base_bpm_no_durations() {
+    let qua = Qua {
+        mode: GameMode::Keys4,
+        title: None,
+        artist: None,
+        creator: None,
+        difficulty_name: None,
+        audio_file: None,
+        timing_points: vec![
+            TimingPoint {
+                start_time: 100.0,
+                bpm: 1.0,
+                signature: 0,
+            },
+            TimingPoint {
+                start_time: 200.0,
+                bpm: 2.0,
+                signature: 0,
+            },
+        ],
+        slider_velocities: vec![],
+        hit_objects: vec![HitObject {
+            start_time: 0,
+            lane: 0,
+            end_time: 0,
+        }],
+    };
+
+    #[allow(clippy::float_cmp)]
+    {
+        assert_eq!(qua.base_bpm(), 1.);
+    }
+}
+
+#[test]
+fn proptest_regression_1() {
+    let mut qua = Qua {
+        mode: GameMode::Keys4,
+        title: None,
+        artist: None,
+        creator: None,
+        difficulty_name: None,
+        audio_file: None,
+        timing_points: vec![TimingPoint {
+            start_time: 0.0,
+            bpm: 1.0,
+            signature: 0,
+        }],
+        slider_velocities: vec![],
+        hit_objects: vec![],
+    };
+
+    let map: Map = qua.clone().into();
+    let mut qua2: Qua = map.into();
+
+    qua.hit_objects.sort_unstable_by(hit_object_compare);
+    qua2.hit_objects.sort_unstable_by(hit_object_compare);
+
+    assert_eq!(qua, qua2);
+}
+
+#[test]
+fn proptest_regression_2() {
+    let mut qua = Qua {
+        mode: GameMode::Keys4,
+        title: None,
+        artist: None,
+        creator: None,
+        difficulty_name: None,
+        audio_file: None,
+        timing_points: vec![TimingPoint {
+            start_time: 0.0,
+            bpm: 1.0,
+            signature: 0,
+        }],
+        slider_velocities: vec![SliderVelocity {
+            start_time: 0.0,
+            multiplier: -8.0,
+        }],
+        hit_objects: vec![],
+    };
+
+    let map: Map = qua.clone().into();
+    let mut qua2: Qua = map.into();
+
+    qua.hit_objects.sort_unstable_by(hit_object_compare);
+    qua2.hit_objects.sort_unstable_by(hit_object_compare);
+
+    assert_eq!(qua, qua2);
+}
+
+#[test]
+fn proptest_regression_3() {
+    let mut qua = Qua {
+        mode: GameMode::Keys4,
+        title: None,
+        artist: None,
+        creator: None,
+        difficulty_name: None,
+        audio_file: None,
+        timing_points: vec![TimingPoint {
+            start_time: 0.0,
+            bpm: 1.0,
+            signature: 0,
+        }],
+        slider_velocities: vec![SliderVelocity {
+            start_time: -12_057_820.0,
+            multiplier: -8.0,
+        }],
+        hit_objects: vec![],
+    };
+
+    let map: Map = qua.clone().into();
+    let mut qua2: Qua = map.into();
+
+    qua.hit_objects.sort_unstable_by(hit_object_compare);
+    qua2.hit_objects.sort_unstable_by(hit_object_compare);
+
+    assert_eq!(qua, qua2);
+}
+
+#[test]
+fn proptest_regression_4() {
+    let mut qua = Qua {
+        mode: GameMode::Keys4,
+        title: None,
+        artist: None,
+        creator: None,
+        difficulty_name: None,
+        audio_file: None,
+        timing_points: vec![TimingPoint {
+            start_time: 0.0,
+            bpm: 1.0,
+            signature: 0,
+        }],
+        slider_velocities: vec![
+            SliderVelocity {
+                start_time: 0.0,
+                multiplier: -8.0,
+            },
+            SliderVelocity {
+                start_time: -15_698_166.0,
+                multiplier: -8.0,
+            },
+            SliderVelocity {
+                start_time: -12_057_820.0,
+                multiplier: -4.0,
+            },
+        ],
+        hit_objects: vec![],
+    };
+
+    let map: Map = qua.clone().into();
+    let mut qua2: Qua = map.into();
+
+    qua.hit_objects.sort_unstable_by(hit_object_compare);
+    qua2.hit_objects.sort_unstable_by(hit_object_compare);
+    normalize_svs(&mut qua);
+    normalize_svs(&mut qua2);
+
+    assert_eq!(qua, qua2);
+}
+
+#[test]
+fn proptest_regression_5() {
+    let mut qua = Qua {
+        mode: GameMode::Keys4,
+        title: None,
+        artist: None,
+        creator: None,
+        difficulty_name: None,
+        audio_file: None,
+        timing_points: vec![
+            TimingPoint {
+                start_time: 0.0,
+                bpm: 1.0,
+                signature: 1,
+            },
+            TimingPoint {
+                start_time: 0.0,
+                bpm: 2.0,
+                signature: 1,
+            },
+        ],
+        slider_velocities: vec![SliderVelocity {
+            start_time: -100.0,
+            multiplier: -0.25,
+        }],
+        hit_objects: vec![HitObject {
+            start_time: 0,
+            lane: 1,
+            end_time: 0,
+        }],
+    };
+
+    let map: Map = qua.clone().into();
+    let mut qua2: Qua = map.into();
+
+    qua.hit_objects.sort_unstable_by(hit_object_compare);
+    qua2.hit_objects.sort_unstable_by(hit_object_compare);
+    qua.timing_points
+        .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+    qua2.timing_points
+        .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+    normalize_svs(&mut qua);
+    normalize_svs(&mut qua2);
+
+    assert_eq!(qua, qua2);
+}
+
+#[test]
+fn proptest_regression_6() {
+    let mut qua = Qua {
+        mode: GameMode::Keys4,
+        title: None,
+        artist: None,
+        creator: None,
+        difficulty_name: None,
+        audio_file: None,
+        timing_points: vec![
+            TimingPoint {
+                start_time: -37700.0,
+                bpm: 64.0,
+                signature: 1,
+            },
+            TimingPoint {
+                start_time: 0.0,
+                bpm: 128.0,
+                signature: 1,
+            },
+        ],
+        slider_velocities: vec![SliderVelocity {
+            start_time: -37800.0,
+            multiplier: 2.0,
+        }],
+        hit_objects: vec![HitObject {
+            start_time: 37920,
+            lane: 1,
+            end_time: 0,
+        }],
+    };
+
+    let map: Map = qua.clone().into();
+    let mut qua2: Qua = map.into();
+
+    qua.hit_objects.sort_unstable_by(hit_object_compare);
+    qua2.hit_objects.sort_unstable_by(hit_object_compare);
+    qua.timing_points
+        .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+    qua2.timing_points
+        .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+    normalize_svs(&mut qua);
+    normalize_svs(&mut qua2);
+
+    assert_eq!(qua, qua2);
+}
+
+#[test]
+fn proptest_regression_7() {
+    let mut qua = Qua {
+        mode: GameMode::Keys4,
+        title: None,
+        artist: None,
+        creator: None,
+        difficulty_name: None,
+        audio_file: None,
+        timing_points: vec![
+            TimingPoint {
+                start_time: -83000.0,
+                bpm: 64.0,
+                signature: 1,
+            },
+            TimingPoint {
+                start_time: 0.0,
+                bpm: 128.0,
+                signature: 1,
+            },
+        ],
+        slider_velocities: vec![],
+        hit_objects: vec![HitObject {
+            start_time: 0,
+            lane: 1,
+            end_time: 201_025,
+        }],
+    };
+
+    let map: Map = qua.clone().into();
+    let mut qua2: Qua = map.into();
+
+    qua.hit_objects.sort_unstable_by(hit_object_compare);
+    qua2.hit_objects.sort_unstable_by(hit_object_compare);
+    qua.timing_points
+        .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+    qua2.timing_points
+        .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+    normalize_svs(&mut qua);
+    normalize_svs(&mut qua2);
+
+    assert_eq!(qua, qua2);
+}
+
 fn hit_object_compare(a: &HitObject, b: &HitObject) -> Ordering {
     a.start_time
         .cmp(&b.start_time)
         .then(a.lane.cmp(&b.lane))
         .then(a.end_time.cmp(&b.end_time))
+}
+
+/// Removes SVs which don't affect the map.
+fn normalize_svs(qua: &mut Qua) {
+    let mut slider_velocities = Vec::with_capacity(qua.slider_velocities.len());
+
+    qua.slider_velocities
+        .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+    let mut current_sv_multiplier = 1.;
+
+    #[allow(clippy::float_cmp)]
+    for mut i in 0..qua.slider_velocities.len() {
+        let mut sv = &qua.slider_velocities[i];
+        loop {
+            // Take the last SV at this timestamp.
+            if i == qua.slider_velocities.len() - 1
+                || qua.slider_velocities[i + 1].start_time > sv.start_time
+            {
+                break;
+            }
+
+            i += 1;
+            sv = &qua.slider_velocities[i];
+        }
+
+        // Skip SVs which don't change the multiplier.
+        if sv.multiplier != current_sv_multiplier {
+            slider_velocities.push(*sv);
+            current_sv_multiplier = sv.multiplier;
+        }
+    }
+
+    qua.slider_velocities = slider_velocities;
+}
+
+#[test]
+fn normalize_svs_test() {
+    let mut qua = Qua {
+        mode: GameMode::Keys4,
+        title: None,
+        artist: None,
+        creator: None,
+        difficulty_name: None,
+        audio_file: None,
+        timing_points: vec![TimingPoint {
+            start_time: 0.0,
+            bpm: 1.0,
+            signature: 0,
+        }],
+        slider_velocities: vec![
+            SliderVelocity {
+                start_time: 0.,
+                multiplier: 1.0,
+            },
+            SliderVelocity {
+                start_time: 1.,
+                multiplier: 2.0,
+            },
+            SliderVelocity {
+                start_time: 2.,
+                multiplier: 2.0,
+            },
+            SliderVelocity {
+                start_time: 3.,
+                multiplier: 1.0,
+            },
+        ],
+        hit_objects: vec![],
+    };
+
+    normalize_svs(&mut qua);
+
+    assert_eq!(
+        &qua.slider_velocities[..],
+        &[
+            SliderVelocity {
+                start_time: 1.,
+                multiplier: 2.0,
+            },
+            SliderVelocity {
+                start_time: 3.,
+                multiplier: 1.0,
+            },
+        ][..]
+    );
 }
 
 prop_compose! {
@@ -173,6 +621,38 @@ prop_compose! {
     }
 }
 
+prop_compose! {
+    fn arbitrary_timing_point()
+                             (start_time in -1000..1000, // TODO
+                              // Use BPMs which give exactly-representable floats.
+                              // Only use 2 orders of magnitude so the SVs are always
+                              // representable.
+                              bpm_log2 in 6..8u32,
+                              signature in 1..u8::max_value() as i32) // TODO
+                             -> TimingPoint {
+        TimingPoint {
+            start_time: start_time as f32 * 100.,
+            bpm: f32::from(2u16.pow(bpm_log2)),
+            signature,
+        }
+    }
+}
+
+prop_compose! {
+    fn arbitrary_slider_velocity()
+                                (start_time in -1000..1000, // TODO
+                                 // Use exactly-representable floats.
+                                 multiplier in prop::sample::select(
+                                     &[-8., -4., -2., -1., -0.5, 0., 0.5, 1., 2., 4., 8.][..]
+                                 ))
+                                -> SliderVelocity {
+        SliderVelocity {
+            start_time: start_time as f32 * 100.,
+            multiplier,
+        }
+    }
+}
+
 fn arbitrary_game_mode() -> impl Strategy<Value = GameMode> {
     prop_oneof![Just(GameMode::Keys4), Just(GameMode::Keys7)]
 }
@@ -186,6 +666,8 @@ prop_compose! {
                      creator in prop::option::of(any::<String>()),
                      difficulty_name in prop::option::of(any::<String>()),
                      audio_file in prop::option::of(any::<String>()),
+                     timing_points in prop::collection::vec(arbitrary_timing_point(), 1..64),
+                     slider_velocities in prop::collection::vec(arbitrary_slider_velocity(), 0..64),
                      hit_objects in prop::collection::vec(arbitrary_hit_object(mode), 0..64))
                     -> Qua {
         Qua {
@@ -196,6 +678,8 @@ prop_compose! {
             difficulty_name,
             audio_file,
             hit_objects,
+            timing_points,
+            slider_velocities,
         }
     }
 }
@@ -208,6 +692,10 @@ proptest! {
 
         qua.hit_objects.sort_unstable_by(hit_object_compare);
         qua2.hit_objects.sort_unstable_by(hit_object_compare);
+        qua.timing_points.sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+        qua2.timing_points.sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+        normalize_svs(&mut qua);
+        normalize_svs(&mut qua2);
 
         prop_assert_eq!(qua, qua2);
     }

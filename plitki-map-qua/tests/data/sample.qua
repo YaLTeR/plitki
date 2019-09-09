@@ -4,6 +4,17 @@ Title: Sample Map
 DifficultyName: Easy
 Creator: YaLTeR
 AudioFile: song.mp3
+TimingPoints:
+- Bpm: 100
+- StartTime: 200
+  Bpm: 200
+  Signature: 3
+- StartTime: 400
+  Bpm: 200
+  Signature: 0
+SliderVelocities:
+- StartTime: 300
+  Multiplier: 2
 HitObjects:
 - StartTime: 601
   Lane: 2
