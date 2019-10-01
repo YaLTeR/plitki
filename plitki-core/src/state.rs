@@ -35,6 +35,8 @@ pub struct GameState {
     ///
     /// Indices into the cache are equal to indices into `map.scroll_speed_changes`.
     pub position_cache: Vec<CachedPosition>,
+    /// Pre-computed timing lines.
+    pub timing_lines: Vec<TimingLine>,
     /// Contains a number of last hits.
     ///
     /// Useful for implementing an error bar.
@@ -155,6 +157,15 @@ pub struct CachedPosition {
     timestamp: MapTimestamp,
     /// Position at the timestamp, taking scroll speed changes into account.
     position: MapTimestampDifferenceTimesScrollSpeedMultiplier,
+}
+
+/// Timing line.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct TimingLine {
+    /// Timestamp of the timing line.
+    pub timestamp: MapTimestamp,
+    /// Position at the timestamp, taking scroll speed changes into account.
+    pub position: MapTimestampDifferenceTimesScrollSpeedMultiplier,
 }
 
 /// Information about a hit.
@@ -282,6 +293,7 @@ impl GameState {
             lane_states,
             position_cache,
             lane_caches: Vec::new(),
+            timing_lines: Vec::new(),
             last_hits: CircularQueue::with_capacity(32),
         };
 
@@ -307,8 +319,48 @@ impl GameState {
 
             lane_caches.push(LaneCache { object_caches });
         }
-
         state.lane_caches = lane_caches;
+
+        let mut timing_lines = Vec::new();
+        for (i, timing_point) in state.map.timing_points.iter().enumerate() {
+            // +1 and -1 ms like osu! does it. TODO: do we want this here?
+            let end = if let Some(next_timing_point) = state.map.timing_points.get(i + 1) {
+                next_timing_point.timestamp - MapTimestampDifference::from_millis(1)
+            } else {
+                state
+                    .map
+                    .lanes
+                    .iter()
+                    .filter_map(|lane| lane.objects.last())
+                    .map(Object::end_timestamp)
+                    .max()
+                    .unwrap_or(timing_point.timestamp + MapTimestampDifference::from_millis(1))
+            }
+            .into_milli_hundredths();
+
+            let step = (i64::from(timing_point.signature.beat_count)
+                * i64::from(timing_point.beat_duration.into_milli_hundredths()))
+            .max(0)
+            .min(i64::from(i32::max_value())) as i32;
+
+            let mut timestamp = timing_point.timestamp.into_milli_hundredths();
+            while timestamp < end {
+                {
+                    let timestamp = MapTimestamp::from_milli_hundredths(timestamp);
+                    timing_lines.push(TimingLine {
+                        timestamp,
+                        position: state.position_at_time(timestamp),
+                    });
+                }
+
+                if step == 0 {
+                    break;
+                }
+
+                timestamp = timestamp.saturating_add(step);
+            }
+        }
+        state.timing_lines = timing_lines;
 
         state
     }
@@ -598,7 +650,7 @@ impl ObjectCache {
 mod tests {
     use super::*;
     use crate::{
-        map::{Lane, ScrollSpeedChange},
+        map::{Lane, ScrollSpeedChange, TimeSignature, TimingPoint},
         scroll::ScrollSpeedMultiplier,
     };
     use alloc::vec;
@@ -1407,6 +1459,118 @@ mod tests {
                 start_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(-250),
                 end_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(950)
             })
+        );
+    }
+
+    #[test]
+    fn game_state_timing_lines() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: vec![
+                TimingPoint {
+                    timestamp: MapTimestamp::from_millis(-1),
+                    beat_duration: MapTimestampDifference::from_millis(10),
+                    signature: TimeSignature {
+                        beat_count: 4,
+                        beat_unit: 4,
+                    },
+                },
+                TimingPoint {
+                    timestamp: MapTimestamp::from_millis(0),
+                    beat_duration: MapTimestampDifference::from_millis(10),
+                    signature: TimeSignature {
+                        beat_count: 4,
+                        beat_unit: 4,
+                    },
+                },
+                TimingPoint {
+                    timestamp: MapTimestamp::from_millis(200),
+                    beat_duration: MapTimestampDifference::from_millis(5),
+                    signature: TimeSignature {
+                        beat_count: 3,
+                        beat_unit: 4,
+                    },
+                },
+                TimingPoint {
+                    timestamp: MapTimestamp::from_millis(220),
+                    beat_duration: MapTimestampDifference::from_millis(0),
+                    signature: TimeSignature {
+                        beat_count: 4,
+                        beat_unit: 4,
+                    },
+                },
+                TimingPoint {
+                    timestamp: MapTimestamp::from_millis(240),
+                    beat_duration: MapTimestampDifference::from_millis(-10),
+                    signature: TimeSignature {
+                        beat_count: 4,
+                        beat_unit: 4,
+                    },
+                },
+                TimingPoint {
+                    timestamp: MapTimestamp::from_millis(260),
+                    beat_duration: MapTimestampDifference::from_millis(10),
+                    signature: TimeSignature {
+                        beat_count: 4,
+                        beat_unit: 4,
+                    },
+                },
+            ],
+            scroll_speed_changes: vec![],
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(1),
+            lanes: vec![Lane { objects: vec![] }],
+        };
+
+        let state = GameState::new(map);
+
+        assert_eq!(
+            &state.timing_lines[..],
+            &[
+                TimingLine {
+                    timestamp: MapTimestamp::from_millis(0),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(0),
+                },
+                TimingLine {
+                    timestamp: MapTimestamp::from_millis(40),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(4000),
+                },
+                TimingLine {
+                    timestamp: MapTimestamp::from_millis(80),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(8000),
+                },
+                TimingLine {
+                    timestamp: MapTimestamp::from_millis(120),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(120_00),
+                },
+                TimingLine {
+                    timestamp: MapTimestamp::from_millis(160),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(160_00),
+                },
+                TimingLine {
+                    timestamp: MapTimestamp::from_millis(200),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(200_00),
+                },
+                TimingLine {
+                    timestamp: MapTimestamp::from_millis(215),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(215_00),
+                },
+                TimingLine {
+                    timestamp: MapTimestamp::from_millis(220),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(220_00),
+                },
+                TimingLine {
+                    timestamp: MapTimestamp::from_millis(240),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(240_00),
+                },
+                TimingLine {
+                    timestamp: MapTimestamp::from_millis(260),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(260_00),
+                },
+            ][..],
         );
     }
 
