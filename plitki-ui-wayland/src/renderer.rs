@@ -377,7 +377,10 @@ impl<'a> SingleFrameRenderer<'a> {
 
     fn push_judgement_line(&mut self) {
         self.renderer.sprites.push(Sprite {
-            pos: Point2::new(-self.border_offset, self.judgement_line_position),
+            pos: Point2::new(
+                -self.border_offset,
+                self.judgement_line_position - self.border_width,
+            ),
             scale: Vector2::new(self.border_offset * 2., self.border_width),
             color: Srgba::new(1., 1., 1., 1.),
         });
