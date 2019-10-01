@@ -80,12 +80,15 @@ fn main() {
                 path.pop();
                 path.push(filename);
 
-                let audio_device = rodio::default_output_device().unwrap();
-                let audio_file = File::open(path).unwrap();
-                let source = rodio::Decoder::new(BufReader::new(audio_file))
-                    .unwrap()
-                    .amplify(0.6);
-                rodio::play_raw(&audio_device, source.convert_samples());
+                if let Ok(audio_file) = File::open(&path) {
+                    let audio_device = rodio::default_output_device().unwrap();
+                    let source = rodio::Decoder::new(BufReader::new(audio_file))
+                        .unwrap()
+                        .amplify(0.6);
+                    rodio::play_raw(&audio_device, source.convert_samples());
+                } else {
+                    warn!("error opening audio file"; "path" => path.to_string_lossy().as_ref());
+                }
             }),
         )
     } else {
