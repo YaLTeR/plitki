@@ -36,7 +36,7 @@ impl GameMode {
 pub struct TimingPoint {
     #[serde(default, rename = "StartTime")]
     pub start_time: f32,
-    #[serde(rename = "Bpm")]
+    #[serde(default, rename = "Bpm")]
     pub bpm: f32,
     #[serde(
         default = "default_signature",
