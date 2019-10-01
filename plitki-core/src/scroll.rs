@@ -46,9 +46,20 @@ pub struct ScrollSpeedMultiplier(i32);
 // + (MapTimestampDifference2 / Rate) * ScrollSpeed * ScrollSpeedMultiplier2
 
 // TODO: naming.
+/// Map timestamp pre-multiplied by scroll speed multiplier.
+///
+/// Used for pre-computing the scroll speed changes.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct MapTimestampDifferenceTimesScrollSpeedMultiplier(pub(crate) i64);
 
+/// Game timestamp pre-multiplied by scroll speed multiplier.
+///
+/// An intermediate step in conversion of [`MapTimestampDifferenceTimesScrollSpeedMultiplier`] into
+/// a [`PositionDifference`].
+///
+/// [`MapTimestampDifferenceTimesScrollSpeedMultiplier`]:
+/// struct.MapTimestampDifferenceTimesScrollSpeedMultiplier.html
+/// [`PositionDifference`]: struct.PositionDifference.html
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct GameTimestampDifferenceTimesScrollSpeedMultiplier(pub(crate) i64);
 
@@ -106,6 +117,8 @@ impl Default for ScrollSpeedMultiplier {
 }
 
 impl MapTimestampDifferenceTimesScrollSpeedMultiplier {
+    /// Converts the map timestamp difference pre-multiplied by scroll speed multiplier to a game
+    /// timestamp difference pre-multiplied by scroll speed multiplier.
     #[inline]
     pub fn to_game(
         self,
@@ -116,6 +129,8 @@ impl MapTimestampDifferenceTimesScrollSpeedMultiplier {
 }
 
 impl GameTimestampDifferenceTimesScrollSpeedMultiplier {
+    /// Converts the game timestamp difference pre-multiplied by scroll speed multiplier to a map
+    /// timestamp difference pre-multiplied by scroll speed multiplier.
     #[inline]
     pub fn to_map(
         self,

@@ -567,6 +567,9 @@ impl ObjectState {
 }
 
 impl ObjectCache {
+    /// Returns the cached start position of the object.
+    ///
+    /// This is the first position at which this object is visible.
     #[inline]
     pub fn start_position(&self) -> MapTimestampDifferenceTimesScrollSpeedMultiplier {
         match *self {
@@ -575,6 +578,9 @@ impl ObjectCache {
         }
     }
 
+    /// Returns the cached end position of the object.
+    ///
+    /// This is the last position at which this object is visible.
     #[inline]
     pub fn end_position(&self) -> MapTimestampDifferenceTimesScrollSpeedMultiplier {
         match *self {

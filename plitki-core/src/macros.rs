@@ -1,3 +1,4 @@
+#[doc(hidden)]
 #[macro_export]
 macro_rules! impl_ops {
     ($type:ty, $type_difference:ty) => {

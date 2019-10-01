@@ -385,6 +385,10 @@ impl TimestampConverter {
         GameTimestampDifference(difference.0)
     }
 
+    /// Converts a game timestamp difference pre-multiplied by scroll speed multiplier to a map
+    /// timestamp difference pre-multiplied by scroll speed multiplier.
+    ///
+    /// Difference conversion does _not_ consider global offset.
     #[inline]
     pub fn game_to_map_difference_times_multiplier(
         &self,
@@ -393,6 +397,10 @@ impl TimestampConverter {
         MapTimestampDifferenceTimesScrollSpeedMultiplier(difference.0)
     }
 
+    /// Converts a map timestamp difference pre-multiplied by scroll speed multiplier to a game
+    /// timestamp difference pre-multiplied by scroll speed multiplier.
+    ///
+    /// Difference conversion does _not_ consider global offset.
     #[inline]
     pub fn map_to_game_difference_times_multiplier(
         &self,
