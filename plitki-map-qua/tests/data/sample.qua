@@ -12,9 +12,14 @@ TimingPoints:
 - StartTime: 400
   Bpm: 200
   Signature: 0
+- StartTime: 500
+  Bpm: 200
+  Signature: Triple
+- StartTime: 10000
 SliderVelocities:
 - StartTime: 300
   Multiplier: 2
+- StartTime: 600
 HitObjects:
 - StartTime: 601
   Lane: 2

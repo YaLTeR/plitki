@@ -283,12 +283,12 @@ impl From<Qua> for Map {
         let mut timing_points = Vec::with_capacity(qua.timing_points.len());
 
         let mut scroll_speed_changes = Vec::new();
-        let mut current_bpm = qua.timing_points.first().map(|x| x.bpm).unwrap_or(base_bpm);
+        let mut current_bpm = qua.timing_points.first().unwrap().bpm;
         let mut current_sv_index = 0;
+        let mut current_sv_start_time = None;
         let mut current_sv_multiplier = 1.;
-        let mut current_adjusted_sv_multiplier =
-            ScrollSpeedMultiplier::from_f32(current_sv_multiplier * (current_bpm / base_bpm));
-        let initial_scroll_speed_multiplier = current_adjusted_sv_multiplier;
+        let mut current_adjusted_sv_multiplier = None;
+        let mut initial_scroll_speed_multiplier = None;
 
         for timing_point in qua.timing_points.drain(..) {
             loop {
@@ -304,47 +304,70 @@ impl From<Qua> for Map {
                 if sv.start_time < timing_point.start_time {
                     let multiplier =
                         ScrollSpeedMultiplier::from_f32(sv.multiplier * (current_bpm / base_bpm));
-                    if multiplier != current_adjusted_sv_multiplier {
+
+                    if current_adjusted_sv_multiplier.is_none() {
+                        current_adjusted_sv_multiplier = Some(multiplier);
+                        initial_scroll_speed_multiplier = Some(multiplier);
+                    }
+
+                    if multiplier != current_adjusted_sv_multiplier.unwrap() {
                         scroll_speed_changes.push(ScrollSpeedChange {
                             timestamp: MapTimestamp::from_milli_hundredths(
                                 (sv.start_time * 100.) as i32,
                             ),
                             multiplier,
                         });
-                        current_adjusted_sv_multiplier = multiplier;
+                        current_adjusted_sv_multiplier = Some(multiplier);
                     }
                 }
 
+                current_sv_start_time = Some(sv.start_time);
                 current_sv_multiplier = sv.multiplier;
                 current_sv_index += 1;
             }
 
+            // Timing points reset the previous SV multiplier.
+            if current_sv_start_time
+                .map(|x| x < timing_point.start_time)
+                .unwrap_or(true)
+            {
+                current_sv_multiplier = 1.;
+            }
+
             current_bpm = timing_point.bpm;
 
-            let multiplier =
-                ScrollSpeedMultiplier::from_f32(current_sv_multiplier * (current_bpm / base_bpm));
-            if multiplier != current_adjusted_sv_multiplier {
+            let multiplier = ScrollSpeedMultiplier::saturating_from_f32(
+                current_sv_multiplier * (current_bpm / base_bpm),
+            );
+
+            if current_adjusted_sv_multiplier.is_none() {
+                current_adjusted_sv_multiplier = Some(multiplier);
+                initial_scroll_speed_multiplier = Some(multiplier);
+            }
+
+            if multiplier != current_adjusted_sv_multiplier.unwrap() {
                 scroll_speed_changes.push(ScrollSpeedChange {
                     timestamp: MapTimestamp::from_milli_hundredths(
                         (timing_point.start_time * 100.) as i32,
                     ),
                     multiplier,
                 });
-                current_adjusted_sv_multiplier = multiplier;
+                current_adjusted_sv_multiplier = Some(multiplier);
             }
 
             timing_points.push(timing_point.into());
         }
 
         for sv in &qua.slider_velocities[current_sv_index..] {
-            let multiplier =
-                ScrollSpeedMultiplier::from_f32(sv.multiplier * (current_bpm / base_bpm));
-            if multiplier != current_adjusted_sv_multiplier {
+            let multiplier = ScrollSpeedMultiplier::saturating_from_f32(
+                sv.multiplier * (current_bpm / base_bpm),
+            );
+            if multiplier != current_adjusted_sv_multiplier.unwrap() {
                 scroll_speed_changes.push(ScrollSpeedChange {
                     timestamp: MapTimestamp::from_milli_hundredths((sv.start_time * 100.) as i32),
                     multiplier,
                 });
-                current_adjusted_sv_multiplier = multiplier;
+                current_adjusted_sv_multiplier = Some(multiplier);
             }
         }
 
@@ -364,7 +387,7 @@ impl From<Qua> for Map {
             audio_file: qua.audio_file,
             timing_points,
             scroll_speed_changes,
-            initial_scroll_speed_multiplier,
+            initial_scroll_speed_multiplier: initial_scroll_speed_multiplier.unwrap_or_default(),
             lanes,
         }
     }
@@ -429,12 +452,11 @@ impl From<Map> for Qua {
         let mut slider_velocities = Vec::new();
         let mut current_bpm = qua.timing_points.first().map(|x| x.bpm).unwrap_or(base_bpm);
         let mut current_sv_index = 0;
-        let mut current_sv_multiplier = initial_scroll_speed_multiplier.as_f32();
-        let mut current_adjusted_sv_multiplier =
-            initial_scroll_speed_multiplier.as_f32() / (current_bpm / base_bpm);
+        let mut current_sv_multiplier = initial_scroll_speed_multiplier;
+        let mut current_adjusted_sv_multiplier = None;
 
         #[allow(clippy::float_cmp)]
-        for timing_point in timing_points.into_iter() {
+        for (i, timing_point) in timing_points.iter().enumerate() {
             loop {
                 if current_sv_index >= scroll_speed_changes.len() {
                     break;
@@ -447,40 +469,76 @@ impl From<Map> for Qua {
 
                 if sv.timestamp < timing_point.timestamp {
                     let multiplier = sv.multiplier.as_f32() / (current_bpm / base_bpm);
-                    if multiplier != current_adjusted_sv_multiplier {
+
+                    if current_adjusted_sv_multiplier.is_none()
+                        || multiplier != current_adjusted_sv_multiplier.unwrap()
+                    {
+                        if current_adjusted_sv_multiplier.is_none()
+                            && sv.multiplier != initial_scroll_speed_multiplier
+                        {
+                            // Insert an SV 1 ms earlier to simulate the initial scroll speed
+                            // multiplier.
+                            slider_velocities.push(SliderVelocity {
+                                start_time: (sv.timestamp.into_milli_hundredths() as f32) / 100.
+                                    - 1.,
+                                multiplier: initial_scroll_speed_multiplier.as_f32()
+                                    / (current_bpm / base_bpm),
+                            });
+                        }
+
                         slider_velocities.push(SliderVelocity {
                             start_time: (sv.timestamp.into_milli_hundredths() as f32) / 100.,
                             multiplier,
                         });
-                        current_adjusted_sv_multiplier = multiplier;
+                        current_adjusted_sv_multiplier = Some(multiplier);
                     }
                 }
 
-                current_sv_multiplier = sv.multiplier.as_f32();
+                current_sv_multiplier = sv.multiplier;
                 current_sv_index += 1;
             }
 
             current_bpm = 60_000_00. / timing_point.beat_duration.into_milli_hundredths() as f32;
 
-            let multiplier = current_sv_multiplier / (current_bpm / base_bpm);
-            if multiplier != current_adjusted_sv_multiplier {
+            if current_adjusted_sv_multiplier.is_none()
+                && current_sv_multiplier != initial_scroll_speed_multiplier
+            {
+                // Insert an SV 1 ms earlier to simulate the initial scroll speed multiplier.
+                slider_velocities.push(SliderVelocity {
+                    start_time: (timing_point.timestamp.into_milli_hundredths() as f32) / 100. - 1.,
+                    multiplier: initial_scroll_speed_multiplier.as_f32() / (current_bpm / base_bpm),
+                });
+            }
+
+            // Timing points reset the SV multiplier.
+            current_adjusted_sv_multiplier = Some(1.);
+
+            // Skip over multiple timing points at the same timestamp.
+            if i + 1 < timing_points.len()
+                && timing_points[i + 1].timestamp == timing_point.timestamp
+            {
+                continue;
+            }
+
+            let multiplier = current_sv_multiplier.as_f32() / (current_bpm / base_bpm);
+            if multiplier != current_adjusted_sv_multiplier.unwrap() {
                 slider_velocities.push(SliderVelocity {
                     start_time: timing_point.timestamp.into_milli_hundredths() as f32 / 100.,
                     multiplier,
                 });
-                current_adjusted_sv_multiplier = multiplier;
+                current_adjusted_sv_multiplier = Some(multiplier);
             }
         }
 
         #[allow(clippy::float_cmp)]
         for sv in &scroll_speed_changes[current_sv_index..] {
             let multiplier = sv.multiplier.as_f32() / (current_bpm / base_bpm);
-            if multiplier != current_adjusted_sv_multiplier {
+            if multiplier != current_adjusted_sv_multiplier.unwrap() {
                 slider_velocities.push(SliderVelocity {
                     start_time: (sv.timestamp.into_milli_hundredths() as f32) / 100.,
                     multiplier,
                 });
-                current_adjusted_sv_multiplier = multiplier;
+                current_adjusted_sv_multiplier = Some(multiplier);
             }
         }
 

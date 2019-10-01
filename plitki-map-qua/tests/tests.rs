@@ -42,11 +42,27 @@ fn parse_sample() {
                 bpm: 200.,
                 signature: 4,
             },
+            TimingPoint {
+                start_time: 500.,
+                bpm: 200.,
+                signature: 3,
+            },
+            TimingPoint {
+                start_time: 10_000.,
+                bpm: 0.,
+                signature: 4,
+            },
         ],
-        slider_velocities: vec![SliderVelocity {
-            start_time: 300.,
-            multiplier: 2.,
-        }],
+        slider_velocities: vec![
+            SliderVelocity {
+                start_time: 300.,
+                multiplier: 2.,
+            },
+            SliderVelocity {
+                start_time: 600.,
+                multiplier: 0.,
+            },
+        ],
         hit_objects: vec![
             HitObject {
                 start_time: 601,
@@ -131,15 +147,39 @@ fn convert() {
                     beat_unit: 4,
                 },
             },
+            plitki_core::map::TimingPoint {
+                timestamp: MapTimestamp::from_millis(500),
+                beat_duration: MapTimestampDifference::from_millis(300),
+                signature: TimeSignature {
+                    beat_count: 3,
+                    beat_unit: 4,
+                },
+            },
+            plitki_core::map::TimingPoint {
+                timestamp: MapTimestamp::from_millis(10_000),
+                beat_duration: MapTimestampDifference::from_milli_hundredths(i32::max_value()),
+                signature: TimeSignature {
+                    beat_count: 4,
+                    beat_unit: 4,
+                },
+            },
         ],
         scroll_speed_changes: vec![
             ScrollSpeedChange {
                 timestamp: MapTimestamp::from_millis(200),
-                multiplier: ScrollSpeedMultiplier::new(1000),
+                multiplier: ScrollSpeedMultiplier::default(),
             },
             ScrollSpeedChange {
                 timestamp: MapTimestamp::from_millis(300),
                 multiplier: ScrollSpeedMultiplier::new(2000),
+            },
+            ScrollSpeedChange {
+                timestamp: MapTimestamp::from_millis(400),
+                multiplier: ScrollSpeedMultiplier::default(),
+            },
+            ScrollSpeedChange {
+                timestamp: MapTimestamp::from_millis(600),
+                multiplier: ScrollSpeedMultiplier::new(0),
             },
         ],
         initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(500),
@@ -243,6 +283,272 @@ fn base_bpm_no_durations() {
 }
 
 #[test]
+fn timing_points_override_svs() {
+    let qua = Qua {
+        mode: GameMode::Keys4,
+        title: None,
+        artist: None,
+        creator: None,
+        difficulty_name: None,
+        audio_file: None,
+        timing_points: vec![
+            TimingPoint {
+                start_time: 0.0,
+                bpm: 1.0,
+                signature: 4,
+            },
+            TimingPoint {
+                start_time: 10.0,
+                bpm: 2.0,
+                signature: 4,
+            },
+        ],
+        slider_velocities: vec![SliderVelocity {
+            start_time: 5.0,
+            multiplier: 10.0,
+        }],
+        hit_objects: vec![
+            HitObject {
+                start_time: 0,
+                lane: 1,
+                end_time: 0,
+            },
+            HitObject {
+                start_time: 11,
+                lane: 1,
+                end_time: 0,
+            },
+        ],
+    };
+
+    let map: Map = qua.into();
+
+    let gt = Map {
+        song_artist: None,
+        song_title: None,
+        difficulty_name: None,
+        mapper: None,
+        audio_file: None,
+        timing_points: vec![
+            plitki_core::map::TimingPoint {
+                timestamp: MapTimestamp::from_millis(0),
+                beat_duration: MapTimestampDifference::from_millis(60_000),
+                signature: TimeSignature {
+                    beat_count: 4,
+                    beat_unit: 4,
+                },
+            },
+            plitki_core::map::TimingPoint {
+                timestamp: MapTimestamp::from_millis(10),
+                beat_duration: MapTimestampDifference::from_millis(30_000),
+                signature: TimeSignature {
+                    beat_count: 4,
+                    beat_unit: 4,
+                },
+            },
+        ],
+        scroll_speed_changes: vec![
+            ScrollSpeedChange {
+                timestamp: MapTimestamp::from_millis(5),
+                multiplier: ScrollSpeedMultiplier::new(10_000),
+            },
+            ScrollSpeedChange {
+                timestamp: MapTimestamp::from_millis(10),
+                multiplier: ScrollSpeedMultiplier::new(2000),
+            },
+        ],
+        initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
+        lanes: vec![
+            Lane {
+                objects: vec![
+                    Object::Regular {
+                        timestamp: MapTimestamp::from_millis(0),
+                    },
+                    Object::Regular {
+                        timestamp: MapTimestamp::from_millis(11),
+                    },
+                ],
+            },
+            Lane { objects: vec![] },
+            Lane { objects: vec![] },
+            Lane { objects: vec![] },
+        ],
+    };
+
+    assert_eq!(map, gt);
+}
+
+#[test]
+fn sv_before_first_timing_point() {
+    let qua = Qua {
+        mode: GameMode::Keys4,
+        title: None,
+        artist: None,
+        creator: None,
+        difficulty_name: None,
+        audio_file: None,
+        timing_points: vec![TimingPoint {
+            start_time: 0.0,
+            bpm: 1.0,
+            signature: 4,
+        }],
+        slider_velocities: vec![SliderVelocity {
+            start_time: -10.0,
+            multiplier: 10.0,
+        }],
+        hit_objects: vec![],
+    };
+
+    let map: Map = qua.into();
+
+    let gt = Map {
+        song_artist: None,
+        song_title: None,
+        difficulty_name: None,
+        mapper: None,
+        audio_file: None,
+        timing_points: vec![plitki_core::map::TimingPoint {
+            timestamp: MapTimestamp::from_millis(0),
+            beat_duration: MapTimestampDifference::from_millis(60_000),
+            signature: TimeSignature {
+                beat_count: 4,
+                beat_unit: 4,
+            },
+        }],
+        scroll_speed_changes: vec![ScrollSpeedChange {
+            timestamp: MapTimestamp::from_millis(0),
+            multiplier: ScrollSpeedMultiplier::default(),
+        }],
+        initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(10_000),
+        lanes: vec![
+            Lane { objects: vec![] },
+            Lane { objects: vec![] },
+            Lane { objects: vec![] },
+            Lane { objects: vec![] },
+        ],
+    };
+
+    assert_eq!(map, gt);
+}
+
+#[test]
+fn sv_at_first_timing_point() {
+    let qua = Qua {
+        mode: GameMode::Keys4,
+        title: None,
+        artist: None,
+        creator: None,
+        difficulty_name: None,
+        audio_file: None,
+        timing_points: vec![TimingPoint {
+            start_time: 0.0,
+            bpm: 1.0,
+            signature: 4,
+        }],
+        slider_velocities: vec![SliderVelocity {
+            start_time: 0.0,
+            multiplier: 10.0,
+        }],
+        hit_objects: vec![],
+    };
+
+    let map: Map = qua.into();
+
+    let gt = Map {
+        song_artist: None,
+        song_title: None,
+        difficulty_name: None,
+        mapper: None,
+        audio_file: None,
+        timing_points: vec![plitki_core::map::TimingPoint {
+            timestamp: MapTimestamp::from_millis(0),
+            beat_duration: MapTimestampDifference::from_millis(60_000),
+            signature: TimeSignature {
+                beat_count: 4,
+                beat_unit: 4,
+            },
+        }],
+        scroll_speed_changes: vec![],
+        initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(10_000),
+        lanes: vec![
+            Lane { objects: vec![] },
+            Lane { objects: vec![] },
+            Lane { objects: vec![] },
+            Lane { objects: vec![] },
+        ],
+    };
+
+    assert_eq!(map, gt);
+}
+
+#[test]
+fn sv_too_large() {
+    let qua = Qua {
+        mode: GameMode::Keys4,
+        title: None,
+        artist: None,
+        creator: None,
+        difficulty_name: None,
+        audio_file: None,
+        timing_points: vec![
+            TimingPoint {
+                start_time: 0.0,
+                bpm: 1.0,
+                signature: 4,
+            },
+            TimingPoint {
+                start_time: 1.0,
+                bpm: 6_000_000.0,
+                signature: 4,
+            },
+        ],
+        slider_velocities: vec![],
+        hit_objects: vec![],
+    };
+
+    let map: Map = qua.into();
+
+    let gt = Map {
+        song_artist: None,
+        song_title: None,
+        difficulty_name: None,
+        mapper: None,
+        audio_file: None,
+        timing_points: vec![
+            plitki_core::map::TimingPoint {
+                timestamp: MapTimestamp::from_millis(0),
+                beat_duration: MapTimestampDifference::from_millis(60_000),
+                signature: TimeSignature {
+                    beat_count: 4,
+                    beat_unit: 4,
+                },
+            },
+            plitki_core::map::TimingPoint {
+                timestamp: MapTimestamp::from_millis(1),
+                beat_duration: MapTimestampDifference::from_milli_hundredths(1),
+                signature: TimeSignature {
+                    beat_count: 4,
+                    beat_unit: 4,
+                },
+            },
+        ],
+        scroll_speed_changes: vec![ScrollSpeedChange {
+            timestamp: MapTimestamp::from_millis(1),
+            multiplier: ScrollSpeedMultiplier::new(2i32.pow(24) - 1),
+        }],
+        initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
+        lanes: vec![
+            Lane { objects: vec![] },
+            Lane { objects: vec![] },
+            Lane { objects: vec![] },
+            Lane { objects: vec![] },
+        ],
+    };
+
+    assert_eq!(map, gt);
+}
+
+#[test]
 fn proptest_regression_1() {
     let mut qua = Qua {
         mode: GameMode::Keys4,
@@ -325,6 +631,7 @@ fn proptest_regression_3() {
 
     qua.hit_objects.sort_unstable_by(hit_object_compare);
     qua2.hit_objects.sort_unstable_by(hit_object_compare);
+    qua.slider_velocities[0].start_time = qua.timing_points[0].start_time - 1.;
 
     assert_eq!(qua, qua2);
 }
@@ -367,6 +674,7 @@ fn proptest_regression_4() {
     qua2.hit_objects.sort_unstable_by(hit_object_compare);
     normalize_svs(&mut qua);
     normalize_svs(&mut qua2);
+    qua.slider_velocities[0].start_time = qua.slider_velocities[1].start_time - 1.;
 
     assert_eq!(qua, qua2);
 }
@@ -414,6 +722,7 @@ fn proptest_regression_5() {
         .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
     normalize_svs(&mut qua);
     normalize_svs(&mut qua2);
+    qua.slider_velocities[0].start_time = qua.timing_points[0].start_time - 1.;
 
     assert_eq!(qua, qua2);
 }
@@ -461,6 +770,7 @@ fn proptest_regression_6() {
         .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
     normalize_svs(&mut qua);
     normalize_svs(&mut qua2);
+    qua.slider_velocities[0].start_time = qua.timing_points[0].start_time - 1.;
 
     assert_eq!(qua, qua2);
 }
@@ -509,6 +819,311 @@ fn proptest_regression_7() {
     assert_eq!(qua, qua2);
 }
 
+#[test]
+fn proptest_regression_8() {
+    let mut qua = Qua {
+        mode: GameMode::Keys4,
+        title: None,
+        artist: None,
+        creator: None,
+        difficulty_name: None,
+        audio_file: None,
+        timing_points: vec![
+            TimingPoint {
+                start_time: -98800.0,
+                bpm: 128.0,
+                signature: 227,
+            },
+            TimingPoint {
+                start_time: -91100.0,
+                bpm: 128.0,
+                signature: 179,
+            },
+            TimingPoint {
+                start_time: -88500.0,
+                bpm: 128.0,
+                signature: 198,
+            },
+            TimingPoint {
+                start_time: -79000.0,
+                bpm: 64.0,
+                signature: 70,
+            },
+            TimingPoint {
+                start_time: -70700.0,
+                bpm: 128.0,
+                signature: 68,
+            },
+            TimingPoint {
+                start_time: -62600.0,
+                bpm: 128.0,
+                signature: 75,
+            },
+            TimingPoint {
+                start_time: -60000.0,
+                bpm: 128.0,
+                signature: 82,
+            },
+            TimingPoint {
+                start_time: -58300.0,
+                bpm: 64.0,
+                signature: 180,
+            },
+            TimingPoint {
+                start_time: -50400.0,
+                bpm: 64.0,
+                signature: 137,
+            },
+            TimingPoint {
+                start_time: -45400.0,
+                bpm: 64.0,
+                signature: 99,
+            },
+            TimingPoint {
+                start_time: -45300.0,
+                bpm: 64.0,
+                signature: 89,
+            },
+            TimingPoint {
+                start_time: -43500.0,
+                bpm: 64.0,
+                signature: 1,
+            },
+            TimingPoint {
+                start_time: -40900.0,
+                bpm: 64.0,
+                signature: 33,
+            },
+            TimingPoint {
+                start_time: -39000.0,
+                bpm: 64.0,
+                signature: 32,
+            },
+            TimingPoint {
+                start_time: -38800.0,
+                bpm: 128.0,
+                signature: 104,
+            },
+            TimingPoint {
+                start_time: -36300.0,
+                bpm: 64.0,
+                signature: 173,
+            },
+            TimingPoint {
+                start_time: -32800.0,
+                bpm: 64.0,
+                signature: 71,
+            },
+            TimingPoint {
+                start_time: -29800.0,
+                bpm: 64.0,
+                signature: 202,
+            },
+            TimingPoint {
+                start_time: -28400.0,
+                bpm: 64.0,
+                signature: 240,
+            },
+            TimingPoint {
+                start_time: -18700.0,
+                bpm: 64.0,
+                signature: 115,
+            },
+            TimingPoint {
+                start_time: -17700.0,
+                bpm: 64.0,
+                signature: 36,
+            },
+            TimingPoint {
+                start_time: 4700.0,
+                bpm: 64.0,
+                signature: 199,
+            },
+            TimingPoint {
+                start_time: 6300.0,
+                bpm: 128.0,
+                signature: 231,
+            },
+            TimingPoint {
+                start_time: 6900.0,
+                bpm: 128.0,
+                signature: 106,
+            },
+            TimingPoint {
+                start_time: 14400.0,
+                bpm: 128.0,
+                signature: 131,
+            },
+            TimingPoint {
+                start_time: 16200.0,
+                bpm: 64.0,
+                signature: 3,
+            },
+            TimingPoint {
+                start_time: 16700.0,
+                bpm: 128.0,
+                signature: 29,
+            },
+            TimingPoint {
+                start_time: 39300.0,
+                bpm: 64.0,
+                signature: 157,
+            },
+            TimingPoint {
+                start_time: 39400.0,
+                bpm: 128.0,
+                signature: 18,
+            },
+            TimingPoint {
+                start_time: 46000.0,
+                bpm: 64.0,
+                signature: 112,
+            },
+            TimingPoint {
+                start_time: 55900.0,
+                bpm: 64.0,
+                signature: 168,
+            },
+            TimingPoint {
+                start_time: 62600.0,
+                bpm: 64.0,
+                signature: 53,
+            },
+            TimingPoint {
+                start_time: 66900.0,
+                bpm: 64.0,
+                signature: 206,
+            },
+            TimingPoint {
+                start_time: 84800.0,
+                bpm: 64.0,
+                signature: 167,
+            },
+            TimingPoint {
+                start_time: 89300.0,
+                bpm: 128.0,
+                signature: 129,
+            },
+            TimingPoint {
+                start_time: 92500.0,
+                bpm: 128.0,
+                signature: 16,
+            },
+            TimingPoint {
+                start_time: 94500.0,
+                bpm: 64.0,
+                signature: 92,
+            },
+            TimingPoint {
+                start_time: 98400.0,
+                bpm: 64.0,
+                signature: 211,
+            },
+        ],
+        slider_velocities: vec![
+            SliderVelocity {
+                start_time: 46000.0,
+                multiplier: -8.0,
+            },
+            SliderVelocity {
+                start_time: 55900.0,
+                multiplier: 1.0,
+            },
+        ],
+        hit_objects: vec![
+            HitObject {
+                start_time: 202462,
+                lane: 1,
+                end_time: 0,
+            },
+            HitObject {
+                start_time: 970163,
+                lane: 1,
+                end_time: 15680283,
+            },
+            HitObject {
+                start_time: 2506236,
+                lane: 3,
+                end_time: 19481258,
+            },
+            HitObject {
+                start_time: 2852464,
+                lane: 1,
+                end_time: 20351517,
+            },
+            HitObject {
+                start_time: 3544150,
+                lane: 3,
+                end_time: 20464567,
+            },
+            HitObject {
+                start_time: 7072036,
+                lane: 1,
+                end_time: 0,
+            },
+            HitObject {
+                start_time: 8092560,
+                lane: 2,
+                end_time: 0,
+            },
+            HitObject {
+                start_time: 8228738,
+                lane: 4,
+                end_time: 12197545,
+            },
+            HitObject {
+                start_time: 8636771,
+                lane: 3,
+                end_time: 9902122,
+            },
+            HitObject {
+                start_time: 9678597,
+                lane: 4,
+                end_time: 12003914,
+            },
+            HitObject {
+                start_time: 11177954,
+                lane: 4,
+                end_time: 0,
+            },
+            HitObject {
+                start_time: 17004952,
+                lane: 2,
+                end_time: 19753175,
+            },
+            HitObject {
+                start_time: 19669830,
+                lane: 1,
+                end_time: 0,
+            },
+            HitObject {
+                start_time: 20457648,
+                lane: 1,
+                end_time: 0,
+            },
+            HitObject {
+                start_time: 21287804,
+                lane: 3,
+                end_time: 21458135,
+            },
+        ],
+    };
+
+    let map: Map = qua.clone().into();
+    let mut qua2: Qua = map.into();
+
+    qua.hit_objects.sort_unstable_by(hit_object_compare);
+    qua2.hit_objects.sort_unstable_by(hit_object_compare);
+    qua.timing_points
+        .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+    qua2.timing_points
+        .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+    normalize_svs(&mut qua);
+    normalize_svs(&mut qua2);
+
+    assert_eq!(qua, qua2);
+}
+
 fn hit_object_compare(a: &HitObject, b: &HitObject) -> Ordering {
     a.start_time
         .cmp(&b.start_time)
@@ -524,6 +1139,8 @@ fn normalize_svs(qua: &mut Qua) {
         .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
     let mut current_sv_multiplier = 1.;
 
+    let mut next_timing_point_index = 0;
+
     #[allow(clippy::float_cmp)]
     for mut i in 0..qua.slider_velocities.len() {
         let mut sv = &qua.slider_velocities[i];
@@ -537,6 +1154,14 @@ fn normalize_svs(qua: &mut Qua) {
 
             i += 1;
             sv = &qua.slider_velocities[i];
+        }
+
+        // Timing points reset the SV multiplier.
+        while next_timing_point_index < qua.timing_points.len()
+            && qua.timing_points[next_timing_point_index].start_time <= sv.start_time
+        {
+            next_timing_point_index += 1;
+            current_sv_multiplier = 1.;
         }
 
         // Skip SVs which don't change the multiplier.
@@ -639,8 +1264,8 @@ prop_compose! {
 }
 
 prop_compose! {
-    fn arbitrary_slider_velocity()
-                                (start_time in -1000..1000, // TODO
+    fn arbitrary_slider_velocity(first_sv_start_time: i32)
+                                (start_time in first_sv_start_time / 100..first_sv_start_time / 100 + 1000, // TODO
                                  // Use exactly-representable floats.
                                  multiplier in prop::sample::select(
                                      &[-8., -4., -2., -1., -0.5, 0., 0.5, 1., 2., 4., 8.][..]
@@ -659,15 +1284,19 @@ fn arbitrary_game_mode() -> impl Strategy<Value = GameMode> {
 
 prop_compose! {
     fn arbitrary_qua()
-                    (mode in arbitrary_game_mode())
+                    (mode in arbitrary_game_mode(),
+                     timing_points in prop::collection::vec(arbitrary_timing_point(), 1..64))
                     (mode in Just(mode),
                      title in prop::option::of(any::<String>()),
                      artist in prop::option::of(any::<String>()),
                      creator in prop::option::of(any::<String>()),
                      difficulty_name in prop::option::of(any::<String>()),
                      audio_file in prop::option::of(any::<String>()),
-                     timing_points in prop::collection::vec(arbitrary_timing_point(), 1..64),
-                     slider_velocities in prop::collection::vec(arbitrary_slider_velocity(), 0..64),
+                     slider_velocities in prop::collection::vec(
+                         arbitrary_slider_velocity(timing_points[0].start_time as i32),
+                         0..64,
+                     ),
+                     timing_points in Just(timing_points),
                      hit_objects in prop::collection::vec(arbitrary_hit_object(mode), 0..64))
                     -> Qua {
         Qua {
