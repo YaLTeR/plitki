@@ -102,7 +102,11 @@ impl From<TimingPoint> for plitki_core::map::TimingPoint {
         Self {
             timestamp: MapTimestamp::from_milli_hundredths((timing_point.start_time * 100.) as i32),
             beat_duration: MapTimestampDifference::from_milli_hundredths(
-                (60_000_00. / timing_point.bpm) as i32,
+                if timing_point.bpm == 0. {
+                    i32::max_value()
+                } else {
+                    (60_000_00. / timing_point.bpm) as i32
+                },
             ),
             signature: TimeSignature {
                 beat_count: timing_point.signature as u8,
