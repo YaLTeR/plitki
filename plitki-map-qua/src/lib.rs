@@ -129,7 +129,7 @@ impl From<plitki_core::map::TimingPoint> for TimingPoint {
 pub struct SliderVelocity {
     #[serde(default, rename = "StartTime")]
     pub start_time: f32,
-    #[serde(rename = "Multiplier")]
+    #[serde(default, rename = "Multiplier")]
     pub multiplier: f32,
 }
 
