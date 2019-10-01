@@ -42,7 +42,7 @@ pub struct Map {
 }
 
 /// A scroll speed change (an SV).
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct ScrollSpeedChange {
     /// Timestamp when this change takes an effect.
     pub timestamp: MapTimestamp,
@@ -51,7 +51,7 @@ pub struct ScrollSpeedChange {
 }
 
 /// A change of the BPM or time signature.
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct TimingPoint {
     /// Timestamp when this change takes an effect.
     pub timestamp: MapTimestamp,
@@ -62,7 +62,7 @@ pub struct TimingPoint {
 }
 
 /// A time signature.
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct TimeSignature {
     /// How many beats to count.
     ///
