@@ -14,13 +14,13 @@ use std::{
 
 use plitki_core::{
     map::Map,
-    state::GameState,
+    state::{GameState, LongNoteState, ObjectState, RegularObjectState},
     timing::{GameTimestamp, GameTimestampDifference},
 };
 use plitki_map_qua::from_reader;
 use rodio::Source;
 use slog::{o, Drain};
-use slog_scope::{debug, trace, warn};
+use slog_scope::{debug, info, trace, warn};
 use smithay_client_toolkit::{
     keyboard::{
         keysyms, map_keyboard_auto_with_repeat, Event as KbEvent, KeyRepeatEvent, KeyRepeatKind,
@@ -461,6 +461,49 @@ fn main() {
     *lock.lock().unwrap() = Some(RenderThreadEvent::Exit);
     cvar.notify_one();
     rendering_thread.join().unwrap();
+
+    // Print hit statistics.
+    let (latest_game_state, _) = &mut *game_state_pair.borrow_mut();
+    let mut difference_sum = GameTimestampDifference::from_millis(0);
+    let mut difference_count = 0u32;
+    for object in latest_game_state
+        .lane_states
+        .iter()
+        .flat_map(|x| x.object_states.iter())
+    {
+        difference_count += 1;
+        match *object {
+            ObjectState::Regular(RegularObjectState::Hit { difference }) => {
+                difference_sum = difference_sum + difference;
+            }
+            ObjectState::LongNote(LongNoteState::Hit {
+                press_difference,
+                release_difference,
+            }) => {
+                difference_sum = difference_sum + press_difference + release_difference;
+                difference_count += 1;
+            }
+            ObjectState::LongNote(LongNoteState::Held { press_difference }) => {
+                difference_sum = difference_sum + press_difference;
+            }
+            ObjectState::LongNote(LongNoteState::Missed {
+                press_difference: Some(press_difference),
+                ..
+            }) => {
+                difference_sum = difference_sum + press_difference;
+            }
+            _ => {
+                difference_count -= 1;
+            }
+        }
+    }
+
+    let average_hit_difference = if difference_count == 0 {
+        0.
+    } else {
+        difference_sum.into_milli_hundredths() as f32 / difference_count as f32 / 100.
+    };
+    info!("hit statistics"; "average hit difference" => average_hit_difference);
 }
 
 fn render_thread(
