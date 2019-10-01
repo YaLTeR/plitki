@@ -2,6 +2,7 @@
 
 use std::{
     collections::HashMap,
+    fmt,
     io::{Read, Write},
     mem,
 };
@@ -12,7 +13,7 @@ use plitki_core::{
     scroll::ScrollSpeedMultiplier,
     timing::{MapTimestamp, MapTimestampDifference},
 };
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum GameMode {
@@ -53,8 +54,45 @@ fn deserialize_signature<'de, D>(deserializer: D) -> Result<i32, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let value = i32::deserialize(deserializer)?;
+    struct TripleOrNumber;
 
+    impl<'de> de::Visitor<'de> for TripleOrNumber {
+        type Value = i32;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("\"Triple\" or i32")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<i32, E>
+        where
+            E: de::Error,
+        {
+            if value != "Triple" {
+                return Err(de::Error::invalid_value(
+                    de::Unexpected::Str(value),
+                    &"\"Triple\"",
+                ));
+            }
+
+            Ok(3)
+        }
+
+        fn visit_u64<E>(self, value: u64) -> Result<i32, E>
+        where
+            E: de::Error,
+        {
+            if value > i32::max_value() as u64 {
+                return Err(de::Error::invalid_value(
+                    de::Unexpected::Unsigned(value),
+                    &"i32",
+                ));
+            }
+
+            Ok(value as i32)
+        }
+    }
+
+    let value = deserializer.deserialize_any(TripleOrNumber)?;
     Ok(if value == 0 { 4 } else { value })
 }
 
