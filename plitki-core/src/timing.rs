@@ -58,6 +58,13 @@ pub struct TimestampConverter {
     /// device. This latency affects any sound regardless of rate or other parameters. Therefore,
     /// the global offset is not affected by rate.
     pub global_offset: GameTimestampDifference,
+
+    /// Local offset.
+    ///
+    /// Local offset is used to adjust for the incorrect map timing, be it due to the mapper's
+    /// mistake or audio playback differences between different games. The local offset is affected
+    /// by rate.
+    pub local_offset: MapTimestampDifference,
 }
 
 /// The error type returned when a duration to timestamp conversion fails.
@@ -337,30 +344,30 @@ impl GameTimestampDifference {
 impl TimestampConverter {
     /// Converts a game timestamp into a map timestamp.
     ///
-    /// Takes global offset into account. For differences (which do _not_ need to consider global
-    /// offset) use [`game_to_map_difference`].
+    /// Takes global and local offsets into account. For differences (which do _not_ need to
+    /// consider global and local offsets) use [`game_to_map_difference`].
     ///
     /// [`game_to_map_difference`]: #method.game_to_map_difference
     #[inline]
     pub fn game_to_map(&self, timestamp: GameTimestamp) -> MapTimestamp {
-        MapTimestamp((timestamp + self.global_offset).0)
+        MapTimestamp((timestamp + self.global_offset).0) - self.local_offset
     }
 
     /// Converts a map timestamp into a game timestamp.
     ///
-    /// Takes global offset into account. For differences (which do _not_ need to consider global
+    /// Takes global and local offsets into account. For differences (which do _not_ need to consider global
     /// offset) use [`map_to_game_difference`].
     ///
     /// [`map_to_game_difference`]: #method.map_to_game_difference
     #[inline]
     pub fn map_to_game(&self, timestamp: MapTimestamp) -> GameTimestamp {
-        GameTimestamp(timestamp.0) - self.global_offset
+        GameTimestamp((timestamp + self.local_offset).0) - self.global_offset
     }
 
     /// Converts a game difference into a map difference.
     ///
-    /// Difference conversion does _not_ consider global offset. For timestamps (which need to
-    /// consider global offset) use [`game_to_map`].
+    /// Difference conversion does _not_ consider global and local offsets. For timestamps (which need to
+    /// consider global and local offsets) use [`game_to_map`].
     ///
     /// [`game_to_map`]: #method.game_to_map
     #[inline]
@@ -373,8 +380,8 @@ impl TimestampConverter {
 
     /// Converts a map difference into a game difference.
     ///
-    /// Difference conversion does _not_ consider global offset. For timestamps (which need to
-    /// consider global offset) use [`map_to_game`].
+    /// Difference conversion does _not_ consider global and local offsets. For timestamps (which need to
+    /// consider global and local offsets) use [`map_to_game`].
     ///
     /// [`map_to_game`]: #method.map_to_game
     #[inline]
@@ -388,7 +395,7 @@ impl TimestampConverter {
     /// Converts a game timestamp difference pre-multiplied by scroll speed multiplier to a map
     /// timestamp difference pre-multiplied by scroll speed multiplier.
     ///
-    /// Difference conversion does _not_ consider global offset.
+    /// Difference conversion does _not_ consider global and local offsets.
     #[inline]
     pub fn game_to_map_difference_times_multiplier(
         &self,
@@ -400,7 +407,7 @@ impl TimestampConverter {
     /// Converts a map timestamp difference pre-multiplied by scroll speed multiplier to a game
     /// timestamp difference pre-multiplied by scroll speed multiplier.
     ///
-    /// Difference conversion does _not_ consider global offset.
+    /// Difference conversion does _not_ consider global and local offsets.
     #[inline]
     pub fn map_to_game_difference_times_multiplier(
         &self,

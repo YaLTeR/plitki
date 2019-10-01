@@ -7,7 +7,10 @@ use crate::{
     map::Map,
     object::Object,
     scroll::{MapTimestampDifferenceTimesScrollSpeedMultiplier, ScrollSpeed},
-    timing::{GameTimestamp, GameTimestampDifference, MapTimestamp, TimestampConverter},
+    timing::{
+        GameTimestamp, GameTimestampDifference, MapTimestamp, MapTimestampDifference,
+        TimestampConverter,
+    },
 };
 
 /// State of the game.
@@ -268,6 +271,7 @@ impl GameState {
 
         let timestamp_converter = TimestampConverter {
             global_offset: GameTimestampDifference::from_millis(0),
+            local_offset: MapTimestampDifference::from_millis(0),
         };
 
         let mut state = Self {
@@ -1035,6 +1039,49 @@ mod tests {
     }
 
     #[test]
+    fn game_state_local_offset() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: Vec::new(),
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
+            lanes: vec![Lane {
+                objects: vec![Object::Regular {
+                    timestamp: MapTimestamp::from_millis(20_000),
+                }],
+            }],
+        };
+
+        let mut state = GameState::new(map);
+        state.timestamp_converter.local_offset = MapTimestampDifference::from_millis(-10_000);
+
+        state.key_press(0, GameTimestamp::from_millis(0));
+        assert_eq!(
+            &state.lane_states[0].object_states[..],
+            &[ObjectState::Regular(RegularObjectState::NotHit)][..]
+        );
+
+        state.key_press(0, GameTimestamp::from_millis(10_000));
+        assert_eq!(
+            &state.lane_states[0].object_states[..],
+            &[ObjectState::Regular(RegularObjectState::Hit {
+                difference: GameTimestampDifference::from_millis(0)
+            })][..]
+        );
+
+        let mut hits = CircularQueue::with_capacity(1);
+        hits.push(Hit {
+            timestamp: GameTimestamp::from_millis(10_000),
+            difference: GameTimestampDifference::from_millis(0),
+        });
+        assert_eq!(state.last_hits, hits);
+    }
+
+    #[test]
     fn game_state_update_to_latest() {
         let map = Map {
             song_artist: None,
@@ -1062,6 +1109,7 @@ mod tests {
         let mut state2 = state.clone();
         state2.cap_fps = true;
         state2.timestamp_converter.global_offset = GameTimestampDifference::from_millis(10_000);
+        state2.timestamp_converter.local_offset = MapTimestampDifference::from_millis(20_000);
         state2.scroll_speed = ScrollSpeed(5);
         state2.lane_states[0].first_active_object = 1;
         state2.lane_states[0].object_states[0] = ObjectState::Regular(RegularObjectState::Hit {

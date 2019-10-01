@@ -15,7 +15,7 @@ use std::{
 use plitki_core::{
     map::Map,
     state::{GameState, LongNoteState, ObjectState, RegularObjectState},
-    timing::{GameTimestamp, GameTimestampDifference},
+    timing::{GameTimestamp, GameTimestampDifference, MapTimestampDifference},
 };
 use plitki_map_qua::from_reader;
 use rodio::Source;
@@ -252,6 +252,26 @@ fn main() {
                                 debug!(
                                     "changed scroll_speed";
                                     "scroll_speed" => ?latest_game_state.scroll_speed
+                                );
+                            }
+                            keysyms::XKB_KEY_minus => {
+                                latest_game_state.timestamp_converter.local_offset =
+                                    latest_game_state.timestamp_converter.local_offset
+                                        - MapTimestampDifference::from_millis(5);
+                                debug!(
+                                    "changed local_offset";
+                                    "local_offset"
+                                        => ?latest_game_state.timestamp_converter.local_offset
+                                );
+                            }
+                            keysyms::XKB_KEY_plus | keysyms::XKB_KEY_equal => {
+                                latest_game_state.timestamp_converter.local_offset =
+                                    latest_game_state.timestamp_converter.local_offset
+                                        + MapTimestampDifference::from_millis(5);
+                                debug!(
+                                    "changed local_offset";
+                                    "local_offset"
+                                        => ?latest_game_state.timestamp_converter.local_offset
                                 );
                             }
                             keysyms::XKB_KEY_z | keysyms::XKB_KEY_a => {
