@@ -54,6 +54,17 @@ impl ScrollSpeedMultiplier {
         Self::new((value * 1000.) as i32)
     }
 
+    /// Performs a saturating conversion from an `f32` to a `ScrollSpeedMultiplier`.
+    ///
+    /// The value is in the conventional range (so `1.0` is the multiplier of `1`).
+    #[inline]
+    pub fn saturating_from_f32(value: f32) -> Self {
+        let value = value
+            .min((2i32.pow(24) - 1) as f32 / 1000.)
+            .max(-(2i32.pow(24)) as f32 / 1000.);
+        Self::new((value * 1000.) as i32)
+    }
+
     /// Converts `ScrollSpeedMultiplier` to an `f32`.
     ///
     /// The returned value is in the conventional range (so `1.0` is the multiplier of `1`).
