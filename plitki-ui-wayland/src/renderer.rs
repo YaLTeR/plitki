@@ -237,7 +237,7 @@ impl<'a> SingleFrameRenderer<'a> {
         let lane_count = state.map.lanes.len();
         let border_offset = lane_width * lane_count as f32 / 2.;
         let border_width = 0.01;
-        let judgement_line_position = renderer.ortho.bottom + 0.4;
+        let judgement_line_position = renderer.ortho.bottom + 0.29;
         let note_height = 0.1;
 
         let first_visible_timestamp = (elapsed_timestamp
