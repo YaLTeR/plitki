@@ -198,6 +198,7 @@ impl Renderer {
         {
             let mut renderer = SingleFrameRenderer::new(self, elapsed, state);
             renderer.push_borders();
+            renderer.push_timing_lines();
             renderer.push_objects();
             renderer.push_judgement_line();
             renderer.push_error_bar();
@@ -313,6 +314,56 @@ impl<'a> SingleFrameRenderer<'a> {
             ),
             color: Srgba::new(1., 1., 1., 1.),
         });
+    }
+
+    fn push_timing_lines(&mut self) {
+        // TODO: make separate first_visible_position_difference which uses timing line height
+        // instead of note height.
+        let first_visible_index = self
+            .state
+            .timing_lines
+            .binary_search_by_key(&self.first_visible_position_difference, |timing_line| {
+                timing_line
+                    .position
+                    .to_game(&self.state.timestamp_converter)
+                    * self.state.scroll_speed
+            })
+            .unwrap_or_else(identity);
+        let one_past_last_visible_index = self
+            .state
+            .timing_lines
+            .binary_search_by_key(
+                &self.one_past_last_visible_position_difference,
+                |timing_line| {
+                    timing_line
+                        .position
+                        .to_game(&self.state.timestamp_converter)
+                        * self.state.scroll_speed
+                },
+            )
+            .unwrap_or_else(identity);
+
+        let range = first_visible_index..one_past_last_visible_index;
+        for timing_line in self.state.timing_lines[range].iter().rev() {
+            let pos = Point2::new(
+                -self.border_offset,
+                from_core_position(
+                    self.current_position
+                        + ((timing_line
+                            .position
+                            .to_game(&self.state.timestamp_converter)
+                            * self.state.scroll_speed)
+                            - self.current_position_difference),
+                ),
+            );
+
+            self.renderer.sprites.push(Sprite {
+                pos,
+                // TODO: 1 pixel.
+                scale: Vector2::new(self.border_offset * 2., self.border_width / 2.),
+                color: Srgba::new(0.5, 0.5, 1., 0.5),
+            });
+        }
     }
 
     fn push_objects(&mut self) {
