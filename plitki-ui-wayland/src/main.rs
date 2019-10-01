@@ -626,7 +626,7 @@ fn render_thread(
                                                 (target_time - presentation_time, "-")
                                             });
 
-                                        debug!(
+                                        trace!(
                                             "frame presented";
                                             "target_time" => ?target_time,
                                             "presentation_time" => ?presentation_time,
