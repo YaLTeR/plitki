@@ -2,6 +2,8 @@
 
 extern crate alloc;
 
+mod macros;
+
 pub mod map;
 pub mod object;
 pub mod scroll;

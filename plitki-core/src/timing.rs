@@ -7,6 +7,10 @@ use core::{
     time::Duration,
 };
 
+use crate::{
+    impl_ops,
+};
+
 /// A point in time.
 ///
 /// Timestamps are represented as `i32`s in <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
@@ -288,65 +292,6 @@ impl TryFrom<Timestamp> for Duration {
         let nanos = (t - seconds * 1_000_00) as u32 * 10_000;
         Ok(Self::new(seconds, nanos))
     }
-}
-
-macro_rules! impl_ops {
-    ($timestamp:ty, $timestamp_difference:ty) => {
-        impl Sub<$timestamp> for $timestamp {
-            type Output = $timestamp_difference;
-
-            #[inline]
-            fn sub(self, other: $timestamp) -> Self::Output {
-                Self::Output {
-                    0: self.0 - other.0,
-                }
-            }
-        }
-
-        impl Add<$timestamp_difference> for $timestamp {
-            type Output = $timestamp;
-
-            #[inline]
-            fn add(self, other: $timestamp_difference) -> Self::Output {
-                Self::Output {
-                    0: self.0 + other.0,
-                }
-            }
-        }
-
-        impl Sub<$timestamp_difference> for $timestamp {
-            type Output = $timestamp;
-
-            #[inline]
-            fn sub(self, other: $timestamp_difference) -> Self::Output {
-                Self::Output {
-                    0: self.0 - other.0,
-                }
-            }
-        }
-
-        impl Add<$timestamp_difference> for $timestamp_difference {
-            type Output = $timestamp_difference;
-
-            #[inline]
-            fn add(self, other: $timestamp_difference) -> Self::Output {
-                Self::Output {
-                    0: self.0 + other.0,
-                }
-            }
-        }
-
-        impl Sub<$timestamp_difference> for $timestamp_difference {
-            type Output = $timestamp_difference;
-
-            #[inline]
-            fn sub(self, other: $timestamp_difference) -> Self::Output {
-                Self::Output {
-                    0: self.0 - other.0,
-                }
-            }
-        }
-    };
 }
 
 impl_ops!(Timestamp, TimestampDifference);
