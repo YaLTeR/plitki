@@ -243,12 +243,12 @@ impl<'a> SingleFrameRenderer<'a> {
     fn new(renderer: &'a mut Renderer, elapsed: Duration, state: &'a GameState) -> Self {
         let elapsed_timestamp = GameTimestamp(elapsed.try_into().unwrap());
 
-        let lane_width = 0.2;
         let lane_count = state.map.lanes.len();
+        let lane_width = if lane_count < 6 { 0.2 } else { 0.15 };
         let border_offset = lane_width * lane_count as f32 / 2.;
         let border_width = 0.01;
         let judgement_line_position = renderer.ortho.bottom + 0.29;
-        let note_height = 0.1;
+        let note_height = lane_width / 2.;
 
         let current_position = to_core_position(judgement_line_position);
         let first_visible_position = to_core_position(renderer.ortho.bottom - note_height);
@@ -413,10 +413,20 @@ impl<'a> SingleFrameRenderer<'a> {
             }
         };
 
-        let mut color = if lane == 0 || lane == 3 {
-            Srgba::new(1., 1., 1., 0.5)
+        let mut color = if self.state.lane_states.len() == 4 {
+            if lane == 0 || lane == 3 {
+                Srgba::new(1., 1., 1., 0.5)
+            } else {
+                Srgba::new(0., 0.5, 1., 0.5)
+            }
         } else {
-            Srgba::new(0., 0.5, 1., 0.5)
+            if self.state.lane_states.len() % 2 == 1 && lane == self.state.lane_states.len() / 2 {
+                Srgba::new(1., 1., 0., 0.5)
+            } else if lane % 2 == 0 {
+                Srgba::new(1., 1., 1., 0.5)
+            } else {
+                Srgba::new(0., 0.5, 1., 0.5)
+            }
         };
 
         if let ObjectState::LongNote(LongNoteState::Missed { .. }) = *object_state {

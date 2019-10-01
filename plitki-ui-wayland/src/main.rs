@@ -254,33 +254,51 @@ fn main() {
                                     "scroll_speed" => ?latest_game_state.scroll_speed
                                 );
                             }
-                            keysyms::XKB_KEY_z => {
+                            keysyms::XKB_KEY_z | keysyms::XKB_KEY_a => {
                                 latest_game_state.key_press(0, GameTimestamp(elapsed_timestamp));
                             }
-                            keysyms::XKB_KEY_x => {
+                            keysyms::XKB_KEY_x | keysyms::XKB_KEY_s => {
                                 latest_game_state.key_press(1, GameTimestamp(elapsed_timestamp));
                             }
-                            keysyms::XKB_KEY_period => {
+                            keysyms::XKB_KEY_period | keysyms::XKB_KEY_d => {
                                 latest_game_state.key_press(2, GameTimestamp(elapsed_timestamp));
                             }
-                            keysyms::XKB_KEY_slash => {
+                            keysyms::XKB_KEY_slash | keysyms::XKB_KEY_space => {
                                 latest_game_state.key_press(3, GameTimestamp(elapsed_timestamp));
+                            }
+                            keysyms::XKB_KEY_l => {
+                                latest_game_state.key_press(4, GameTimestamp(elapsed_timestamp));
+                            }
+                            keysyms::XKB_KEY_semicolon => {
+                                latest_game_state.key_press(5, GameTimestamp(elapsed_timestamp));
+                            }
+                            keysyms::XKB_KEY_apostrophe => {
+                                latest_game_state.key_press(6, GameTimestamp(elapsed_timestamp));
                             }
                             _ => (),
                         },
 
                         KeyState::Released => match keysym {
-                            keysyms::XKB_KEY_z => {
+                            keysyms::XKB_KEY_z | keysyms::XKB_KEY_a => {
                                 latest_game_state.key_release(0, GameTimestamp(elapsed_timestamp));
                             }
-                            keysyms::XKB_KEY_x => {
+                            keysyms::XKB_KEY_x | keysyms::XKB_KEY_s => {
                                 latest_game_state.key_release(1, GameTimestamp(elapsed_timestamp));
                             }
-                            keysyms::XKB_KEY_period => {
+                            keysyms::XKB_KEY_period | keysyms::XKB_KEY_d => {
                                 latest_game_state.key_release(2, GameTimestamp(elapsed_timestamp));
                             }
-                            keysyms::XKB_KEY_slash => {
+                            keysyms::XKB_KEY_slash | keysyms::XKB_KEY_space => {
                                 latest_game_state.key_release(3, GameTimestamp(elapsed_timestamp));
+                            }
+                            keysyms::XKB_KEY_l => {
+                                latest_game_state.key_release(4, GameTimestamp(elapsed_timestamp));
+                            }
+                            keysyms::XKB_KEY_semicolon => {
+                                latest_game_state.key_release(5, GameTimestamp(elapsed_timestamp));
+                            }
+                            keysyms::XKB_KEY_apostrophe => {
+                                latest_game_state.key_release(6, GameTimestamp(elapsed_timestamp));
                             }
                             _ => (),
                         },
