@@ -1,10 +1,10 @@
 //! Object positioning on screen.
-use core::{
-    convert::TryInto,
-    ops::{Div, Mul},
-};
+use core::ops::{Add, Div, Mul, Sub};
 
-use crate::timing::GameTimestampDifference;
+use crate::{
+    impl_ops,
+    timing::{MapTimestampDifference, TimestampConverter},
+};
 
 /// Object position on screen.
 ///
@@ -12,6 +12,12 @@ use crate::timing::GameTimestampDifference;
 /// `2_000_000_000` corresponds to one vertical square screen.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Position(pub i64);
+
+/// Difference between positions.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct PositionDifference(pub i64);
+
+impl_ops!(Position, PositionDifference);
 
 /// Scrolling speed.
 ///
@@ -27,6 +33,24 @@ pub struct ScrollSpeed(pub u8);
 /// is equivalent to a multiplier of 1.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ScrollSpeedMultiplier(i32);
+
+// (MapTimestampDifference / Rate) * ScrollSpeed * ScrollSpeedMultiplier = PositionDifference
+//
+// Thanks to the commutativity of the operations, we can do:
+// (MapTimestampDifference * ScrollSpeedMultiplier) / Rate * ScrollSpeed
+//
+// And thus, pre-compute the SVs.
+//
+// This still works for non-constant SVs like this:
+// (MapTimestampDifference1 / Rate) * ScrollSpeed * ScrollSpeedMultiplier1
+// + (MapTimestampDifference2 / Rate) * ScrollSpeed * ScrollSpeedMultiplier2
+
+// TODO: naming.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct MapTimestampDifferenceTimesScrollSpeedMultiplier(pub(crate) i64);
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct GameTimestampDifferenceTimesScrollSpeedMultiplier(pub(crate) i64);
 
 impl ScrollSpeedMultiplier {
     /// Creates a new `ScrollSpeedMultiplier` with bounds checking.
@@ -81,21 +105,37 @@ impl Default for ScrollSpeedMultiplier {
     }
 }
 
-impl Mul<GameTimestampDifference> for ScrollSpeed {
-    type Output = Position;
-
+impl MapTimestampDifferenceTimesScrollSpeedMultiplier {
     #[inline]
-    fn mul(self, rhs: GameTimestampDifference) -> Self::Output {
-        Position(
-            i64::from(self.0)
-                * i64::from(rhs.into_milli_hundredths())
-                * i64::from(ScrollSpeedMultiplier::default().0),
-        )
+    pub fn to_game(
+        self,
+        converter: &TimestampConverter,
+    ) -> GameTimestampDifferenceTimesScrollSpeedMultiplier {
+        converter.map_to_game_difference_times_multiplier(self)
     }
 }
 
-impl Mul<ScrollSpeed> for GameTimestampDifference {
-    type Output = Position;
+impl GameTimestampDifferenceTimesScrollSpeedMultiplier {
+    #[inline]
+    pub fn to_map(
+        self,
+        converter: &TimestampConverter,
+    ) -> MapTimestampDifferenceTimesScrollSpeedMultiplier {
+        converter.game_to_map_difference_times_multiplier(self)
+    }
+}
+
+impl Mul<GameTimestampDifferenceTimesScrollSpeedMultiplier> for ScrollSpeed {
+    type Output = PositionDifference;
+
+    #[inline]
+    fn mul(self, rhs: GameTimestampDifferenceTimesScrollSpeedMultiplier) -> Self::Output {
+        PositionDifference(i64::from(self.0) * rhs.0)
+    }
+}
+
+impl Mul<ScrollSpeed> for GameTimestampDifferenceTimesScrollSpeedMultiplier {
+    type Output = PositionDifference;
 
     #[inline]
     fn mul(self, rhs: ScrollSpeed) -> Self::Output {
@@ -103,12 +143,84 @@ impl Mul<ScrollSpeed> for GameTimestampDifference {
     }
 }
 
-impl Div<ScrollSpeed> for Position {
-    type Output = GameTimestampDifference;
+impl Div<ScrollSpeed> for PositionDifference {
+    type Output = GameTimestampDifferenceTimesScrollSpeedMultiplier;
 
     #[inline]
     fn div(self, rhs: ScrollSpeed) -> Self::Output {
-        let value = self.0 / i64::from(rhs.0) / i64::from(ScrollSpeedMultiplier::default().0);
-        GameTimestampDifference::from_milli_hundredths(value.try_into().unwrap())
+        GameTimestampDifferenceTimesScrollSpeedMultiplier(self.0 / i64::from(rhs.0))
+    }
+}
+// impl Mul<GameTimestampDifference> for ScrollSpeed {
+//     type Output = PositionDifference;
+//
+//     #[inline]
+//     fn mul(self, rhs: GameTimestampDifference) -> Self::Output {
+//         PositionDifference(
+//             i64::from(self.0)
+//                 * i64::from(rhs.into_milli_hundredths())
+//                 * i64::from(ScrollSpeedMultiplier::default().0),
+//         )
+//     }
+// }
+//
+// impl Mul<ScrollSpeed> for GameTimestampDifference {
+//     type Output = PositionDifference;
+//
+//     #[inline]
+//     fn mul(self, rhs: ScrollSpeed) -> Self::Output {
+//         rhs * self
+//     }
+// }
+//
+// impl Div<ScrollSpeed> for PositionDifference {
+//     type Output = GameTimestampDifference;
+//
+//     #[inline]
+//     fn div(self, rhs: ScrollSpeed) -> Self::Output {
+//         let value = self.0 / i64::from(rhs.0) / i64::from(ScrollSpeedMultiplier::default().0);
+//         GameTimestampDifference::from_milli_hundredths(value.try_into().unwrap())
+//     }
+// }
+
+impl Add<MapTimestampDifferenceTimesScrollSpeedMultiplier>
+    for MapTimestampDifferenceTimesScrollSpeedMultiplier
+{
+    type Output = MapTimestampDifferenceTimesScrollSpeedMultiplier;
+
+    #[inline]
+    fn add(self, rhs: MapTimestampDifferenceTimesScrollSpeedMultiplier) -> Self::Output {
+        MapTimestampDifferenceTimesScrollSpeedMultiplier(self.0 + rhs.0)
+    }
+}
+
+impl Sub<MapTimestampDifferenceTimesScrollSpeedMultiplier>
+    for MapTimestampDifferenceTimesScrollSpeedMultiplier
+{
+    type Output = MapTimestampDifferenceTimesScrollSpeedMultiplier;
+
+    #[inline]
+    fn sub(self, rhs: MapTimestampDifferenceTimesScrollSpeedMultiplier) -> Self::Output {
+        MapTimestampDifferenceTimesScrollSpeedMultiplier(self.0 - rhs.0)
+    }
+}
+
+impl Mul<MapTimestampDifference> for ScrollSpeedMultiplier {
+    type Output = MapTimestampDifferenceTimesScrollSpeedMultiplier;
+
+    #[inline]
+    fn mul(self, rhs: MapTimestampDifference) -> Self::Output {
+        MapTimestampDifferenceTimesScrollSpeedMultiplier(
+            i64::from(self.0) * i64::from(rhs.into_milli_hundredths()),
+        )
+    }
+}
+
+impl Mul<ScrollSpeedMultiplier> for MapTimestampDifference {
+    type Output = MapTimestampDifferenceTimesScrollSpeedMultiplier;
+
+    #[inline]
+    fn mul(self, rhs: ScrollSpeedMultiplier) -> Self::Output {
+        rhs * self
     }
 }

@@ -6,7 +6,7 @@ use circular_queue::CircularQueue;
 use crate::{
     map::Map,
     object::Object,
-    scroll::ScrollSpeed,
+    scroll::{MapTimestampDifferenceTimesScrollSpeedMultiplier, ScrollSpeed},
     timing::{GameTimestamp, GameTimestampDifference, MapTimestamp, TimestampConverter},
 };
 
@@ -26,6 +26,12 @@ pub struct GameState {
     pub timestamp_converter: TimestampConverter,
     /// Contains states of the objects in lanes.
     pub lane_states: Vec<LaneState>,
+    /// Contains immutable pre-computed information about objects.
+    pub lane_caches: Vec<LaneCache>,
+    /// A cache of positions for each scroll speed change timestamp.
+    ///
+    /// Indices into the cache are equal to indices into `map.scroll_speed_changes`.
+    pub position_cache: Vec<CachedPosition>,
     /// Contains a number of last hits.
     ///
     /// Useful for implementing an error bar.
@@ -95,6 +101,59 @@ pub struct LaneState {
     first_active_object: usize,
 }
 
+/// Cached information of an individual object.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub enum ObjectCache {
+    /// Cached information of a regular object.
+    Regular(RegularObjectCache),
+    /// Cached information of a long note object.
+    LongNote(LongNoteCache),
+}
+
+/// Cached information of a regular object.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct RegularObjectCache {
+    /// Object position.
+    ///
+    /// Zero position corresponds to timestamp zero. The position takes scroll speed changes into
+    /// account.
+    pub position: MapTimestampDifferenceTimesScrollSpeedMultiplier,
+}
+
+/// Cached information of a long note.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct LongNoteCache {
+    /// Start position.
+    ///
+    /// Zero position corresponds to timestamp zero. The position takes scroll speed changes into
+    /// account.
+    pub start_position: MapTimestampDifferenceTimesScrollSpeedMultiplier,
+    /// End position.
+    ///
+    /// Zero position corresponds to timestamp zero. The position takes scroll speed changes into
+    /// account.
+    pub end_position: MapTimestampDifferenceTimesScrollSpeedMultiplier,
+    // TODO: this needs special fields to account for SV direction changes mid-LN. At the very
+    // least there should be fields for lowest and highest positions, and possibly fields for
+    // positions at every SV direction change timestamp to render them properly.
+}
+
+/// Cached information of the objects in a lane.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct LaneCache {
+    /// Cached information of the objects in this lane.
+    pub object_caches: Vec<ObjectCache>,
+}
+
+/// Cached position at a given timestamp.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct CachedPosition {
+    /// Timestamp of the position.
+    timestamp: MapTimestamp,
+    /// Position at the timestamp, taking scroll speed changes into account.
+    position: MapTimestampDifferenceTimesScrollSpeedMultiplier,
+}
+
 /// Information about a hit.
 ///
 /// A hit is either a press or a release that resulted in a judgement.
@@ -109,8 +168,78 @@ pub struct Hit {
 impl GameState {
     /// Creates a new `GameState` given a map.
     pub fn new(mut map: Map) -> Self {
-        let mut lane_states = Vec::with_capacity(map.lanes.len());
+        map.sort_and_dedup_scroll_speed_changes();
 
+        // Compute the position cache.
+        let zero_timestamp_scroll_speed_change_index = match map
+            .scroll_speed_changes
+            .binary_search_by_key(&MapTimestamp::from_milli_hundredths(0), |a| a.timestamp)
+        {
+            Ok(index) => Some(index),
+            Err(index) => {
+                if index == 0 {
+                    None
+                } else {
+                    Some(index - 1)
+                }
+            }
+        };
+
+        let mut position_cache = Vec::with_capacity(map.scroll_speed_changes.len());
+
+        // Compute positions for scroll speed changes before zero timestamp.
+        if let Some(index) = zero_timestamp_scroll_speed_change_index {
+            let mut last_timestamp = MapTimestamp::from_milli_hundredths(0);
+            let mut last_position = MapTimestampDifferenceTimesScrollSpeedMultiplier(0);
+            for i in (0..=index).rev() {
+                let change = &map.scroll_speed_changes[i];
+                let position =
+                    last_position + (change.timestamp - last_timestamp) * change.multiplier;
+
+                // Zero timestamp always corresponds to zero position. But we cache it anyway to
+                // ensure the indices correspond to scroll speed change indices.
+                if change.timestamp == MapTimestamp::from_milli_hundredths(0) {
+                    assert_eq!(
+                        position,
+                        MapTimestampDifferenceTimesScrollSpeedMultiplier(0)
+                    );
+                }
+
+                position_cache.push(CachedPosition {
+                    timestamp: change.timestamp,
+                    position,
+                });
+
+                last_timestamp = change.timestamp;
+                last_position = position;
+            }
+        }
+        position_cache.reverse();
+
+        // Compute positions for scroll speed changes past zero timestamp.
+        let mut last_timestamp = MapTimestamp::from_milli_hundredths(0);
+        let mut last_position = MapTimestampDifferenceTimesScrollSpeedMultiplier(0);
+        let mut last_multiplier = zero_timestamp_scroll_speed_change_index
+            .map(|index| map.scroll_speed_changes[index].multiplier)
+            .unwrap_or(map.initial_scroll_speed_multiplier);
+        for i in zero_timestamp_scroll_speed_change_index
+            .map(|x| x + 1)
+            .unwrap_or(0)..map.scroll_speed_changes.len()
+        {
+            let change = &map.scroll_speed_changes[i];
+            let position = last_position + (change.timestamp - last_timestamp) * last_multiplier;
+            position_cache.push(CachedPosition {
+                timestamp: change.timestamp,
+                position,
+            });
+
+            last_timestamp = change.timestamp;
+            last_position = position;
+            last_multiplier = change.multiplier;
+        }
+
+        // Compute per-lane and per-object data.
+        let mut lane_states = Vec::with_capacity(map.lanes.len());
         for lane in &mut map.lanes {
             // Ensure the objects are sorted by their start timestamp (GameState invariant).
             lane.objects.sort_unstable_by_key(Object::start_timestamp);
@@ -141,13 +270,73 @@ impl GameState {
             global_offset: GameTimestampDifference::from_millis(0),
         };
 
-        Self {
+        let mut state = Self {
             map: Arc::new(map),
             cap_fps: false,
             scroll_speed: ScrollSpeed(32),
             timestamp_converter,
             lane_states,
+            position_cache,
+            lane_caches: Vec::new(),
             last_hits: CircularQueue::with_capacity(32),
+        };
+
+        // Now that we can use position_at_time(), fill in the lane caches.
+        let mut lane_caches = Vec::with_capacity(state.map.lanes.len());
+        for lane in &state.map.lanes {
+            let mut object_caches = Vec::with_capacity(lane.objects.len());
+
+            for object in &lane.objects {
+                // TODO: this can be optimized to not do a binary search for every single
+                // timestamp, based on the fact that we're iterating in ascending timestamp order.
+                let cache = match *object {
+                    Object::Regular { timestamp } => ObjectCache::Regular(RegularObjectCache {
+                        position: state.position_at_time(timestamp),
+                    }),
+                    Object::LongNote { start, end } => ObjectCache::LongNote(LongNoteCache {
+                        start_position: state.position_at_time(start),
+                        end_position: state.position_at_time(end),
+                    }),
+                };
+                object_caches.push(cache);
+            }
+
+            lane_caches.push(LaneCache { object_caches });
+        }
+
+        state.lane_caches = lane_caches;
+
+        state
+    }
+
+    /// Returns the map position at the given map timestamp.
+    ///
+    /// The position takes scroll speed changes into account.
+    pub fn position_at_time(
+        &self,
+        timestamp: MapTimestamp,
+    ) -> MapTimestampDifferenceTimesScrollSpeedMultiplier {
+        if self.position_cache.is_empty() {
+            return MapTimestampDifferenceTimesScrollSpeedMultiplier(0)
+                + (timestamp - MapTimestamp::from_millis(0))
+                    * self.map.initial_scroll_speed_multiplier;
+        }
+
+        match self
+            .position_cache
+            .binary_search_by_key(&timestamp, |x| x.timestamp)
+        {
+            Ok(index) => self.position_cache[index].position,
+            Err(index) if index == 0 => {
+                self.position_cache[0].position
+                    + (timestamp - self.position_cache[0].timestamp)
+                        * self.map.initial_scroll_speed_multiplier
+            }
+            Err(index) => {
+                let cached_position = self.position_cache[index - 1];
+                let multiplier = self.map.scroll_speed_changes[index - 1].multiplier;
+                cached_position.position + (timestamp - cached_position.timestamp) * multiplier
+            }
         }
     }
 
@@ -377,10 +566,31 @@ impl ObjectState {
     }
 }
 
+impl ObjectCache {
+    #[inline]
+    pub fn start_position(&self) -> MapTimestampDifferenceTimesScrollSpeedMultiplier {
+        match *self {
+            ObjectCache::Regular(RegularObjectCache { position }) => position,
+            ObjectCache::LongNote(LongNoteCache { start_position, .. }) => start_position,
+        }
+    }
+
+    #[inline]
+    pub fn end_position(&self) -> MapTimestampDifferenceTimesScrollSpeedMultiplier {
+        match *self {
+            ObjectCache::Regular(RegularObjectCache { position }) => position,
+            ObjectCache::LongNote(LongNoteCache { end_position, .. }) => end_position,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{map::Lane, scroll::ScrollSpeedMultiplier};
+    use crate::{
+        map::{Lane, ScrollSpeedChange},
+        scroll::ScrollSpeedMultiplier,
+    };
     use alloc::vec;
 
     #[test]
@@ -908,5 +1118,269 @@ mod tests {
 
         state.update_to_latest(&state2);
         assert_eq!(state, state2);
+    }
+
+    #[test]
+    fn game_state_position_cache() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: vec![
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(-2),
+                    multiplier: ScrollSpeedMultiplier::new(4),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(-1),
+                    multiplier: ScrollSpeedMultiplier::new(5),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(0),
+                    multiplier: ScrollSpeedMultiplier::new(1),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(1),
+                    multiplier: ScrollSpeedMultiplier::new(3),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(3),
+                    multiplier: ScrollSpeedMultiplier::new(5),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(4),
+                    multiplier: ScrollSpeedMultiplier::new(7),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(5),
+                    multiplier: ScrollSpeedMultiplier::new(8),
+                },
+            ],
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
+            lanes: vec![Lane { objects: vec![] }],
+        };
+
+        let state = GameState::new(map);
+
+        assert_eq!(
+            state.position_cache.len(),
+            state.map.scroll_speed_changes.len()
+        );
+        assert_eq!(
+            &state.position_cache[..],
+            &[
+                CachedPosition {
+                    timestamp: MapTimestamp::from_millis(-2),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(-900)
+                },
+                CachedPosition {
+                    timestamp: MapTimestamp::from_millis(-1),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(-500)
+                },
+                CachedPosition {
+                    timestamp: MapTimestamp::from_millis(0),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(0)
+                },
+                CachedPosition {
+                    timestamp: MapTimestamp::from_millis(1),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(100)
+                },
+                CachedPosition {
+                    timestamp: MapTimestamp::from_millis(3),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(700)
+                },
+                CachedPosition {
+                    timestamp: MapTimestamp::from_millis(4),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(1200)
+                },
+                CachedPosition {
+                    timestamp: MapTimestamp::from_millis(5),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(1900)
+                },
+            ][..]
+        );
+    }
+
+    #[test]
+    fn game_state_position_at_time() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: vec![
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(-2),
+                    multiplier: ScrollSpeedMultiplier::new(4),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(-1),
+                    multiplier: ScrollSpeedMultiplier::new(5),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(0),
+                    multiplier: ScrollSpeedMultiplier::new(1),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(1),
+                    multiplier: ScrollSpeedMultiplier::new(3),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(3),
+                    multiplier: ScrollSpeedMultiplier::new(5),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(4),
+                    multiplier: ScrollSpeedMultiplier::new(7),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(5),
+                    multiplier: ScrollSpeedMultiplier::new(8),
+                },
+            ],
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(1),
+            lanes: vec![Lane { objects: vec![] }],
+        };
+
+        let state = GameState::new(map);
+
+        assert_eq!(
+            state.position_at_time(MapTimestamp::from_milli_hundredths(-250)),
+            MapTimestampDifferenceTimesScrollSpeedMultiplier(-950)
+        );
+        assert_eq!(
+            state.position_at_time(MapTimestamp::from_milli_hundredths(-50)),
+            MapTimestampDifferenceTimesScrollSpeedMultiplier(-250)
+        );
+        assert_eq!(
+            state.position_at_time(MapTimestamp::from_milli_hundredths(300)),
+            MapTimestampDifferenceTimesScrollSpeedMultiplier(700)
+        );
+        assert_eq!(
+            state.position_at_time(MapTimestamp::from_milli_hundredths(350)),
+            MapTimestampDifferenceTimesScrollSpeedMultiplier(950)
+        );
+        assert_eq!(
+            state.position_at_time(MapTimestamp::from_milli_hundredths(600)),
+            MapTimestampDifferenceTimesScrollSpeedMultiplier(2700)
+        );
+    }
+
+    #[test]
+    fn game_state_lane_caches() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: vec![
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(-2),
+                    multiplier: ScrollSpeedMultiplier::new(4),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(-1),
+                    multiplier: ScrollSpeedMultiplier::new(5),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(0),
+                    multiplier: ScrollSpeedMultiplier::new(1),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(1),
+                    multiplier: ScrollSpeedMultiplier::new(3),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(3),
+                    multiplier: ScrollSpeedMultiplier::new(5),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(4),
+                    multiplier: ScrollSpeedMultiplier::new(7),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(5),
+                    multiplier: ScrollSpeedMultiplier::new(8),
+                },
+            ],
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(1),
+            lanes: vec![
+                Lane {
+                    objects: vec![
+                        Object::Regular {
+                            timestamp: MapTimestamp::from_milli_hundredths(-250),
+                        },
+                        Object::LongNote {
+                            start: MapTimestamp::from_milli_hundredths(300),
+                            end: MapTimestamp::from_milli_hundredths(600),
+                        },
+                    ],
+                },
+                Lane {
+                    objects: vec![Object::LongNote {
+                        start: MapTimestamp::from_milli_hundredths(-50),
+                        end: MapTimestamp::from_milli_hundredths(350),
+                    }],
+                },
+            ],
+        };
+
+        let state = GameState::new(map);
+
+        assert_eq!(
+            state.lane_caches[0].object_caches[0],
+            ObjectCache::Regular(RegularObjectCache {
+                position: MapTimestampDifferenceTimesScrollSpeedMultiplier(-950)
+            })
+        );
+        assert_eq!(
+            state.lane_caches[0].object_caches[1],
+            ObjectCache::LongNote(LongNoteCache {
+                start_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(700),
+                end_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(2700)
+            })
+        );
+        assert_eq!(
+            state.lane_caches[1].object_caches[0],
+            ObjectCache::LongNote(LongNoteCache {
+                start_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(-250),
+                end_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(950)
+            })
+        );
+    }
+
+    #[test]
+    fn object_cache_methods() {
+        let regular = ObjectCache::Regular(RegularObjectCache {
+            position: MapTimestampDifferenceTimesScrollSpeedMultiplier(10),
+        });
+        assert_eq!(
+            regular.start_position(),
+            MapTimestampDifferenceTimesScrollSpeedMultiplier(10)
+        );
+        assert_eq!(
+            regular.end_position(),
+            MapTimestampDifferenceTimesScrollSpeedMultiplier(10)
+        );
+
+        let ln = ObjectCache::LongNote(LongNoteCache {
+            start_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(20),
+            end_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(30),
+        });
+        assert_eq!(
+            ln.start_position(),
+            MapTimestampDifferenceTimesScrollSpeedMultiplier(20)
+        );
+        assert_eq!(
+            ln.end_position(),
+            MapTimestampDifferenceTimesScrollSpeedMultiplier(30)
+        );
     }
 }

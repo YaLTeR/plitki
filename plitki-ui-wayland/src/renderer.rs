@@ -12,9 +12,9 @@ use glium::{
 use palette::{ComponentWise, Srgba};
 use plitki_core::{
     object::Object,
-    scroll::Position,
-    state::{Hit, LongNoteState, ObjectState},
-    timing::{GameTimestamp, GameTimestampDifference, MapTimestamp},
+    scroll::{Position, PositionDifference},
+    state::{Hit, LongNoteCache, LongNoteState, ObjectCache, ObjectState},
+    timing::{GameTimestamp, GameTimestampDifference},
 };
 use slog_scope::trace;
 
@@ -55,8 +55,10 @@ pub struct SingleFrameRenderer<'a> {
     border_width: f32,
     judgement_line_position: f32,
     note_height: f32,
-    first_visible_timestamp: MapTimestamp,
-    one_past_last_visible_timestamp: MapTimestamp,
+    current_position: Position,
+    current_position_difference: PositionDifference,
+    first_visible_position_difference: PositionDifference,
+    one_past_last_visible_position_difference: PositionDifference,
 }
 
 struct Sprite {
@@ -89,6 +91,14 @@ fn to_core_position(x: f32) -> Position {
 
 fn from_core_position(x: Position) -> f32 {
     (x.0 as f64 / 1_000_000_000.) as f32
+}
+
+fn from_core_position_difference(x: PositionDifference) -> f32 {
+    (x.0 as f64 / 1_000_000_000.) as f32
+}
+
+fn to_core_position_difference(x: f32) -> PositionDifference {
+    PositionDifference((f64::from(x) * 1_000_000_000.) as i64)
 }
 
 impl Renderer {
@@ -240,13 +250,28 @@ impl<'a> SingleFrameRenderer<'a> {
         let judgement_line_position = renderer.ortho.bottom + 0.29;
         let note_height = 0.1;
 
-        let first_visible_timestamp = (elapsed_timestamp
-            - to_core_position(judgement_line_position - renderer.ortho.bottom + note_height)
-                / state.scroll_speed)
-            .to_map(&state.timestamp_converter);
-        let one_past_last_visible_timestamp = (elapsed_timestamp
-            + to_core_position(renderer.ortho.top - judgement_line_position) / state.scroll_speed)
-            .to_map(&state.timestamp_converter);
+        let current_position = to_core_position(judgement_line_position);
+        let first_visible_position = to_core_position(renderer.ortho.bottom - note_height);
+        let one_past_last_visible_position = to_core_position(renderer.ortho.top);
+
+        // let first_visible_timestamp = (elapsed_timestamp
+        //     + (first_visible_position - current_position) / state.scroll_speed)
+        //     .to_map(&state.timestamp_converter);
+        // let one_past_last_visible_timestamp = (elapsed_timestamp
+        //     + (last_visible_position - current_position) / state.scroll_speed)
+        //     .to_map(&state.timestamp_converter);
+
+        let current_position_difference = state
+            .position_at_time(elapsed_timestamp.to_map(&state.timestamp_converter))
+            .to_game(&state.timestamp_converter)
+            * state.scroll_speed;
+        let first_visible_position_difference =
+            first_visible_position - current_position + current_position_difference;
+        let one_past_last_visible_position_difference =
+            one_past_last_visible_position - current_position + current_position_difference;
+
+        // let first_visible_map_position = MapPositionDifference::from(first_visible_position - current_position) + current_map_position;
+        // let last_visible_map_position = MapPositionDifference::from(last_visible_position - current_position) + current_map_position;
 
         renderer.sprites.clear();
 
@@ -259,8 +284,10 @@ impl<'a> SingleFrameRenderer<'a> {
             border_width,
             judgement_line_position,
             note_height,
-            first_visible_timestamp,
-            one_past_last_visible_timestamp,
+            current_position,
+            current_position_difference,
+            first_visible_position_difference,
+            one_past_last_visible_position_difference,
         }
     }
 
@@ -292,70 +319,98 @@ impl<'a> SingleFrameRenderer<'a> {
         // Yay, partial borrowing to win vs. the borrow checker...
         let state = self.state;
 
-        for (lane, objects, object_states) in (0..self.state.map.lanes.len()).map(|lane| {
-            (
-                lane,
-                &state.map.lanes[lane].objects[..],
-                &state.lane_states[lane].object_states[..],
-            )
-        }) {
-            let first_visible_index = objects
-                .binary_search_by_key(&self.first_visible_timestamp, Object::end_timestamp)
-                .unwrap_or_else(identity);
-            let one_past_last_visible_index = objects
-                .binary_search_by_key(
-                    &self.one_past_last_visible_timestamp,
-                    Object::start_timestamp,
+        for (lane, objects, object_states, object_caches) in
+            (0..self.state.map.lanes.len()).map(|lane| {
+                (
+                    lane,
+                    &state.map.lanes[lane].objects[..],
+                    &state.lane_states[lane].object_states[..],
+                    &state.lane_caches[lane].object_caches[..],
                 )
+            })
+        {
+            let first_visible_index = object_caches
+                .binary_search_by_key(&self.first_visible_position_difference, |cache| {
+                    cache.end_position().to_game(&state.timestamp_converter) * state.scroll_speed
+                })
+                .unwrap_or_else(identity);
+            let one_past_last_visible_index = object_caches
+                .binary_search_by_key(&self.one_past_last_visible_position_difference, |cache| {
+                    cache.start_position().to_game(&state.timestamp_converter) * state.scroll_speed
+                })
                 .unwrap_or_else(identity);
 
             let range = first_visible_index..one_past_last_visible_index;
-            for (object, object_state) in objects[range.clone()]
+            for ((object, object_state), object_cache) in objects[range.clone()]
                 .iter()
-                .zip(object_states[range].iter())
+                .zip(object_states[range.clone()].iter())
+                .zip(object_caches[range].iter())
                 .rev()
-                .filter(|(_, s)| !s.is_hit())
+                .filter(|((_, s), _)| !s.is_hit())
             {
-                self.renderer
-                    .sprites
-                    .push(self.object_sprite(lane, object, object_state));
+                self.renderer.sprites.push(self.object_sprite(
+                    lane,
+                    object,
+                    object_state,
+                    object_cache,
+                ));
             }
         }
     }
 
-    fn object_sprite(&self, lane: usize, object: &Object, object_state: &ObjectState) -> Sprite {
+    fn object_sprite(
+        &self,
+        lane: usize,
+        object: &Object,
+        object_state: &ObjectState,
+        object_cache: &ObjectCache,
+    ) -> Sprite {
         let start = match *object {
-            Object::Regular { .. } => object.start_timestamp(),
+            Object::Regular { .. } => object_cache.start_position(),
             Object::LongNote { start, end } => match *object_state {
-                ObjectState::LongNote(LongNoteState::Held { .. }) => self
-                    .elapsed_timestamp
-                    .to_map(&self.state.timestamp_converter)
-                    .min(end)
-                    .max(start),
+                ObjectState::LongNote(LongNoteState::Held { .. }) => self.state.position_at_time(
+                    self.elapsed_timestamp
+                        .to_map(&self.state.timestamp_converter)
+                        .min(end)
+                        .max(start),
+                ),
 
                 ObjectState::LongNote(LongNoteState::Missed {
                     held_until: Some(held_until),
                     ..
-                }) => held_until.max(start),
+                }) => self.state.position_at_time(held_until.max(start)),
 
-                _ => start,
+                _ => object_cache.start_position(),
             },
         };
 
         let pos = Point2::new(
             -self.border_offset + self.lane_width * lane as f32,
-            self.judgement_line_position
-                + from_core_position(
-                    (start.to_game(&self.state.timestamp_converter) - self.elapsed_timestamp)
-                        * self.state.scroll_speed,
-                ),
+            from_core_position(
+                self.current_position
+                    + ((start.to_game(&self.state.timestamp_converter) * self.state.scroll_speed)
+                        - self.current_position_difference),
+            ),
         );
 
-        let height = match *object {
-            Object::Regular { .. } => self.note_height,
-            Object::LongNote { end, .. } => from_core_position(
-                (end - start).to_game(&self.state.timestamp_converter) * self.state.scroll_speed,
-            ),
+        let height = match *object_cache {
+            ObjectCache::Regular(_) => self.note_height,
+            ObjectCache::LongNote(LongNoteCache {
+                end_position,
+                start_position,
+            }) => {
+                let max_height = to_core_position_difference(self.note_height / 2.);
+                let capped_end_position = start_position
+                    + (end_position - start_position).max(
+                        (max_height / self.state.scroll_speed)
+                            .to_map(&self.state.timestamp_converter),
+                    );
+
+                from_core_position_difference(
+                    (capped_end_position - start).to_game(&self.state.timestamp_converter)
+                        * self.state.scroll_speed,
+                )
+            }
         };
 
         let mut color = if lane == 0 || lane == 3 {

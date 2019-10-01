@@ -9,6 +9,10 @@ use core::{
 
 use crate::{
     impl_ops,
+    scroll::{
+        GameTimestampDifferenceTimesScrollSpeedMultiplier,
+        MapTimestampDifferenceTimesScrollSpeedMultiplier,
+    },
 };
 
 /// A point in time.
@@ -379,6 +383,22 @@ impl TimestampConverter {
         difference: MapTimestampDifference,
     ) -> GameTimestampDifference {
         GameTimestampDifference(difference.0)
+    }
+
+    #[inline]
+    pub fn game_to_map_difference_times_multiplier(
+        &self,
+        difference: GameTimestampDifferenceTimesScrollSpeedMultiplier,
+    ) -> MapTimestampDifferenceTimesScrollSpeedMultiplier {
+        MapTimestampDifferenceTimesScrollSpeedMultiplier(difference.0)
+    }
+
+    #[inline]
+    pub fn map_to_game_difference_times_multiplier(
+        &self,
+        difference: MapTimestampDifferenceTimesScrollSpeedMultiplier,
+    ) -> GameTimestampDifferenceTimesScrollSpeedMultiplier {
+        GameTimestampDifferenceTimesScrollSpeedMultiplier(difference.0)
     }
 }
 
