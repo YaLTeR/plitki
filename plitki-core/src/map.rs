@@ -81,3 +81,198 @@ impl Lane {
         Default::default()
     }
 }
+
+impl Map {
+    /// Sorts and de-duplicates scroll speed changes.
+    ///
+    /// This method removes all but the last scroll speed changes on every given timestamp.
+    pub fn sort_and_dedup_scroll_speed_changes(&mut self) {
+        let changes = &mut self.scroll_speed_changes;
+        changes.sort_by_key(|a| a.timestamp);
+
+        let initial_multiplier = self.initial_scroll_speed_multiplier;
+        let first_meaningful_change_index = if let Some((index, _)) = changes
+            .iter()
+            .enumerate()
+            .find(|(_, x)| x.multiplier != initial_multiplier)
+        {
+            index
+        } else {
+            changes.clear();
+            return;
+        };
+
+        // Vec::dedup_by_key would have been useful, but it removes all but the first occurrence
+        // of a value, while want to retain the last occurrence.
+        if changes.len() <= 1 {
+            return;
+        }
+
+        // Might be possible to do in-place, but certainly non-trivial.
+        //
+        // The new_changes.last().unwrap().multiplier in the loop causes a failure in type
+        // inference for some reason.
+        let mut new_changes: Vec<ScrollSpeedChange> = Vec::with_capacity(changes.len());
+        for i in first_meaningful_change_index..changes.len() {
+            // Skip changes which don't change the multiplier from the previous one.
+            if i > first_meaningful_change_index
+                && changes[i].multiplier == new_changes.last().unwrap().multiplier
+            {
+                continue;
+            }
+
+            // Skip to the last change with this timestamp.
+            if i + 1 < changes.len() && changes[i + 1].timestamp == changes[i].timestamp {
+                continue;
+            }
+
+            new_changes.push(changes[i]);
+        }
+
+        *changes = new_changes;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    #[test]
+    fn sort_and_dedup_scroll_speed_changes() {
+        let mut map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: vec![
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(-1),
+                    multiplier: ScrollSpeedMultiplier::new(0),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(0),
+                    multiplier: ScrollSpeedMultiplier::new(1),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(1),
+                    multiplier: ScrollSpeedMultiplier::new(2),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(1),
+                    multiplier: ScrollSpeedMultiplier::new(3),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(2),
+                    multiplier: ScrollSpeedMultiplier::new(3),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(3),
+                    multiplier: ScrollSpeedMultiplier::new(4),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(3),
+                    multiplier: ScrollSpeedMultiplier::new(5),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(4),
+                    multiplier: ScrollSpeedMultiplier::new(5),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(4),
+                    multiplier: ScrollSpeedMultiplier::new(6),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(4),
+                    multiplier: ScrollSpeedMultiplier::new(7),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(5),
+                    multiplier: ScrollSpeedMultiplier::new(8),
+                },
+            ],
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(0),
+            lanes: Vec::new(),
+        };
+
+        map.sort_and_dedup_scroll_speed_changes();
+
+        assert_eq!(
+            &map.scroll_speed_changes[..],
+            &[
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(0),
+                    multiplier: ScrollSpeedMultiplier::new(1)
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(1),
+                    multiplier: ScrollSpeedMultiplier::new(3)
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(3),
+                    multiplier: ScrollSpeedMultiplier::new(5)
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(4),
+                    multiplier: ScrollSpeedMultiplier::new(7)
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(5),
+                    multiplier: ScrollSpeedMultiplier::new(8)
+                },
+            ][..]
+        );
+    }
+
+    #[test]
+    fn sort_and_dedup_scroll_speed_changes_one() {
+        let mut map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: vec![ScrollSpeedChange {
+                timestamp: MapTimestamp::from_millis(-1),
+                multiplier: ScrollSpeedMultiplier::new(0),
+            }],
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(0),
+            lanes: Vec::new(),
+        };
+
+        map.sort_and_dedup_scroll_speed_changes();
+
+        assert_eq!(&map.scroll_speed_changes[..], &[][..]);
+    }
+
+    #[test]
+    fn sort_and_dedup_scroll_speed_changes_one_meaningful() {
+        let mut map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: vec![ScrollSpeedChange {
+                timestamp: MapTimestamp::from_millis(-1),
+                multiplier: ScrollSpeedMultiplier::new(1),
+            }],
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(0),
+            lanes: Vec::new(),
+        };
+
+        map.sort_and_dedup_scroll_speed_changes();
+
+        assert_eq!(
+            &map.scroll_speed_changes[..],
+            &[ScrollSpeedChange {
+                timestamp: MapTimestamp::from_millis(-1),
+                multiplier: ScrollSpeedMultiplier::new(1),
+            },][..]
+        );
+    }
+}
