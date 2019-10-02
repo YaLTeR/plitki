@@ -14,7 +14,7 @@ use plitki_core::{
     object::Object,
     scroll::{Position, PositionDifference},
     state::{Hit, LongNoteCache, LongNoteState, ObjectCache, ObjectState},
-    timing::{GameTimestamp, GameTimestampDifference},
+    timing::{GameTimestamp, GameTimestampDifference, MapTimestamp},
 };
 use slog_scope::trace;
 
@@ -186,7 +186,13 @@ impl Renderer {
         buffer
     }
 
-    pub fn render(&mut self, dimensions: (u32, u32), elapsed: Duration, state: &GameState) {
+    pub fn render(
+        &mut self,
+        dimensions: (u32, u32),
+        elapsed: Duration,
+        state: &GameState,
+        fix_osu_timing_line_animations: bool,
+    ) {
         let start = Instant::now();
 
         if dimensions != self.dimensions {
@@ -196,7 +202,8 @@ impl Renderer {
         }
 
         {
-            let mut renderer = SingleFrameRenderer::new(self, elapsed, state);
+            let mut renderer =
+                SingleFrameRenderer::new(self, elapsed, state, fix_osu_timing_line_animations);
             renderer.push_borders();
             renderer.push_timing_lines();
             renderer.push_objects();
@@ -241,8 +248,24 @@ impl Renderer {
 }
 
 impl<'a> SingleFrameRenderer<'a> {
-    fn new(renderer: &'a mut Renderer, elapsed: Duration, state: &'a GameState) -> Self {
+    fn new(
+        renderer: &'a mut Renderer,
+        elapsed: Duration,
+        state: &'a GameState,
+        fix_osu_timing_line_animations: bool,
+    ) -> Self {
         let elapsed_timestamp = GameTimestamp(elapsed.try_into().unwrap());
+
+        let elapsed_timestamp = if fix_osu_timing_line_animations {
+            MapTimestamp::from_millis(
+                elapsed_timestamp
+                    .to_map(&state.timestamp_converter)
+                    .as_millis(),
+            )
+            .to_game(&state.timestamp_converter)
+        } else {
+            elapsed_timestamp
+        };
 
         let lane_count = state.map.lanes.len();
         let lane_width = if lane_count < 6 { 0.2 } else { 0.15 };

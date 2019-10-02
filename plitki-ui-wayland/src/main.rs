@@ -78,6 +78,11 @@ struct Opt {
     #[structopt(short, long, default_value = "0")]
     start: u32,
 
+    /// Rounds map timestamps to 1 millisecond, which fixes broken osu! timing line animations (for
+    /// example, the one in the end of Backbeat Maniac).
+    #[structopt(long)]
+    fix_osu_timing_line_animations: bool,
+
     /// Path to a supported map file.
     path: Option<PathBuf>,
 }
@@ -435,6 +440,7 @@ fn main() {
         let pair = pair.clone();
         let presentation_clock_id = presentation_clock_id.clone();
         let start = start.clone();
+        let fix_osu_timing_line_animations = opt.fix_osu_timing_line_animations;
 
         thread::spawn(move || {
             render_thread(
@@ -446,6 +452,7 @@ fn main() {
                 wp_presentation,
                 presentation_clock_id,
                 start,
+                fix_osu_timing_line_animations,
             )
         })
     };
@@ -580,6 +587,7 @@ fn render_thread(
     wp_presentation: WpPresentation,
     presentation_clock_id: Arc<Mutex<u32>>,
     start_time: Arc<Mutex<Option<Duration>>>,
+    fix_osu_timing_line_animations: bool,
 ) {
     let surface = window.lock().unwrap().surface().clone();
     let (backend, context) = create_context(&display, &surface, dimensions);
@@ -708,7 +716,12 @@ fn render_thread(
                         .unwrap();
                 }
 
-                renderer.render(dimensions, target_time, state);
+                renderer.render(
+                    dimensions,
+                    target_time,
+                    state,
+                    fix_osu_timing_line_animations,
+                );
             }
         }
     }
