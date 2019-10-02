@@ -18,13 +18,17 @@ matrix:
     - rust: nightly
   include:
     - stage: "Coverage"
-      rust: beta # https://github.com/rust-lang/rust/issues/52478
+      rust: stable
       script:
         - cargo install cargo-tarpaulin -f
         - cargo tarpaulin --out Xml
         - bash <(curl -s https://codecov.io/bash)
 
-cache: cargo
+cache:
+  - /home/travis/.cargo
+
+before_cache:
+  - rm -rf /home/travis/.cargo/registry
 
 before_script:
   - rustup component add rustfmt
