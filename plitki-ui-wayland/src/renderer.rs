@@ -207,6 +207,7 @@ impl Renderer {
             renderer.push_objects();
             renderer.push_judgement_line();
             renderer.push_error_bar();
+            renderer.push_timeline();
         }
 
         let instance_data = self.build_instance_data();
@@ -579,6 +580,33 @@ impl<'a> SingleFrameRenderer<'a> {
             ),
             scale: Vector2::new(error_bar_perfect_hit_width, error_bar_hit_height),
             color: Srgba::new(1., 0., 0., 1.),
+        });
+    }
+
+    fn push_timeline(&mut self) {
+        let first_timestamp = self.state.first_timestamp();
+        if first_timestamp.is_none() {
+            return;
+        }
+        let first_timestamp = first_timestamp.unwrap();
+        let last_timestamp = self.state.last_timestamp().unwrap();
+
+        let total_difference = last_timestamp - first_timestamp;
+        let current_difference = self
+            .elapsed_timestamp
+            .to_map(&self.state.timestamp_converter)
+            .max(first_timestamp)
+            .min(last_timestamp)
+            - first_timestamp;
+
+        let total_width = self.renderer.ortho.right - self.renderer.ortho.left;
+        let width = f64::from(current_difference.into_milli_hundredths())
+            * (f64::from(total_width) / f64::from(total_difference.into_milli_hundredths()));
+
+        self.renderer.sprites.push(Sprite {
+            pos: Point2::new(self.renderer.ortho.left, self.renderer.ortho.bottom),
+            scale: Vector2::new(width as f32, self.border_width * 3.),
+            color: Srgba::new(1., 1., 1., 1.),
         });
     }
 }
