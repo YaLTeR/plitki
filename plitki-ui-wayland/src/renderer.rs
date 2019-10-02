@@ -384,7 +384,7 @@ impl<'a> SingleFrameRenderer<'a> {
                 pos,
                 // TODO: 1 pixel.
                 scale: Vector2::new(self.border_offset * 2., self.border_width / 2.),
-                color: Srgba::new(0.5, 0.5, 1., 0.5),
+                color: Srgba::new(0.5, 0.5, 1., 1.),
             });
         }
     }
@@ -489,22 +489,22 @@ impl<'a> SingleFrameRenderer<'a> {
 
         let mut color = if self.state.lane_states.len() == 4 {
             if lane == 0 || lane == 3 {
-                Srgba::new(1., 1., 1., 0.5)
+                Srgba::new(1., 1., 1., 1.)
             } else {
-                Srgba::new(0., 0.5, 1., 0.5)
+                Srgba::new(0., 0.5, 1., 1.)
             }
         } else {
             if self.state.lane_states.len() % 2 == 1 && lane == self.state.lane_states.len() / 2 {
-                Srgba::new(1., 1., 0., 0.5)
+                Srgba::new(1., 1., 0., 1.)
             } else if lane % 2 == 0 {
-                Srgba::new(1., 1., 1., 0.5)
+                Srgba::new(1., 1., 1., 1.)
             } else {
-                Srgba::new(0., 0.5, 1., 0.5)
+                Srgba::new(0., 0.5, 1., 1.)
             }
         };
 
         if let ObjectState::LongNote(LongNoteState::Missed { .. }) = *object_state {
-            color = color.component_wise_self(|x| x * 0.5);
+            color.color = color.color.component_wise_self(|x| x * 0.5);
         }
 
         Sprite {
