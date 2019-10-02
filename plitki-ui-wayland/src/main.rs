@@ -74,6 +74,10 @@ struct Opt {
     #[structopt(short, long, default_value = "0")]
     local_offset: i16,
 
+    /// Start from this timestamp in milliseconds.
+    #[structopt(short, long, default_value = "0")]
+    start: u32,
+
     /// Path to a supported map file.
     path: Option<PathBuf>,
 }
@@ -182,6 +186,7 @@ fn main() {
     let wp_presentation: WpPresentation = {
         let presentation_clock_id = presentation_clock_id.clone();
         let start = start.clone();
+        let start_from = opt.start;
 
         env.manager
             .instantiate_exact(1, move |proxy| {
@@ -194,10 +199,13 @@ fn main() {
                             let start_time = clock_gettime(clk_id);
                             debug!("start"; "start" => ?start_time);
 
-                            *start.lock().unwrap() = Some(start_time);
+                            *start.lock().unwrap() =
+                                Some(start_time - Duration::from_millis(u64::from(start_from)));
 
-                            if let Some(mut play) = play.take() {
-                                play(audio_file.take().unwrap());
+                            if start_from == 0 {
+                                if let Some(mut play) = play.take() {
+                                    play(audio_file.take().unwrap());
+                                }
                             }
                         }
                     },
