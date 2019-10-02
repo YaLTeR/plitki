@@ -2,7 +2,6 @@ use std::{
     borrow::Cow,
     cell::{Cell, RefCell},
     convert::TryInto,
-    env::args,
     fs::{read, File},
     io::BufReader,
     path::PathBuf,
@@ -36,6 +35,7 @@ use smithay_client_toolkit::{
     window::{ConceptFrame, Event as WEvent, Window},
     Environment,
 };
+use structopt::StructOpt;
 use triple_buffer::TripleBuffer;
 use wayland_protocols::presentation_time::client::{
     wp_presentation::{self, WpPresentation},
@@ -64,19 +64,35 @@ enum RenderThreadEvent {
     },
 }
 
+#[derive(StructOpt)]
+struct Opt {
+    /// Global (universal) offset in milliseconds.
+    #[structopt(short, long, default_value = "-87")]
+    global_offset: i16,
+
+    /// Local (map) offset in milliseconds.
+    #[structopt(short, long, default_value = "0")]
+    local_offset: i16,
+
+    /// Path to a supported map file.
+    path: Option<PathBuf>,
+}
+
 fn main() {
     better_panic::install();
+
+    let mut opt = Opt::from_args();
+
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::CompactFormat::new(decorator).build().fuse();
     let drain = slog_async::Async::new(drain).build().fuse();
     let log = slog::Logger::root(drain, o!("version" => env!("CARGO_PKG_VERSION")));
     let _guard = slog_scope::set_global_logger(log);
 
-    let (qua, mut play) = if let Some(path) = args().nth(1) {
+    let (qua, mut play) = if let Some(mut path) = opt.path.take() {
         (
             Cow::from(read(&path).unwrap()),
             Some(move |filename| {
-                let mut path = PathBuf::from(path);
                 path.pop();
                 path.push(filename);
 
@@ -104,7 +120,10 @@ fn main() {
     // previous game state (for example, toggling a bool), and then refreshes the triple buffered
     // state accordingly.
     let mut latest_game_state = GameState::new(map);
-    latest_game_state.timestamp_converter.global_offset = GameTimestampDifference::from_millis(-87);
+    latest_game_state.timestamp_converter.global_offset =
+        GameTimestampDifference::from_millis(i32::from(opt.global_offset));
+    latest_game_state.timestamp_converter.local_offset =
+        MapTimestampDifference::from_millis(i32::from(opt.local_offset));
 
     let state_buffer = TripleBuffer::new(latest_game_state.clone());
     let (buf_input, buf_output) = state_buffer.split();
@@ -177,7 +196,7 @@ fn main() {
 
                             *start.lock().unwrap() = Some(start_time);
 
-                            if let Some(play) = play.take() {
+                            if let Some(mut play) = play.take() {
                                 play(audio_file.take().unwrap());
                             }
                         }
