@@ -701,6 +701,7 @@ fn render_thread(
 
                                         trace!(
                                             "frame presented";
+                                            "elapsed" => ?elapsed,
                                             "target_time" => ?target_time,
                                             "presentation_time" => ?presentation_time,
                                             "presentation_latency"
