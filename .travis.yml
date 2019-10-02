@@ -25,7 +25,8 @@ matrix:
         - bash <(curl -s https://codecov.io/bash)
 
 cache:
-  - /home/travis/.cargo
+  directories:
+    - /home/travis/.cargo
 
 before_cache:
   - rm -rf /home/travis/.cargo/registry
