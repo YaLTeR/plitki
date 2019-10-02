@@ -1328,6 +1328,46 @@ mod tests {
     }
 
     #[test]
+    fn game_state_position_cache_no_zero_scroll_speed_change() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: vec![
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(-1),
+                    multiplier: ScrollSpeedMultiplier::new(5),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::from_millis(1),
+                    multiplier: ScrollSpeedMultiplier::new(3),
+                },
+            ],
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
+            lanes: vec![Lane { objects: vec![] }],
+        };
+
+        let state = GameState::new(map);
+
+        assert_eq!(
+            &state.position_cache[..],
+            &[
+                CachedPosition {
+                    timestamp: MapTimestamp::from_millis(-1),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(-500)
+                },
+                CachedPosition {
+                    timestamp: MapTimestamp::from_millis(1),
+                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(500)
+                },
+            ][..]
+        );
+    }
+
+    #[test]
     fn game_state_position_at_time() {
         let map = Map {
             song_artist: None,
