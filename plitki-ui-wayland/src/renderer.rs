@@ -57,8 +57,6 @@ pub struct SingleFrameRenderer<'a> {
     note_height: f32,
     current_position: Position,
     current_position_difference: PositionDifference,
-    first_visible_position_difference: PositionDifference,
-    one_past_last_visible_position_difference: PositionDifference,
 }
 
 struct Sprite {
@@ -275,8 +273,6 @@ impl<'a> SingleFrameRenderer<'a> {
         let note_height = lane_width / 2.;
 
         let current_position = to_core_position(judgement_line_position);
-        let first_visible_position = to_core_position(renderer.ortho.bottom - note_height);
-        let one_past_last_visible_position = to_core_position(renderer.ortho.top);
 
         // let first_visible_timestamp = (elapsed_timestamp
         //     + (first_visible_position - current_position) / state.scroll_speed)
@@ -289,10 +285,6 @@ impl<'a> SingleFrameRenderer<'a> {
             .position_at_time(elapsed_timestamp.to_map(&state.timestamp_converter))
             .to_game(&state.timestamp_converter)
             * state.scroll_speed;
-        let first_visible_position_difference =
-            first_visible_position - current_position + current_position_difference;
-        let one_past_last_visible_position_difference =
-            one_past_last_visible_position - current_position + current_position_difference;
 
         // let first_visible_map_position = MapPositionDifference::from(first_visible_position - current_position) + current_map_position;
         // let last_visible_map_position = MapPositionDifference::from(last_visible_position - current_position) + current_map_position;
@@ -310,8 +302,6 @@ impl<'a> SingleFrameRenderer<'a> {
             note_height,
             current_position,
             current_position_difference,
-            first_visible_position_difference,
-            one_past_last_visible_position_difference,
         }
     }
 
@@ -340,12 +330,19 @@ impl<'a> SingleFrameRenderer<'a> {
     }
 
     fn push_timing_lines(&mut self) {
-        // TODO: make separate first_visible_position_difference which uses timing line height
-        // instead of note height.
+        let first_visible_position =
+            to_core_position(self.renderer.ortho.bottom - self.border_width);
+        let one_past_last_visible_position = to_core_position(self.renderer.ortho.top);
+        let first_visible_position_difference =
+            first_visible_position - self.current_position + self.current_position_difference;
+        let one_past_last_visible_position_difference = one_past_last_visible_position
+            - self.current_position
+            + self.current_position_difference;
+
         let first_visible_index = self
             .state
             .timing_lines
-            .binary_search_by_key(&self.first_visible_position_difference, |timing_line| {
+            .binary_search_by_key(&first_visible_position_difference, |timing_line| {
                 timing_line
                     .position
                     .to_game(&self.state.timestamp_converter)
@@ -355,15 +352,12 @@ impl<'a> SingleFrameRenderer<'a> {
         let one_past_last_visible_index = self
             .state
             .timing_lines
-            .binary_search_by_key(
-                &self.one_past_last_visible_position_difference,
-                |timing_line| {
-                    timing_line
-                        .position
-                        .to_game(&self.state.timestamp_converter)
-                        * self.state.scroll_speed
-                },
-            )
+            .binary_search_by_key(&one_past_last_visible_position_difference, |timing_line| {
+                timing_line
+                    .position
+                    .to_game(&self.state.timestamp_converter)
+                    * self.state.scroll_speed
+            })
             .unwrap_or_else(identity);
 
         let range = first_visible_index..one_past_last_visible_index;
@@ -393,6 +387,15 @@ impl<'a> SingleFrameRenderer<'a> {
         // Yay, partial borrowing to win vs. the borrow checker...
         let state = self.state;
 
+        let first_visible_position =
+            to_core_position(self.renderer.ortho.bottom - self.note_height);
+        let one_past_last_visible_position = to_core_position(self.renderer.ortho.top);
+        let first_visible_position_difference =
+            first_visible_position - self.current_position + self.current_position_difference;
+        let one_past_last_visible_position_difference = one_past_last_visible_position
+            - self.current_position
+            + self.current_position_difference;
+
         for (lane, objects, object_states, object_caches) in
             (0..self.state.map.lanes.len()).map(|lane| {
                 (
@@ -404,12 +407,12 @@ impl<'a> SingleFrameRenderer<'a> {
             })
         {
             let first_visible_index = object_caches
-                .binary_search_by_key(&self.first_visible_position_difference, |cache| {
+                .binary_search_by_key(&first_visible_position_difference, |cache| {
                     cache.end_position().to_game(&state.timestamp_converter) * state.scroll_speed
                 })
                 .unwrap_or_else(identity);
             let one_past_last_visible_index = object_caches
-                .binary_search_by_key(&self.one_past_last_visible_position_difference, |cache| {
+                .binary_search_by_key(&one_past_last_visible_position_difference, |cache| {
                     cache.start_position().to_game(&state.timestamp_converter) * state.scroll_speed
                 })
                 .unwrap_or_else(identity);
