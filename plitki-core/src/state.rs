@@ -328,12 +328,7 @@ impl GameState {
                 next_timing_point.timestamp - MapTimestampDifference::from_millis(1)
             } else {
                 state
-                    .map
-                    .lanes
-                    .iter()
-                    .filter_map(|lane| lane.objects.last())
-                    .map(Object::end_timestamp)
-                    .max()
+                    .last_timestamp()
                     .unwrap_or(timing_point.timestamp + MapTimestampDifference::from_millis(1))
             }
             .into_milli_hundredths();
@@ -394,6 +389,28 @@ impl GameState {
                 cached_position.position + (timestamp - cached_position.timestamp) * multiplier
             }
         }
+    }
+
+    /// Returns the start timestamp of the first object.
+    #[inline]
+    pub fn first_timestamp(&self) -> Option<MapTimestamp> {
+        self.map
+            .lanes
+            .iter()
+            .filter_map(|lane| lane.objects.first())
+            .map(Object::start_timestamp)
+            .min()
+    }
+
+    /// Returns the end timestamp of the last object.
+    #[inline]
+    pub fn last_timestamp(&self) -> Option<MapTimestamp> {
+        self.map
+            .lanes
+            .iter()
+            .filter_map(|lane| lane.objects.last())
+            .map(Object::end_timestamp)
+            .max()
     }
 
     /// Updates the state to match the `latest` state.
@@ -1572,6 +1589,70 @@ mod tests {
                 },
             ][..],
         );
+    }
+
+    #[test]
+    fn game_state_first_last_timestamp() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: vec![],
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
+            lanes: vec![
+                Lane {
+                    objects: vec![
+                        Object::Regular {
+                            timestamp: MapTimestamp::from_milli_hundredths(-250),
+                        },
+                        Object::LongNote {
+                            start: MapTimestamp::from_milli_hundredths(300),
+                            end: MapTimestamp::from_milli_hundredths(600),
+                        },
+                    ],
+                },
+                Lane {
+                    objects: vec![Object::LongNote {
+                        start: MapTimestamp::from_milli_hundredths(-300),
+                        end: MapTimestamp::from_milli_hundredths(350),
+                    }],
+                },
+            ],
+        };
+
+        let state = GameState::new(map);
+
+        assert_eq!(
+            state.first_timestamp(),
+            Some(MapTimestamp::from_milli_hundredths(-300))
+        );
+        assert_eq!(
+            state.last_timestamp(),
+            Some(MapTimestamp::from_milli_hundredths(600))
+        );
+    }
+
+    #[test]
+    fn game_state_first_last_timestamp_empty() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: Vec::new(),
+            scroll_speed_changes: vec![],
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
+            lanes: vec![],
+        };
+
+        let state = GameState::new(map);
+
+        assert_eq!(state.first_timestamp(), None);
+        assert_eq!(state.last_timestamp(), None);
     }
 
     #[test]
