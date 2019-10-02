@@ -17,7 +17,7 @@ use plitki_core::{
     timing::{GameTimestamp, GameTimestampDifference, MapTimestampDifference},
 };
 use plitki_map_qua::from_reader;
-use rodio::Source;
+use rodio::{Sink, Source};
 use slog::{o, Drain};
 use slog_scope::{debug, info, trace, warn};
 use smithay_client_toolkit::{
@@ -28,6 +28,7 @@ use smithay_client_toolkit::{
     reexports::client::{
         protocol::{
             wl_callback::{self, WlCallback},
+            wl_pointer::{self, ButtonState},
             wl_surface::WlSurface,
         },
         Display, NewProxy,
@@ -98,7 +99,11 @@ fn main() {
     let log = slog::Logger::root(drain, o!("version" => env!("CARGO_PKG_VERSION")));
     let _guard = slog_scope::set_global_logger(log);
 
+    let sink = Rc::new(RefCell::new(None));
+
     let (qua, mut play) = if let Some(mut path) = opt.path.take() {
+        let sink = sink.clone();
+
         (
             Cow::from(read(&path).unwrap()),
             Some(move |filename| {
@@ -106,11 +111,14 @@ fn main() {
                 path.push(filename);
 
                 if let Ok(audio_file) = File::open(&path) {
-                    let audio_device = rodio::default_output_device().unwrap();
                     let source = rodio::Decoder::new(BufReader::new(audio_file))
                         .unwrap()
                         .amplify(0.6);
-                    rodio::play_raw(&audio_device, source.convert_samples());
+
+                    let audio_device = rodio::default_output_device().unwrap();
+                    let sink_ = Sink::new(&audio_device);
+                    sink_.append(source);
+                    *sink.borrow_mut() = Some(sink_);
                 } else {
                     warn!("error opening audio file"; "path" => path.to_string_lossy().as_ref());
                 }
@@ -381,6 +389,130 @@ fn main() {
         .expect("Failed to map keyboard");
     }
 
+    let current_dimensions = Rc::new(Cell::new(INITIAL_DIMENSIONS));
+
+    // Map the pointer.
+    {
+        let main_surface = window.surface().clone();
+        let current_dimensions = current_dimensions.clone();
+        let game_state_pair = game_state_pair.clone();
+        let presentation_clock_id = presentation_clock_id.clone();
+        let start = start.clone();
+        let mut mouse_on_main_surface = false;
+        let mut mouse_x = 0.;
+        let mut mouse_y = 0.;
+        let mut holding_left_mouse_button = false;
+
+        seat.get_pointer(move |ptr| {
+            ptr.implement_closure(
+                move |evt, _| {
+                    let set_playback_position = |mouse_x| {
+                        let (state, _) = &*game_state_pair.borrow();
+
+                        let first_timestamp = state.first_timestamp();
+                        if first_timestamp.is_none() {
+                            return;
+                        }
+                        let first_timestamp = first_timestamp.unwrap();
+                        let last_timestamp = state.last_timestamp().unwrap();
+
+                        let total_difference = last_timestamp - first_timestamp;
+                        let total_width = current_dimensions.get().0 as f32;
+
+                        let timestamp = first_timestamp
+                            + MapTimestampDifference::from_milli_hundredths(
+                                (mouse_x
+                                    / (f64::from(total_width)
+                                        / f64::from(total_difference.into_milli_hundredths())))
+                                    as i32,
+                            );
+
+                        let elapsed = clock_gettime(*presentation_clock_id.lock().unwrap())
+                            - start.lock().unwrap().unwrap();
+                        let elapsed_timestamp = GameTimestamp(elapsed.try_into().unwrap())
+                            .to_map(&state.timestamp_converter);
+
+                        let difference = (timestamp - elapsed_timestamp)
+                            .to_game(&state.timestamp_converter)
+                            .as_millis();
+
+                        if difference >= 0 {
+                            *start.lock().unwrap().as_mut().unwrap() -=
+                                Duration::from_millis(difference as u64);
+                        } else {
+                            *start.lock().unwrap().as_mut().unwrap() +=
+                                Duration::from_millis(-difference as u64);
+                        }
+
+                        if let Some(sink) = &*sink.borrow() {
+                            sink.stop();
+                        }
+                    };
+
+                    match evt {
+                        wl_pointer::Event::Enter {
+                            surface,
+                            surface_x,
+                            surface_y,
+                            ..
+                        } => {
+                            if main_surface == surface {
+                                trace!(
+                                    "pointer entered";
+                                    "surface_x" => surface_x,
+                                    "surface_y" => surface_y,
+                                );
+                                mouse_on_main_surface = true;
+                                mouse_x = surface_x;
+                                mouse_y = surface_y;
+                            }
+                        }
+                        wl_pointer::Event::Leave { surface, .. } => {
+                            if main_surface == surface {
+                                trace!("pointer left");
+                                mouse_on_main_surface = false;
+                            }
+                        }
+                        wl_pointer::Event::Motion {
+                            surface_x,
+                            surface_y,
+                            ..
+                        } if mouse_on_main_surface => {
+                            mouse_x = surface_x;
+                            mouse_y = surface_y;
+
+                            if holding_left_mouse_button {
+                                set_playback_position(mouse_x);
+                            }
+                        }
+                        wl_pointer::Event::Button { button, state, .. }
+                            if mouse_on_main_surface =>
+                        {
+                            trace!(
+                                "pointer button";
+                                "button" => button,
+                                "state" => ?state,
+                            );
+
+                            if button == 0x110 {
+                                // Left mouse button.
+                                if state == ButtonState::Pressed {
+                                    holding_left_mouse_button = true;
+                                    set_playback_position(mouse_x);
+                                } else {
+                                    holding_left_mouse_button = false;
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                },
+                (),
+            )
+        })
+        .unwrap();
+    }
+
     // Start receiving the frame callbacks.
     let need_redraw = Rc::new(Cell::new(false));
     {
@@ -494,6 +626,10 @@ fn main() {
                 if !received_configure {
                     received_configure = true;
                     need_redraw.set(true);
+                }
+
+                if let Some(new_dimensions) = new_dimensions {
+                    current_dimensions.set(new_dimensions);
                 }
             }
             None => {}
@@ -613,6 +749,9 @@ fn render_thread(
 
         if start.is_none() {
             clk_id = Some(*presentation_clock_id.lock().unwrap());
+            start = Some(start_time.lock().unwrap().unwrap());
+            debug!("start"; "start" => ?start.unwrap());
+        } else if start_time.lock().unwrap().unwrap() != start.unwrap() {
             start = Some(start_time.lock().unwrap().unwrap());
             debug!("start"; "start" => ?start.unwrap());
         }
