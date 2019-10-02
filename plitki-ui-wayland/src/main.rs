@@ -649,8 +649,7 @@ fn render_thread(
 
                 let current_time = clock_gettime(clk_id.unwrap());
                 let elapsed = current_time - start.unwrap();
-                let target_time =
-                    frame_scheduler.get_target_time(current_time) - current_time + elapsed;
+                let target_time = frame_scheduler.get_target_time(current_time) - start.unwrap();
 
                 trace!(
                     "starting render";
