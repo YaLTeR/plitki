@@ -16,11 +16,10 @@ use crate::{
 /// State of the game.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct GameState {
-    /// The map.
+    /// The immutable part of the game state.
     ///
-    /// Invariant: objects in each lane must be sorted by start timestamp and not overlap (which
-    /// means they are sorted by both start and end timestamp).
-    pub map: Arc<Map>,
+    /// Stored in an `Arc` so it doesn't have to be cloned.
+    pub immutable: Arc<ImmutableGameState>,
     /// If `true`, heavily limit the FPS for testing.
     pub cap_fps: bool,
     /// Note scrolling speed.
@@ -29,6 +28,20 @@ pub struct GameState {
     pub timestamp_converter: TimestampConverter,
     /// Contains states of the objects in lanes.
     pub lane_states: Vec<LaneState>,
+    /// Contains a number of last hits.
+    ///
+    /// Useful for implementing an error bar.
+    pub last_hits: CircularQueue<Hit>,
+}
+
+/// Immutable part of the game state.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ImmutableGameState {
+    /// The map.
+    ///
+    /// Invariant: objects in each lane must be sorted by start timestamp and not overlap (which
+    /// means they are sorted by both start and end timestamp).
+    pub map: Map,
     /// Contains immutable pre-computed information about objects.
     pub lane_caches: Vec<LaneCache>,
     /// A cache of positions for each scroll speed change timestamp.
@@ -37,10 +50,6 @@ pub struct GameState {
     pub position_cache: Vec<CachedPosition>,
     /// Pre-computed timing lines.
     pub timing_lines: Vec<TimingLine>,
-    /// Contains a number of last hits.
-    ///
-    /// Useful for implementing an error bar.
-    pub last_hits: CircularQueue<Hit>,
 }
 
 /// States of a regular object.
@@ -285,21 +294,16 @@ impl GameState {
             local_offset: MapTimestampDifference::from_millis(0),
         };
 
-        let mut state = Self {
-            map: Arc::new(map),
-            cap_fps: false,
-            scroll_speed: ScrollSpeed(32),
-            timestamp_converter,
-            lane_states,
+        let mut immutable = ImmutableGameState {
+            map,
             position_cache,
             lane_caches: Vec::new(),
             timing_lines: Vec::new(),
-            last_hits: CircularQueue::with_capacity(32),
         };
 
         // Now that we can use position_at_time(), fill in the lane caches.
-        let mut lane_caches = Vec::with_capacity(state.map.lanes.len());
-        for lane in &state.map.lanes {
+        let mut lane_caches = Vec::with_capacity(immutable.map.lanes.len());
+        for lane in &immutable.map.lanes {
             let mut object_caches = Vec::with_capacity(lane.objects.len());
 
             for object in &lane.objects {
@@ -307,11 +311,11 @@ impl GameState {
                 // timestamp, based on the fact that we're iterating in ascending timestamp order.
                 let cache = match *object {
                     Object::Regular { timestamp } => ObjectCache::Regular(RegularObjectCache {
-                        position: state.position_at_time(timestamp),
+                        position: immutable.position_at_time(timestamp),
                     }),
                     Object::LongNote { start, end } => ObjectCache::LongNote(LongNoteCache {
-                        start_position: state.position_at_time(start),
-                        end_position: state.position_at_time(end),
+                        start_position: immutable.position_at_time(start),
+                        end_position: immutable.position_at_time(end),
                     }),
                 };
                 object_caches.push(cache);
@@ -319,15 +323,15 @@ impl GameState {
 
             lane_caches.push(LaneCache { object_caches });
         }
-        state.lane_caches = lane_caches;
+        immutable.lane_caches = lane_caches;
 
         let mut timing_lines = Vec::new();
-        for (i, timing_point) in state.map.timing_points.iter().enumerate() {
+        for (i, timing_point) in immutable.map.timing_points.iter().enumerate() {
             // +1 and -1 ms like osu! does it. TODO: do we want this here?
-            let end = if let Some(next_timing_point) = state.map.timing_points.get(i + 1) {
+            let end = if let Some(next_timing_point) = immutable.map.timing_points.get(i + 1) {
                 next_timing_point.timestamp - MapTimestampDifference::from_millis(1)
             } else {
-                state
+                immutable
                     .last_timestamp()
                     .unwrap_or(timing_point.timestamp + MapTimestampDifference::from_millis(1))
             }
@@ -344,7 +348,7 @@ impl GameState {
                     let timestamp = MapTimestamp::from_milli_hundredths(timestamp);
                     timing_lines.push(TimingLine {
                         timestamp,
-                        position: state.position_at_time(timestamp),
+                        position: immutable.position_at_time(timestamp),
                     });
                 }
 
@@ -355,62 +359,39 @@ impl GameState {
                 timestamp = timestamp.saturating_add(step);
             }
         }
-        state.timing_lines = timing_lines;
+        immutable.timing_lines = timing_lines;
 
-        state
+        Self {
+            immutable: Arc::new(immutable),
+            cap_fps: false,
+            scroll_speed: ScrollSpeed(32),
+            timestamp_converter,
+            lane_states,
+            last_hits: CircularQueue::with_capacity(32),
+        }
     }
 
     /// Returns the map position at the given map timestamp.
     ///
     /// The position takes scroll speed changes into account.
+    #[inline]
     pub fn position_at_time(
         &self,
         timestamp: MapTimestamp,
     ) -> MapTimestampDifferenceTimesScrollSpeedMultiplier {
-        if self.position_cache.is_empty() {
-            return MapTimestampDifferenceTimesScrollSpeedMultiplier(0)
-                + (timestamp - MapTimestamp::from_millis(0))
-                    * self.map.initial_scroll_speed_multiplier;
-        }
-
-        match self
-            .position_cache
-            .binary_search_by_key(&timestamp, |x| x.timestamp)
-        {
-            Ok(index) => self.position_cache[index].position,
-            Err(index) if index == 0 => {
-                self.position_cache[0].position
-                    + (timestamp - self.position_cache[0].timestamp)
-                        * self.map.initial_scroll_speed_multiplier
-            }
-            Err(index) => {
-                let cached_position = self.position_cache[index - 1];
-                let multiplier = self.map.scroll_speed_changes[index - 1].multiplier;
-                cached_position.position + (timestamp - cached_position.timestamp) * multiplier
-            }
-        }
+        self.immutable.position_at_time(timestamp)
     }
 
     /// Returns the start timestamp of the first object.
     #[inline]
     pub fn first_timestamp(&self) -> Option<MapTimestamp> {
-        self.map
-            .lanes
-            .iter()
-            .filter_map(|lane| lane.objects.first())
-            .map(Object::start_timestamp)
-            .min()
+        self.immutable.first_timestamp()
     }
 
     /// Returns the end timestamp of the last object.
     #[inline]
     pub fn last_timestamp(&self) -> Option<MapTimestamp> {
-        self.map
-            .lanes
-            .iter()
-            .filter_map(|lane| lane.objects.last())
-            .map(Object::end_timestamp)
-            .max()
+        self.immutable.last_timestamp()
     }
 
     /// Updates the state to match the `latest` state.
@@ -471,7 +452,7 @@ impl GameState {
         let map_hit_window = hit_window.to_map(&self.timestamp_converter);
 
         let lane_state = &mut self.lane_states[lane];
-        let objects = &self.map.lanes[lane].objects[lane_state.first_active_object..];
+        let objects = &self.immutable.map.lanes[lane].objects[lane_state.first_active_object..];
         let object_states = &mut lane_state.object_states[lane_state.first_active_object..];
 
         for (object, state) in objects.iter().zip(object_states.iter_mut()) {
@@ -553,7 +534,7 @@ impl GameState {
         let map_hit_window = hit_window.to_map(&self.timestamp_converter);
 
         let lane_state = &mut self.lane_states[lane];
-        let object = &self.map.lanes[lane].objects[lane_state.first_active_object];
+        let object = &self.immutable.map.lanes[lane].objects[lane_state.first_active_object];
         let state = &mut lane_state.object_states[lane_state.first_active_object];
 
         if map_timestamp >= object.start_timestamp() - map_hit_window {
@@ -595,7 +576,7 @@ impl GameState {
         let map_hit_window = hit_window.to_map(&self.timestamp_converter);
 
         let lane_state = &mut self.lane_states[lane];
-        let object = &self.map.lanes[lane].objects[lane_state.first_active_object];
+        let object = &self.immutable.map.lanes[lane].objects[lane_state.first_active_object];
         let state = &mut lane_state.object_states[lane_state.first_active_object];
 
         if let ObjectState::LongNote(state) = state {
@@ -625,6 +606,61 @@ impl GameState {
                 lane_state.first_active_object += 1;
             }
         }
+    }
+}
+
+impl ImmutableGameState {
+    /// Returns the map position at the given map timestamp.
+    ///
+    /// The position takes scroll speed changes into account.
+    fn position_at_time(
+        &self,
+        timestamp: MapTimestamp,
+    ) -> MapTimestampDifferenceTimesScrollSpeedMultiplier {
+        if self.position_cache.is_empty() {
+            return MapTimestampDifferenceTimesScrollSpeedMultiplier(0)
+                + (timestamp - MapTimestamp::from_millis(0))
+                    * self.map.initial_scroll_speed_multiplier;
+        }
+
+        match self
+            .position_cache
+            .binary_search_by_key(&timestamp, |x| x.timestamp)
+        {
+            Ok(index) => self.position_cache[index].position,
+            Err(index) if index == 0 => {
+                self.position_cache[0].position
+                    + (timestamp - self.position_cache[0].timestamp)
+                        * self.map.initial_scroll_speed_multiplier
+            }
+            Err(index) => {
+                let cached_position = self.position_cache[index - 1];
+                let multiplier = self.map.scroll_speed_changes[index - 1].multiplier;
+                cached_position.position + (timestamp - cached_position.timestamp) * multiplier
+            }
+        }
+    }
+
+    /// Returns the start timestamp of the first object.
+    #[inline]
+    fn first_timestamp(&self) -> Option<MapTimestamp> {
+        self.map
+            .lanes
+            .iter()
+            .filter_map(|lane| lane.objects.first())
+            .map(Object::start_timestamp)
+            .min()
+    }
+
+    /// Returns the end timestamp of the last object.
+    #[inline]
+    fn last_timestamp(&self) -> Option<MapTimestamp> {
+        self.map
+            .lanes
+            .iter()
+            .filter_map(|lane| lane.objects.last())
+            .map(Object::end_timestamp)
+            .max()
     }
 }
 
@@ -733,7 +769,7 @@ mod tests {
 
         let state = GameState::new(map);
 
-        for lane in &state.map.lanes {
+        for lane in &state.immutable.map.lanes {
             for xs in lane.objects.windows(2) {
                 let (a, b) = (xs[0], xs[1]);
                 assert!(a.start_timestamp() < b.start_timestamp());
@@ -1289,11 +1325,11 @@ mod tests {
         let state = GameState::new(map);
 
         assert_eq!(
-            state.position_cache.len(),
-            state.map.scroll_speed_changes.len()
+            state.immutable.position_cache.len(),
+            state.immutable.map.scroll_speed_changes.len()
         );
         assert_eq!(
-            &state.position_cache[..],
+            &state.immutable.position_cache[..],
             &[
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(-2),
@@ -1353,7 +1389,7 @@ mod tests {
         let state = GameState::new(map);
 
         assert_eq!(
-            &state.position_cache[..],
+            &state.immutable.position_cache[..],
             &[
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(-1),
@@ -1498,20 +1534,20 @@ mod tests {
         let state = GameState::new(map);
 
         assert_eq!(
-            state.lane_caches[0].object_caches[0],
+            state.immutable.lane_caches[0].object_caches[0],
             ObjectCache::Regular(RegularObjectCache {
                 position: MapTimestampDifferenceTimesScrollSpeedMultiplier(-950)
             })
         );
         assert_eq!(
-            state.lane_caches[0].object_caches[1],
+            state.immutable.lane_caches[0].object_caches[1],
             ObjectCache::LongNote(LongNoteCache {
                 start_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(700),
                 end_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(2700)
             })
         );
         assert_eq!(
-            state.lane_caches[1].object_caches[0],
+            state.immutable.lane_caches[1].object_caches[0],
             ObjectCache::LongNote(LongNoteCache {
                 start_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(-250),
                 end_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(950)
@@ -1585,7 +1621,7 @@ mod tests {
         let state = GameState::new(map);
 
         assert_eq!(
-            &state.timing_lines[..],
+            &state.immutable.timing_lines[..],
             &[
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(0),

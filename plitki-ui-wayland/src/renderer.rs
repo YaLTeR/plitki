@@ -266,7 +266,7 @@ impl<'a> SingleFrameRenderer<'a> {
             elapsed_timestamp
         };
 
-        let lane_count = state.map.lanes.len();
+        let lane_count = state.immutable.map.lanes.len();
         let lane_width = if lane_count < 6 { 0.2 } else { 0.15 };
         let border_offset = lane_width * lane_count as f32 / 2.;
         let border_width = 0.01;
@@ -342,6 +342,7 @@ impl<'a> SingleFrameRenderer<'a> {
 
         let first_visible_index = self
             .state
+            .immutable
             .timing_lines
             .binary_search_by_key(&first_visible_position_difference, |timing_line| {
                 timing_line
@@ -352,6 +353,7 @@ impl<'a> SingleFrameRenderer<'a> {
             .unwrap_or_else(identity);
         let one_past_last_visible_index = self
             .state
+            .immutable
             .timing_lines
             .binary_search_by_key(&one_past_last_visible_position_difference, |timing_line| {
                 timing_line
@@ -362,7 +364,7 @@ impl<'a> SingleFrameRenderer<'a> {
             .unwrap_or_else(identity);
 
         let range = first_visible_index..one_past_last_visible_index;
-        for timing_line in self.state.timing_lines[range].iter().rev() {
+        for timing_line in self.state.immutable.timing_lines[range].iter().rev() {
             let pos = Point2::new(
                 -self.border_offset,
                 from_core_position(
@@ -398,12 +400,12 @@ impl<'a> SingleFrameRenderer<'a> {
             + self.current_position_difference;
 
         for (lane, objects, object_states, object_caches) in
-            (0..self.state.map.lanes.len()).map(|lane| {
+            (0..self.state.immutable.map.lanes.len()).map(|lane| {
                 (
                     lane,
-                    &state.map.lanes[lane].objects[..],
+                    &state.immutable.map.lanes[lane].objects[..],
                     &state.lane_states[lane].object_states[..],
-                    &state.lane_caches[lane].object_caches[..],
+                    &state.immutable.lane_caches[lane].object_caches[..],
                 )
             })
         {
