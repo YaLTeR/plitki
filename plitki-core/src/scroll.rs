@@ -239,3 +239,12 @@ impl Mul<ScrollSpeedMultiplier> for MapTimestampDifference {
         rhs * self
     }
 }
+
+impl Div<ScrollSpeedMultiplier> for MapTimestampDifferenceTimesScrollSpeedMultiplier {
+    type Output = MapTimestampDifference;
+
+    #[inline]
+    fn div(self, rhs: ScrollSpeedMultiplier) -> Self::Output {
+        MapTimestampDifference::from_milli_hundredths((self.0 / i64::from(rhs.0)) as i32)
+    }
+}

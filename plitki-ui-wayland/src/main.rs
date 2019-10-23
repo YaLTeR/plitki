@@ -279,6 +279,15 @@ fn main() {
                                 latest_game_state.cap_fps = !latest_game_state.cap_fps;
                                 debug!("changed cap_fps"; "cap_fps" => latest_game_state.cap_fps);
                             }
+                            keysyms::XKB_KEY_n => {
+                                latest_game_state.no_scroll_speed_changes =
+                                    !latest_game_state.no_scroll_speed_changes;
+                                debug!(
+                                    "changed no_scroll_speed_changes";
+                                    "no_scroll_speed_changes"
+                                        => latest_game_state.no_scroll_speed_changes
+                                );
+                            }
                             keysyms::XKB_KEY_F3 => {
                                 latest_game_state.scroll_speed.0 =
                                     (latest_game_state.scroll_speed.0 - 1).max(1);

@@ -20,10 +20,13 @@ pub struct GameState {
     ///
     /// Stored in an `Arc` so it doesn't have to be cloned.
     pub immutable: Arc<ImmutableGameState>,
+    // TODO: extract unrelated fields out.
     /// If `true`, heavily limit the FPS for testing.
     pub cap_fps: bool,
     /// Note scrolling speed.
     pub scroll_speed: ScrollSpeed,
+    /// If `true`, disable scroll speed changes.
+    pub no_scroll_speed_changes: bool,
     /// Converter between game timestamps and map timestamps.
     pub timestamp_converter: TimestampConverter,
     /// Contains states of the objects in lanes.
@@ -365,6 +368,7 @@ impl GameState {
             immutable: Arc::new(immutable),
             cap_fps: false,
             scroll_speed: ScrollSpeed(32),
+            no_scroll_speed_changes: false,
             timestamp_converter,
             lane_states,
             last_hits: CircularQueue::with_capacity(32),
@@ -403,6 +407,7 @@ impl GameState {
     pub fn update_to_latest(&mut self, latest: &GameState) {
         self.cap_fps = latest.cap_fps;
         self.scroll_speed = latest.scroll_speed;
+        self.no_scroll_speed_changes = latest.no_scroll_speed_changes;
         self.timestamp_converter = latest.timestamp_converter;
         self.last_hits = latest.last_hits.clone();
 
