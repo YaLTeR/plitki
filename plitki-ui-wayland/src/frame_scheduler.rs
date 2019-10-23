@@ -3,6 +3,8 @@ use std::{
     time::Duration,
 };
 
+use slog_scope::warn;
+
 /// Information about the last presentation.
 #[derive(Debug, Clone)]
 struct PresentationInfo {
@@ -56,7 +58,24 @@ impl FrameScheduler {
         first_refresh_after_render_start += refresh_time;
         latency -= 1;
 
-        *self.presentation_info.lock().unwrap() = Some(PresentationInfo {
+        let mut guard = self.presentation_info.lock().unwrap();
+
+        if let Some(old_info) = &*guard {
+            if old_info.latency != latency {
+                warn!(
+                    "latency changed";
+                    "old latency" => ?(old_info.latency * old_info.refresh_time),
+                    "new latency" => ?(latency * refresh_time),
+                );
+            }
+        } else {
+            warn!(
+                "latency set";
+                "new latency" => ?(latency * refresh_time),
+            );
+        }
+
+        *guard = Some(PresentationInfo {
             last_presentation: presentation_time,
             refresh_time,
             latency,
