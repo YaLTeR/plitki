@@ -57,6 +57,7 @@ pub struct SingleFrameRenderer<'a> {
     note_height: f32,
     current_position: Position,
     current_position_difference: PositionDifference,
+    no_scroll_speed_changes: bool,
 }
 
 struct Sprite {
@@ -199,14 +200,66 @@ impl Renderer {
             self.projection = self.ortho.into();
         }
 
+        self.sprites.clear();
+
         {
-            let mut renderer =
-                SingleFrameRenderer::new(self, elapsed, state, fix_osu_timing_line_animations);
+            let mut renderer = SingleFrameRenderer::new(
+                self,
+                elapsed,
+                state,
+                fix_osu_timing_line_animations,
+                if state.two_playfields {
+                    false
+                } else {
+                    state.no_scroll_speed_changes
+                },
+            );
             renderer.push_borders();
             renderer.push_timing_lines();
             renderer.push_objects();
             renderer.push_judgement_line();
             renderer.push_error_bar();
+        }
+
+        if state.two_playfields {
+            let lane_count = state.immutable.map.lanes.len();
+            let lane_width = if lane_count < 6 { 0.2 } else { 0.15 };
+            let border_offset = lane_width * lane_count as f32 / 2.;
+
+            for sprite in &mut self.sprites {
+                sprite.pos.x -= border_offset + 0.1;
+            }
+
+            let left_len = self.sprites.len();
+
+            {
+                let mut renderer = SingleFrameRenderer::new(
+                    self,
+                    elapsed,
+                    state,
+                    fix_osu_timing_line_animations,
+                    true,
+                );
+                renderer.push_borders();
+                renderer.push_timing_lines();
+                renderer.push_objects();
+                renderer.push_judgement_line();
+                renderer.push_error_bar();
+            }
+
+            for sprite in &mut self.sprites[left_len..] {
+                sprite.pos.x += border_offset + 0.1;
+            }
+        }
+
+        {
+            let mut renderer = SingleFrameRenderer::new(
+                self,
+                elapsed,
+                state,
+                fix_osu_timing_line_animations,
+                true,
+            );
             renderer.push_timeline();
         }
 
@@ -252,6 +305,7 @@ impl<'a> SingleFrameRenderer<'a> {
         elapsed: Duration,
         state: &'a GameState,
         fix_osu_timing_line_animations: bool,
+        no_scroll_speed_changes: bool,
     ) -> Self {
         let elapsed_timestamp = GameTimestamp(elapsed.try_into().unwrap());
 
@@ -290,8 +344,6 @@ impl<'a> SingleFrameRenderer<'a> {
         // let first_visible_map_position = MapPositionDifference::from(first_visible_position - current_position) + current_map_position;
         // let last_visible_map_position = MapPositionDifference::from(last_visible_position - current_position) + current_map_position;
 
-        renderer.sprites.clear();
-
         Self {
             renderer,
             state,
@@ -303,6 +355,7 @@ impl<'a> SingleFrameRenderer<'a> {
             note_height,
             current_position,
             current_position_difference,
+            no_scroll_speed_changes,
         }
     }
 
@@ -335,7 +388,7 @@ impl<'a> SingleFrameRenderer<'a> {
             to_core_position(self.renderer.ortho.bottom - self.border_width);
         let one_past_last_visible_position = to_core_position(self.renderer.ortho.top);
 
-        if self.state.no_scroll_speed_changes {
+        if self.no_scroll_speed_changes {
             let first_visible_timestamp = self
                 .elapsed_timestamp
                 .to_map(&self.state.timestamp_converter)
@@ -452,7 +505,7 @@ impl<'a> SingleFrameRenderer<'a> {
             to_core_position(self.renderer.ortho.bottom - self.note_height);
         let one_past_last_visible_position = to_core_position(self.renderer.ortho.top);
 
-        if self.state.no_scroll_speed_changes {
+        if self.no_scroll_speed_changes {
             let first_visible_timestamp = self
                 .elapsed_timestamp
                 .to_map(&self.state.timestamp_converter)
@@ -558,7 +611,7 @@ impl<'a> SingleFrameRenderer<'a> {
         object_state: &ObjectState,
         object_cache: &ObjectCache,
     ) -> Sprite {
-        let (pos, height) = if self.state.no_scroll_speed_changes {
+        let (pos, height) = if self.no_scroll_speed_changes {
             let start = match *object {
                 Object::Regular { .. } => object.start_timestamp(),
                 Object::LongNote { start, end } => match *object_state {

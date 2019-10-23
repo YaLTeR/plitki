@@ -27,6 +27,8 @@ pub struct GameState {
     pub scroll_speed: ScrollSpeed,
     /// If `true`, disable scroll speed changes.
     pub no_scroll_speed_changes: bool,
+    /// If `true`, draws two playfields, one regular and another without scroll speed changes.
+    pub two_playfields: bool,
     /// Converter between game timestamps and map timestamps.
     pub timestamp_converter: TimestampConverter,
     /// Contains states of the objects in lanes.
@@ -369,6 +371,7 @@ impl GameState {
             cap_fps: false,
             scroll_speed: ScrollSpeed(32),
             no_scroll_speed_changes: false,
+            two_playfields: false,
             timestamp_converter,
             lane_states,
             last_hits: CircularQueue::with_capacity(32),
@@ -408,6 +411,7 @@ impl GameState {
         self.cap_fps = latest.cap_fps;
         self.scroll_speed = latest.scroll_speed;
         self.no_scroll_speed_changes = latest.no_scroll_speed_changes;
+        self.two_playfields = latest.two_playfields;
         self.timestamp_converter = latest.timestamp_converter;
         self.last_hits = latest.last_hits.clone();
 

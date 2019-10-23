@@ -288,6 +288,14 @@ fn main() {
                                         => latest_game_state.no_scroll_speed_changes
                                 );
                             }
+                            keysyms::XKB_KEY_m => {
+                                latest_game_state.two_playfields =
+                                    !latest_game_state.two_playfields;
+                                debug!(
+                                    "changed two_playfields";
+                                    "two_playfields" => latest_game_state.two_playfields
+                                );
+                            }
                             keysyms::XKB_KEY_F3 => {
                                 latest_game_state.scroll_speed.0 =
                                     (latest_game_state.scroll_speed.0 - 1).max(1);
