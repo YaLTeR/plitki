@@ -21,6 +21,7 @@ SliderVelocities:
   Multiplier: 2
 - StartTime: 600
 HitObjects:
+- Lane: 4
 - StartTime: 601
   Lane: 2
 - StartTime: 601

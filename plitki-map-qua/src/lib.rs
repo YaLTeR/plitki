@@ -139,7 +139,7 @@ pub struct SliderVelocity {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub struct HitObject {
-    #[serde(rename = "StartTime")]
+    #[serde(default, rename = "StartTime")]
     pub start_time: i32,
     #[serde(rename = "Lane")]
     pub lane: i32,

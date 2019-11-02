@@ -65,6 +65,11 @@ fn parse_sample() {
         ],
         hit_objects: vec![
             HitObject {
+                start_time: 0,
+                lane: 4,
+                end_time: 0,
+            },
+            HitObject {
                 start_time: 601,
                 lane: 2,
                 end_time: 0,
@@ -218,6 +223,9 @@ fn convert() {
             },
             Lane {
                 objects: vec![
+                    Object::Regular {
+                        timestamp: MapTimestamp::from_millis(0),
+                    },
                     Object::LongNote {
                         start: MapTimestamp::from_millis(601),
                         end: MapTimestamp::from_millis(939),
