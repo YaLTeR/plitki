@@ -1,29 +1,53 @@
 //! Object positioning on screen.
 use core::ops::{Add, Div, Mul, Sub};
 
-use crate::{
-    impl_ops,
-    timing::{MapTimestampDifference, TimestampConverter},
-};
+use crate::{impl_ops, timing::MapTimestampDifference};
 
-/// Object position on screen.
+/// Object position, taking scroll speed changes into account.
 ///
-/// The object is at position `0` when the current map timestamp matches the object timestamp.
-/// `2_000_000_000` corresponds to one vertical square screen.
+/// Position `0` corresponds to map timestamp `0`. If map timestamp is "time", scroll speed
+/// multiplier is "velocity" (of the objects on the given time frame), then this is the "position".
+///
+/// Note that `Position` does _not_ take into account the actual scroll speed;
+/// [`ScreenPositionDifference`] does.
+///
+/// [`ScreenPositionDifference`]: struct.ScreenPositionDifference.html
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Position(pub i64);
+pub struct Position(pub(crate) i64);
 
 /// Difference between positions.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct PositionDifference(pub i64);
+pub struct PositionDifference(i64);
 
 impl_ops!(Position, PositionDifference);
+
+/// Difference between screen positions.
+///
+/// Screen position difference takes the scroll speed into account. In order to convert a
+/// `ScreenPositionDifference` into a [`PositionDifference`], divide it by the scroll speed.
+///
+/// In accordance with the [`ScrollSpeed`] units, a `ScreenPositionDifference` of `2_000_000_000`
+/// corresponds to one vertical square screen.
+///
+/// [`PositionDifference`]: struct.PositionDifference.html
+/// [`ScrollSpeed`]: struct.ScrollSpeed.html
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct ScreenPositionDifference(pub i64);
 
 /// Scrolling speed.
 ///
 /// Measured in <sup>1</sup>⁄<sub>20</sub>ths of vertical square screens per second. That is, on a
 /// square 1:1 screen, 20 means a note travels from the very top to the very bottom of the screen
 /// in one second; 10 means in two seconds and 40 means in half a second.
+///
+/// Rather than an actual "velocity", consider this to be a unit-less multiplier to convert between
+/// a [`PositionDifference`] and a [`ScreenPositionDifference`]. You could also think of this as a
+/// "zoom-level" (the higher the scroll speed, the more "zoomed-in" the view of the map is). The
+/// actual "velocity" is, then, the [`ScrollSpeedMultiplier`].
+///
+/// [`PositionDifference`]: struct.PositionDifference.html
+/// [`ScreenPositionDifference`]: struct.ScreenPositionDifference.html
+/// [`ScrollSpeedMultiplier`]: struct.ScrollSpeedMultiplier.html
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ScrollSpeed(pub u8);
 
@@ -31,10 +55,20 @@ pub struct ScrollSpeed(pub u8);
 ///
 /// The scroll speed multiplier ranges from -2<sup>24</sup> to 2<sup>24</sup>-1. The value of 1000
 /// is equivalent to a multiplier of 1.
+///
+/// Rather than a unit-less multiplier, consider this to be the actual "velocity" of the objects on
+/// a given time frame, which you can multiply by a [`MapTimestampDifference`] and get the
+/// resulting [`PositionDifference`]. [`ScrollSpeed`], then, becomes the unit-less multiplier to
+/// convert between a [`PositionDifference`] and a [`ScreenPositionDifference`].
+///
+/// [`MapTimestampDifference`]: ../timing/struct.MapTimestampDifference.html
+/// [`PositionDifference`]: struct.PositionDifference.html
+/// [`ScrollSpeed`]: struct.ScrollSpeed.html
+/// [`ScreenPositionDifference`]: struct.ScreenPositionDifference.html
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ScrollSpeedMultiplier(i32);
 
-// (MapTimestampDifference / Rate) * ScrollSpeed * ScrollSpeedMultiplier = PositionDifference
+// (MapTimestampDifference / Rate) * ScrollSpeed * ScrollSpeedMultiplier = ScreenPositionDifference
 //
 // Thanks to the commutativity of the operations, we can do:
 // (MapTimestampDifference * ScrollSpeedMultiplier) / Rate * ScrollSpeed
@@ -45,23 +79,21 @@ pub struct ScrollSpeedMultiplier(i32);
 // (MapTimestampDifference1 / Rate) * ScrollSpeed * ScrollSpeedMultiplier1
 // + (MapTimestampDifference2 / Rate) * ScrollSpeed * ScrollSpeedMultiplier2
 
-// TODO: naming.
-/// Map timestamp pre-multiplied by scroll speed multiplier.
-///
-/// Used for pre-computing the scroll speed changes.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct MapTimestampDifferenceTimesScrollSpeedMultiplier(pub(crate) i64);
+// Judgement line => ScreenPositionDifference for top and bottom of the screen
+// ScreenPositionDifference / ScrollSpeed = PositionDifference
+//
+// Current timestamp => to map => Position
+// + top and bottom PositionDifference => top and bottom Position
+//
+// Objects MapTimestamp times ScrollSpeedMultiplier = Position for each object (precomputed)
 
-/// Game timestamp pre-multiplied by scroll speed multiplier.
-///
-/// An intermediate step in conversion of [`MapTimestampDifferenceTimesScrollSpeedMultiplier`] into
-/// a [`PositionDifference`].
-///
-/// [`MapTimestampDifferenceTimesScrollSpeedMultiplier`]:
-/// struct.MapTimestampDifferenceTimesScrollSpeedMultiplier.html
-/// [`PositionDifference`]: struct.PositionDifference.html
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct GameTimestampDifferenceTimesScrollSpeedMultiplier(pub(crate) i64);
+impl Position {
+    /// Returns the zero position.
+    #[inline]
+    pub fn zero() -> Self {
+        Self(0)
+    }
+}
 
 impl ScrollSpeedMultiplier {
     /// Creates a new `ScrollSpeedMultiplier` with bounds checking.
@@ -116,41 +148,17 @@ impl Default for ScrollSpeedMultiplier {
     }
 }
 
-impl MapTimestampDifferenceTimesScrollSpeedMultiplier {
-    /// Converts the map timestamp difference pre-multiplied by scroll speed multiplier to a game
-    /// timestamp difference pre-multiplied by scroll speed multiplier.
+impl Mul<PositionDifference> for ScrollSpeed {
+    type Output = ScreenPositionDifference;
+
     #[inline]
-    pub fn to_game(
-        self,
-        converter: &TimestampConverter,
-    ) -> GameTimestampDifferenceTimesScrollSpeedMultiplier {
-        converter.map_to_game_difference_times_multiplier(self)
+    fn mul(self, rhs: PositionDifference) -> Self::Output {
+        ScreenPositionDifference(i64::from(self.0) * rhs.0)
     }
 }
 
-impl GameTimestampDifferenceTimesScrollSpeedMultiplier {
-    /// Converts the game timestamp difference pre-multiplied by scroll speed multiplier to a map
-    /// timestamp difference pre-multiplied by scroll speed multiplier.
-    #[inline]
-    pub fn to_map(
-        self,
-        converter: &TimestampConverter,
-    ) -> MapTimestampDifferenceTimesScrollSpeedMultiplier {
-        converter.game_to_map_difference_times_multiplier(self)
-    }
-}
-
-impl Mul<GameTimestampDifferenceTimesScrollSpeedMultiplier> for ScrollSpeed {
-    type Output = PositionDifference;
-
-    #[inline]
-    fn mul(self, rhs: GameTimestampDifferenceTimesScrollSpeedMultiplier) -> Self::Output {
-        PositionDifference(i64::from(self.0) * rhs.0)
-    }
-}
-
-impl Mul<ScrollSpeed> for GameTimestampDifferenceTimesScrollSpeedMultiplier {
-    type Output = PositionDifference;
+impl Mul<ScrollSpeed> for PositionDifference {
+    type Output = ScreenPositionDifference;
 
     #[inline]
     fn mul(self, rhs: ScrollSpeed) -> Self::Output {
@@ -158,81 +166,44 @@ impl Mul<ScrollSpeed> for GameTimestampDifferenceTimesScrollSpeedMultiplier {
     }
 }
 
-impl Div<ScrollSpeed> for PositionDifference {
-    type Output = GameTimestampDifferenceTimesScrollSpeedMultiplier;
+impl Div<ScrollSpeed> for ScreenPositionDifference {
+    type Output = PositionDifference;
 
     #[inline]
     fn div(self, rhs: ScrollSpeed) -> Self::Output {
-        GameTimestampDifferenceTimesScrollSpeedMultiplier(self.0 / i64::from(rhs.0))
-    }
-}
-// impl Mul<GameTimestampDifference> for ScrollSpeed {
-//     type Output = PositionDifference;
-//
-//     #[inline]
-//     fn mul(self, rhs: GameTimestampDifference) -> Self::Output {
-//         PositionDifference(
-//             i64::from(self.0)
-//                 * i64::from(rhs.into_milli_hundredths())
-//                 * i64::from(ScrollSpeedMultiplier::default().0),
-//         )
-//     }
-// }
-//
-// impl Mul<ScrollSpeed> for GameTimestampDifference {
-//     type Output = PositionDifference;
-//
-//     #[inline]
-//     fn mul(self, rhs: ScrollSpeed) -> Self::Output {
-//         rhs * self
-//     }
-// }
-//
-// impl Div<ScrollSpeed> for PositionDifference {
-//     type Output = GameTimestampDifference;
-//
-//     #[inline]
-//     fn div(self, rhs: ScrollSpeed) -> Self::Output {
-//         let value = self.0 / i64::from(rhs.0) / i64::from(ScrollSpeedMultiplier::default().0);
-//         GameTimestampDifference::from_milli_hundredths(value.try_into().unwrap())
-//     }
-// }
-
-impl Add<MapTimestampDifferenceTimesScrollSpeedMultiplier>
-    for MapTimestampDifferenceTimesScrollSpeedMultiplier
-{
-    type Output = MapTimestampDifferenceTimesScrollSpeedMultiplier;
-
-    #[inline]
-    fn add(self, rhs: MapTimestampDifferenceTimesScrollSpeedMultiplier) -> Self::Output {
-        MapTimestampDifferenceTimesScrollSpeedMultiplier(self.0 + rhs.0)
+        PositionDifference(self.0 / i64::from(rhs.0))
     }
 }
 
-impl Sub<MapTimestampDifferenceTimesScrollSpeedMultiplier>
-    for MapTimestampDifferenceTimesScrollSpeedMultiplier
-{
-    type Output = MapTimestampDifferenceTimesScrollSpeedMultiplier;
+impl Add<ScreenPositionDifference> for ScreenPositionDifference {
+    type Output = ScreenPositionDifference;
 
     #[inline]
-    fn sub(self, rhs: MapTimestampDifferenceTimesScrollSpeedMultiplier) -> Self::Output {
-        MapTimestampDifferenceTimesScrollSpeedMultiplier(self.0 - rhs.0)
+    fn add(self, rhs: ScreenPositionDifference) -> Self::Output {
+        ScreenPositionDifference(self.0 + rhs.0)
+    }
+}
+
+impl Sub<ScreenPositionDifference> for ScreenPositionDifference {
+    type Output = ScreenPositionDifference;
+
+    #[inline]
+    fn sub(self, rhs: ScreenPositionDifference) -> Self::Output {
+        ScreenPositionDifference(self.0 - rhs.0)
     }
 }
 
 impl Mul<MapTimestampDifference> for ScrollSpeedMultiplier {
-    type Output = MapTimestampDifferenceTimesScrollSpeedMultiplier;
+    type Output = PositionDifference;
 
     #[inline]
     fn mul(self, rhs: MapTimestampDifference) -> Self::Output {
-        MapTimestampDifferenceTimesScrollSpeedMultiplier(
-            i64::from(self.0) * i64::from(rhs.into_milli_hundredths()),
-        )
+        PositionDifference(i64::from(self.0) * i64::from(rhs.into_milli_hundredths()))
     }
 }
 
 impl Mul<ScrollSpeedMultiplier> for MapTimestampDifference {
-    type Output = MapTimestampDifferenceTimesScrollSpeedMultiplier;
+    type Output = PositionDifference;
 
     #[inline]
     fn mul(self, rhs: ScrollSpeedMultiplier) -> Self::Output {
@@ -240,7 +211,7 @@ impl Mul<ScrollSpeedMultiplier> for MapTimestampDifference {
     }
 }
 
-impl Div<ScrollSpeedMultiplier> for MapTimestampDifferenceTimesScrollSpeedMultiplier {
+impl Div<ScrollSpeedMultiplier> for PositionDifference {
     type Output = MapTimestampDifference;
 
     #[inline]

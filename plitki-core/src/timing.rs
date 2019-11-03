@@ -9,10 +9,7 @@ use core::{
 
 use crate::{
     impl_ops,
-    scroll::{
-        GameTimestampDifferenceTimesScrollSpeedMultiplier,
-        MapTimestampDifferenceTimesScrollSpeedMultiplier,
-    },
+    scroll::{Position, ScrollSpeedMultiplier},
 };
 
 /// A point in time.
@@ -76,6 +73,12 @@ pub struct TryFromDurationError(());
 pub struct TryFromTimestampError(());
 
 impl Timestamp {
+    /// Returns the zero timestamp.
+    #[inline]
+    pub fn zero() -> Self {
+        Self(0)
+    }
+
     /// Creates a new `Timestamp` from the specified number of milliseconds.
     ///
     /// # Panics
@@ -111,6 +114,12 @@ impl Timestamp {
 }
 
 impl MapTimestamp {
+    /// Returns the zero map timestamp.
+    #[inline]
+    pub fn zero() -> Self {
+        Self(Timestamp::zero())
+    }
+
     /// Creates a new `MapTimestamp` from the specified number of milliseconds.
     ///
     /// # Panics
@@ -139,9 +148,21 @@ impl MapTimestamp {
     pub fn into_milli_hundredths(self) -> i32 {
         self.0.into_milli_hundredths()
     }
+
+    /// Converts the timestamp into a `Position`, as if there were no scroll speed changes.
+    #[inline]
+    pub fn no_scroll_speed_change_position(self) -> Position {
+        Position::zero() + (self - MapTimestamp::zero()) * ScrollSpeedMultiplier::default()
+    }
 }
 
 impl GameTimestamp {
+    /// Returns the zero game timestamp.
+    #[inline]
+    pub fn zero() -> Self {
+        Self(Timestamp::zero())
+    }
+
     /// Creates a new `GameTimestamp` from the specified number of milliseconds.
     ///
     /// # Panics
@@ -390,30 +411,6 @@ impl TimestampConverter {
         difference: MapTimestampDifference,
     ) -> GameTimestampDifference {
         GameTimestampDifference(difference.0)
-    }
-
-    /// Converts a game timestamp difference pre-multiplied by scroll speed multiplier to a map
-    /// timestamp difference pre-multiplied by scroll speed multiplier.
-    ///
-    /// Difference conversion does _not_ consider global and local offsets.
-    #[inline]
-    pub fn game_to_map_difference_times_multiplier(
-        &self,
-        difference: GameTimestampDifferenceTimesScrollSpeedMultiplier,
-    ) -> MapTimestampDifferenceTimesScrollSpeedMultiplier {
-        MapTimestampDifferenceTimesScrollSpeedMultiplier(difference.0)
-    }
-
-    /// Converts a map timestamp difference pre-multiplied by scroll speed multiplier to a game
-    /// timestamp difference pre-multiplied by scroll speed multiplier.
-    ///
-    /// Difference conversion does _not_ consider global and local offsets.
-    #[inline]
-    pub fn map_to_game_difference_times_multiplier(
-        &self,
-        difference: MapTimestampDifferenceTimesScrollSpeedMultiplier,
-    ) -> GameTimestampDifferenceTimesScrollSpeedMultiplier {
-        GameTimestampDifferenceTimesScrollSpeedMultiplier(difference.0)
     }
 }
 

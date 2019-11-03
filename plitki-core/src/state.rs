@@ -1,12 +1,13 @@
 //! Functionality related to managing the game state.
 use alloc::{sync::Arc, vec::Vec};
+use core::cmp::Ord;
 
 use circular_queue::CircularQueue;
 
 use crate::{
     map::Map,
     object::Object,
-    scroll::{MapTimestampDifferenceTimesScrollSpeedMultiplier, ScrollSpeed},
+    scroll::{Position, ScrollSpeed},
     timing::{
         GameTimestamp, GameTimestampDifference, MapTimestamp, MapTimestampDifference,
         TimestampConverter,
@@ -136,7 +137,7 @@ pub struct RegularObjectCache {
     ///
     /// Zero position corresponds to timestamp zero. The position takes scroll speed changes into
     /// account.
-    pub position: MapTimestampDifferenceTimesScrollSpeedMultiplier,
+    pub position: Position,
 }
 
 /// Cached information of a long note.
@@ -146,12 +147,12 @@ pub struct LongNoteCache {
     ///
     /// Zero position corresponds to timestamp zero. The position takes scroll speed changes into
     /// account.
-    pub start_position: MapTimestampDifferenceTimesScrollSpeedMultiplier,
+    pub start_position: Position,
     /// End position.
     ///
     /// Zero position corresponds to timestamp zero. The position takes scroll speed changes into
     /// account.
-    pub end_position: MapTimestampDifferenceTimesScrollSpeedMultiplier,
+    pub end_position: Position,
     // TODO: this needs special fields to account for SV direction changes mid-LN. At the very
     // least there should be fields for lowest and highest positions, and possibly fields for
     // positions at every SV direction change timestamp to render them properly.
@@ -170,7 +171,7 @@ pub struct CachedPosition {
     /// Timestamp of the position.
     timestamp: MapTimestamp,
     /// Position at the timestamp, taking scroll speed changes into account.
-    position: MapTimestampDifferenceTimesScrollSpeedMultiplier,
+    position: Position,
 }
 
 /// Timing line.
@@ -179,7 +180,7 @@ pub struct TimingLine {
     /// Timestamp of the timing line.
     pub timestamp: MapTimestamp,
     /// Position at the timestamp, taking scroll speed changes into account.
-    pub position: MapTimestampDifferenceTimesScrollSpeedMultiplier,
+    pub position: Position,
 }
 
 /// Information about a hit.
@@ -218,7 +219,7 @@ impl GameState {
         // Compute positions for scroll speed changes before zero timestamp.
         if let Some(index) = zero_timestamp_scroll_speed_change_index {
             let mut last_timestamp = MapTimestamp::from_milli_hundredths(0);
-            let mut last_position = MapTimestampDifferenceTimesScrollSpeedMultiplier(0);
+            let mut last_position = Position::zero();
             for i in (0..=index).rev() {
                 let change = &map.scroll_speed_changes[i];
                 let position =
@@ -227,10 +228,7 @@ impl GameState {
                 // Zero timestamp always corresponds to zero position. But we cache it anyway to
                 // ensure the indices correspond to scroll speed change indices.
                 if change.timestamp == MapTimestamp::from_milli_hundredths(0) {
-                    assert_eq!(
-                        position,
-                        MapTimestampDifferenceTimesScrollSpeedMultiplier(0)
-                    );
+                    assert_eq!(position, Position::zero());
                 }
 
                 position_cache.push(CachedPosition {
@@ -246,7 +244,7 @@ impl GameState {
 
         // Compute positions for scroll speed changes past zero timestamp.
         let mut last_timestamp = MapTimestamp::from_milli_hundredths(0);
-        let mut last_position = MapTimestampDifferenceTimesScrollSpeedMultiplier(0);
+        let mut last_position = Position::zero();
         let mut last_multiplier = zero_timestamp_scroll_speed_change_index
             .map(|index| map.scroll_speed_changes[index].multiplier)
             .unwrap_or(map.initial_scroll_speed_multiplier);
@@ -382,10 +380,7 @@ impl GameState {
     ///
     /// The position takes scroll speed changes into account.
     #[inline]
-    pub fn position_at_time(
-        &self,
-        timestamp: MapTimestamp,
-    ) -> MapTimestampDifferenceTimesScrollSpeedMultiplier {
+    pub fn position_at_time(&self, timestamp: MapTimestamp) -> Position {
         self.immutable.position_at_time(timestamp)
     }
 
@@ -622,12 +617,9 @@ impl ImmutableGameState {
     /// Returns the map position at the given map timestamp.
     ///
     /// The position takes scroll speed changes into account.
-    fn position_at_time(
-        &self,
-        timestamp: MapTimestamp,
-    ) -> MapTimestampDifferenceTimesScrollSpeedMultiplier {
+    fn position_at_time(&self, timestamp: MapTimestamp) -> Position {
         if self.position_cache.is_empty() {
-            return MapTimestampDifferenceTimesScrollSpeedMultiplier(0)
+            return Position::zero()
                 + (timestamp - MapTimestamp::from_millis(0))
                     * self.map.initial_scroll_speed_multiplier;
         }
@@ -689,7 +681,7 @@ impl ObjectCache {
     ///
     /// This is the first position at which this object is visible.
     #[inline]
-    pub fn start_position(&self) -> MapTimestampDifferenceTimesScrollSpeedMultiplier {
+    pub fn start_position(&self) -> Position {
         match *self {
             ObjectCache::Regular(RegularObjectCache { position }) => position,
             ObjectCache::LongNote(LongNoteCache { start_position, .. }) => start_position,
@@ -700,7 +692,7 @@ impl ObjectCache {
     ///
     /// This is the last position at which this object is visible.
     #[inline]
-    pub fn end_position(&self) -> MapTimestampDifferenceTimesScrollSpeedMultiplier {
+    pub fn end_position(&self) -> Position {
         match *self {
             ObjectCache::Regular(RegularObjectCache { position }) => position,
             ObjectCache::LongNote(LongNoteCache { end_position, .. }) => end_position,
@@ -1342,31 +1334,31 @@ mod tests {
             &[
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(-2),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(-900)
+                    position: Position(-900)
                 },
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(-1),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(-500)
+                    position: Position(-500)
                 },
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(0),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(0)
+                    position: Position(0)
                 },
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(1),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(100)
+                    position: Position(100)
                 },
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(3),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(700)
+                    position: Position(700)
                 },
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(4),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(1200)
+                    position: Position(1200)
                 },
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(5),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(1900)
+                    position: Position(1900)
                 },
             ][..]
         );
@@ -1402,11 +1394,11 @@ mod tests {
             &[
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(-1),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(-500)
+                    position: Position(-500)
                 },
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(1),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(500)
+                    position: Position(500)
                 },
             ][..]
         );
@@ -1459,23 +1451,23 @@ mod tests {
 
         assert_eq!(
             state.position_at_time(MapTimestamp::from_milli_hundredths(-250)),
-            MapTimestampDifferenceTimesScrollSpeedMultiplier(-950)
+            Position(-950)
         );
         assert_eq!(
             state.position_at_time(MapTimestamp::from_milli_hundredths(-50)),
-            MapTimestampDifferenceTimesScrollSpeedMultiplier(-250)
+            Position(-250)
         );
         assert_eq!(
             state.position_at_time(MapTimestamp::from_milli_hundredths(300)),
-            MapTimestampDifferenceTimesScrollSpeedMultiplier(700)
+            Position(700)
         );
         assert_eq!(
             state.position_at_time(MapTimestamp::from_milli_hundredths(350)),
-            MapTimestampDifferenceTimesScrollSpeedMultiplier(950)
+            Position(950)
         );
         assert_eq!(
             state.position_at_time(MapTimestamp::from_milli_hundredths(600)),
-            MapTimestampDifferenceTimesScrollSpeedMultiplier(2700)
+            Position(2700)
         );
     }
 
@@ -1545,21 +1537,21 @@ mod tests {
         assert_eq!(
             state.immutable.lane_caches[0].object_caches[0],
             ObjectCache::Regular(RegularObjectCache {
-                position: MapTimestampDifferenceTimesScrollSpeedMultiplier(-950)
+                position: Position(-950)
             })
         );
         assert_eq!(
             state.immutable.lane_caches[0].object_caches[1],
             ObjectCache::LongNote(LongNoteCache {
-                start_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(700),
-                end_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(2700)
+                start_position: Position(700),
+                end_position: Position(2700)
             })
         );
         assert_eq!(
             state.immutable.lane_caches[1].object_caches[0],
             ObjectCache::LongNote(LongNoteCache {
-                start_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(-250),
-                end_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(950)
+                start_position: Position(-250),
+                end_position: Position(950)
             })
         );
     }
@@ -1634,43 +1626,43 @@ mod tests {
             &[
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(0),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(0),
+                    position: Position(0),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(40),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(4000),
+                    position: Position(4000),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(80),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(8000),
+                    position: Position(8000),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(120),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(120_00),
+                    position: Position(120_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(160),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(160_00),
+                    position: Position(160_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(200),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(200_00),
+                    position: Position(200_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(215),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(215_00),
+                    position: Position(215_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(220),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(220_00),
+                    position: Position(220_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(240),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(240_00),
+                    position: Position(240_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(260),
-                    position: MapTimestampDifferenceTimesScrollSpeedMultiplier(260_00),
+                    position: Position(260_00),
                 },
             ][..],
         );
@@ -1743,28 +1735,16 @@ mod tests {
     #[test]
     fn object_cache_methods() {
         let regular = ObjectCache::Regular(RegularObjectCache {
-            position: MapTimestampDifferenceTimesScrollSpeedMultiplier(10),
+            position: Position(10),
         });
-        assert_eq!(
-            regular.start_position(),
-            MapTimestampDifferenceTimesScrollSpeedMultiplier(10)
-        );
-        assert_eq!(
-            regular.end_position(),
-            MapTimestampDifferenceTimesScrollSpeedMultiplier(10)
-        );
+        assert_eq!(regular.start_position(), Position(10));
+        assert_eq!(regular.end_position(), Position(10));
 
         let ln = ObjectCache::LongNote(LongNoteCache {
-            start_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(20),
-            end_position: MapTimestampDifferenceTimesScrollSpeedMultiplier(30),
+            start_position: Position(20),
+            end_position: Position(30),
         });
-        assert_eq!(
-            ln.start_position(),
-            MapTimestampDifferenceTimesScrollSpeedMultiplier(20)
-        );
-        assert_eq!(
-            ln.end_position(),
-            MapTimestampDifferenceTimesScrollSpeedMultiplier(30)
-        );
+        assert_eq!(ln.start_position(), Position(20));
+        assert_eq!(ln.end_position(), Position(30));
     }
 }
