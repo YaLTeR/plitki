@@ -445,24 +445,25 @@ impl<'a> SingleFrameRenderer<'a> {
             self.screen_to_core(self.renderer.ortho.bottom - self.note_height);
         let one_past_last_visible_position = self.screen_to_core(self.renderer.ortho.top);
 
-        if self.no_scroll_speed_changes {
-            let into_timestamp = |position| {
-                MapTimestamp::from_millis(0)
-                    + (position - Position::zero()) / ScrollSpeedMultiplier::default()
-            };
-            let first_visible_timestamp = into_timestamp(first_visible_position);
-            let one_past_last_visible_timestamp = into_timestamp(one_past_last_visible_position);
+        for (lane, objects, object_states, object_caches) in
+            (0..self.state.immutable.map.lanes.len()).map(|lane| {
+                (
+                    lane,
+                    &state.immutable.map.lanes[lane].objects[..],
+                    &state.lane_states[lane].object_states[..],
+                    &state.immutable.lane_caches[lane].object_caches[..],
+                )
+            })
+        {
+            let range = if self.no_scroll_speed_changes {
+                let into_timestamp = |position| {
+                    MapTimestamp::from_millis(0)
+                        + (position - Position::zero()) / ScrollSpeedMultiplier::default()
+                };
+                let first_visible_timestamp = into_timestamp(first_visible_position);
+                let one_past_last_visible_timestamp =
+                    into_timestamp(one_past_last_visible_position);
 
-            for (lane, objects, object_states, object_caches) in
-                (0..self.state.immutable.map.lanes.len()).map(|lane| {
-                    (
-                        lane,
-                        &state.immutable.map.lanes[lane].objects[..],
-                        &state.lane_states[lane].object_states[..],
-                        &state.immutable.lane_caches[lane].object_caches[..],
-                    )
-                })
-            {
                 let first_visible_index = objects
                     .binary_search_by_key(&first_visible_timestamp, |object| object.end_timestamp())
                     .unwrap_or_else(identity);
@@ -472,33 +473,8 @@ impl<'a> SingleFrameRenderer<'a> {
                     })
                     .unwrap_or_else(identity);
 
-                let range = first_visible_index..one_past_last_visible_index;
-                for ((object, object_state), object_cache) in objects[range.clone()]
-                    .iter()
-                    .zip(object_states[range.clone()].iter())
-                    .zip(object_caches[range].iter())
-                    .rev()
-                    .filter(|((_, s), _)| !s.is_hit())
-                {
-                    self.renderer.sprites.push(self.object_sprite(
-                        lane,
-                        object,
-                        object_state,
-                        object_cache,
-                    ));
-                }
-            }
-        } else {
-            for (lane, objects, object_states, object_caches) in
-                (0..self.state.immutable.map.lanes.len()).map(|lane| {
-                    (
-                        lane,
-                        &state.immutable.map.lanes[lane].objects[..],
-                        &state.lane_states[lane].object_states[..],
-                        &state.immutable.lane_caches[lane].object_caches[..],
-                    )
-                })
-            {
+                first_visible_index..one_past_last_visible_index
+            } else {
                 let first_visible_index = object_caches
                     .binary_search_by_key(&first_visible_position, |cache| cache.end_position())
                     .unwrap_or_else(identity);
@@ -508,21 +484,22 @@ impl<'a> SingleFrameRenderer<'a> {
                     })
                     .unwrap_or_else(identity);
 
-                let range = first_visible_index..one_past_last_visible_index;
-                for ((object, object_state), object_cache) in objects[range.clone()]
-                    .iter()
-                    .zip(object_states[range.clone()].iter())
-                    .zip(object_caches[range].iter())
-                    .rev()
-                    .filter(|((_, s), _)| !s.is_hit())
-                {
-                    self.renderer.sprites.push(self.object_sprite(
-                        lane,
-                        object,
-                        object_state,
-                        object_cache,
-                    ));
-                }
+                first_visible_index..one_past_last_visible_index
+            };
+
+            for ((object, object_state), object_cache) in objects[range.clone()]
+                .iter()
+                .zip(object_states[range.clone()].iter())
+                .zip(object_caches[range].iter())
+                .rev()
+                .filter(|((_, s), _)| !s.is_hit())
+            {
+                self.renderer.sprites.push(self.object_sprite(
+                    lane,
+                    object,
+                    object_state,
+                    object_cache,
+                ));
             }
         }
     }
