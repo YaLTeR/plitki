@@ -42,6 +42,10 @@ pub struct Renderer {
     index_buffer: IndexBuffer<u8>,
     dimensions: (u32, u32),
     ortho: Ortho<f32>,
+    left: f32,
+    right: f32,
+    bottom: f32,
+    top: f32,
     projection: Matrix4<f32>,
     sprites: Vec<Sprite>,
 }
@@ -67,18 +71,11 @@ struct Sprite {
 }
 
 fn compute_ortho(dimensions: (u32, u32)) -> Ortho<f32> {
-    let aspect_ratio = dimensions.0 as f32 / dimensions.1 as f32;
-    let (x, y) = if aspect_ratio > 1. {
-        (aspect_ratio, 1.)
-    } else {
-        (1., 1. / aspect_ratio)
-    };
-
     Ortho {
-        left: -x,
-        right: x,
-        bottom: -y,
-        top: y,
+        left: 0.,
+        right: dimensions.0 as f32,
+        bottom: 0.,
+        top: dimensions.1 as f32,
         near: -1.,
         far: 1.,
     }
@@ -146,6 +143,13 @@ impl Renderer {
 
         let ortho = compute_ortho(dimensions);
 
+        let aspect_ratio = dimensions.0 as f32 / dimensions.1 as f32;
+        let (x, y) = if aspect_ratio > 1. {
+            (aspect_ratio, 1.)
+        } else {
+            (1., 1. / aspect_ratio)
+        };
+
         Self {
             context,
             program,
@@ -153,12 +157,23 @@ impl Renderer {
             index_buffer,
             dimensions,
             ortho,
+            left: -x,
+            right: x,
+            bottom: -y,
+            top: y,
             projection: ortho.into(),
             sprites: Vec::new(),
         }
     }
 
     fn build_instance_data(&self) -> VertexBuffer<InstanceData> {
+        let normalized_to_pixel =
+            Matrix4::from_nonuniform_scale(
+                self.dimensions.0 as f32 / (self.right - self.left),
+                self.dimensions.1 as f32 / (self.top - self.bottom),
+                1.,
+            ) * Matrix4::from_translation(Vector2::new(-self.left, -self.bottom).extend(0.));
+
         let mut buffer = VertexBuffer::empty(&self.context, self.sprites.len()).unwrap();
         {
             let mut map = buffer.as_mut_slice().map_write();
@@ -167,7 +182,8 @@ impl Renderer {
 
                 let scale = Matrix4::from_nonuniform_scale(sprite.scale.x, sprite.scale.y, 1.);
                 let offset = Matrix4::from_translation((sprite.pos - SPRITE_ORIGIN).extend(0.));
-                let model = (offset * scale).into();
+                let mut model = normalized_to_pixel * offset * scale;
+                let model = model.into();
 
                 let (r, g, b, a) = sprite.color.into_components();
                 let color = [r, g, b, a];
@@ -190,6 +206,17 @@ impl Renderer {
             self.dimensions = dimensions;
             self.ortho = compute_ortho(dimensions);
             self.projection = self.ortho.into();
+
+            let aspect_ratio = dimensions.0 as f32 / dimensions.1 as f32;
+            let (x, y) = if aspect_ratio > 1. {
+                (aspect_ratio, 1.)
+            } else {
+                (1., 1. / aspect_ratio)
+            };
+            self.left = -x;
+            self.right = x;
+            self.bottom = -y;
+            self.top = y;
         }
 
         self.sprites.clear();
@@ -313,7 +340,7 @@ impl<'a> SingleFrameRenderer<'a> {
         let lane_width = if lane_count < 6 { 0.2 } else { 0.15 };
         let border_offset = lane_width * lane_count as f32 / 2.;
         let border_width = 0.01;
-        let judgement_line_position = renderer.ortho.bottom + 0.29;
+        let judgement_line_position = renderer.bottom + 0.29;
         let note_height = lane_width / 2.;
 
         let current_position = if no_scroll_speed_changes {
@@ -356,29 +383,22 @@ impl<'a> SingleFrameRenderer<'a> {
         self.renderer.sprites.push(Sprite {
             pos: Point2::new(
                 -self.border_offset - self.border_width,
-                self.renderer.ortho.bottom,
+                self.renderer.bottom,
             ),
-            scale: Vector2::new(
-                self.border_width,
-                self.renderer.ortho.top - self.renderer.ortho.bottom,
-            ),
+            scale: Vector2::new(self.border_width, self.renderer.top - self.renderer.bottom),
             color: Srgba::new(1., 1., 1., 1.),
         });
         // Right lane border.
         self.renderer.sprites.push(Sprite {
-            pos: Point2::new(self.border_offset, self.renderer.ortho.bottom),
-            scale: Vector2::new(
-                self.border_width,
-                self.renderer.ortho.top - self.renderer.ortho.bottom,
-            ),
+            pos: Point2::new(self.border_offset, self.renderer.bottom),
+            scale: Vector2::new(self.border_width, self.renderer.top - self.renderer.bottom),
             color: Srgba::new(1., 1., 1., 1.),
         });
     }
 
     fn push_timing_lines(&mut self) {
-        let first_visible_position =
-            self.screen_to_core(self.renderer.ortho.bottom - self.border_width);
-        let one_past_last_visible_position = self.screen_to_core(self.renderer.ortho.top);
+        let first_visible_position = self.screen_to_core(self.renderer.bottom - self.border_width);
+        let one_past_last_visible_position = self.screen_to_core(self.renderer.top);
 
         let range = if self.no_scroll_speed_changes {
             let into_timestamp = |position| {
@@ -441,9 +461,8 @@ impl<'a> SingleFrameRenderer<'a> {
         // Yay, partial borrowing to win vs. the borrow checker...
         let state = self.state;
 
-        let first_visible_position =
-            self.screen_to_core(self.renderer.ortho.bottom - self.note_height);
-        let one_past_last_visible_position = self.screen_to_core(self.renderer.ortho.top);
+        let first_visible_position = self.screen_to_core(self.renderer.bottom - self.note_height);
+        let one_past_last_visible_position = self.screen_to_core(self.renderer.top);
 
         for (lane, objects, object_states, object_caches) in
             (0..self.state.immutable.map.lanes.len()).map(|lane| {
@@ -625,7 +644,7 @@ impl<'a> SingleFrameRenderer<'a> {
     fn push_error_bar(&mut self) {
         let error_bar_width = 0.5;
         let error_bar_offset = error_bar_width / 2.;
-        let error_bar_position = self.renderer.ortho.bottom + 1.;
+        let error_bar_position = self.renderer.bottom + 1.;
         let error_bar_height = 0.003;
         let error_bar_hit_height = 0.05;
         let error_bar_hit_width = 0.01;
@@ -688,12 +707,12 @@ impl<'a> SingleFrameRenderer<'a> {
         let current_difference =
             self.map_timestamp.max(first_timestamp).min(last_timestamp) - first_timestamp;
 
-        let total_width = self.renderer.ortho.right - self.renderer.ortho.left;
+        let total_width = self.renderer.right - self.renderer.left;
         let width = f64::from(current_difference.into_milli_hundredths())
             * (f64::from(total_width) / f64::from(total_difference.into_milli_hundredths()));
 
         self.renderer.sprites.push(Sprite {
-            pos: Point2::new(self.renderer.ortho.left, self.renderer.ortho.bottom),
+            pos: Point2::new(self.renderer.left, self.renderer.bottom),
             scale: Vector2::new(width as f32, self.border_width * 3.),
             color: Srgba::new(1., 1., 1., 1.),
         });
