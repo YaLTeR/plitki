@@ -16,6 +16,7 @@ use plitki_core::{
     state::{Hit, LongNoteCache, LongNoteState, ObjectCache, ObjectState},
     timing::{GameTimestamp, GameTimestampDifference, MapTimestamp},
 };
+use rust_hawktracer::*;
 use slog_scope::trace;
 
 use crate::GameState;
@@ -166,6 +167,7 @@ impl Renderer {
         }
     }
 
+    #[hawktracer(build_instance_data)]
     fn build_instance_data(&self) -> VertexBuffer<InstanceData> {
         let normalized_to_pixel =
             Matrix4::from_nonuniform_scale(
@@ -203,6 +205,7 @@ impl Renderer {
         buffer
     }
 
+    #[hawktracer(render)]
     pub fn render(
         &mut self,
         dimensions: (u32, u32),
@@ -303,26 +306,33 @@ impl Renderer {
         }
 
         let projection: [[f32; 4]; 4] = self.projection.into();
-        frame
-            .draw(
-                (&self.vertex_buffer, instance_data.per_instance().unwrap()),
-                &self.index_buffer,
-                &self.program,
-                &uniform! {
-                    projection: projection,
-                },
-                &DrawParameters {
-                    blend: Blend::alpha_blending(),
-                    ..Default::default()
-                },
-            )
-            .unwrap();
+
+        {
+            scoped_tracepoint!(_frame_draw);
+            frame
+                .draw(
+                    (&self.vertex_buffer, instance_data.per_instance().unwrap()),
+                    &self.index_buffer,
+                    &self.program,
+                    &uniform! {
+                        projection: projection,
+                    },
+                    &DrawParameters {
+                        blend: Blend::alpha_blending(),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+        }
 
         if state.cap_fps {
             std::thread::sleep(Duration::from_millis(1000 / 15));
         }
 
-        frame.finish().unwrap();
+        {
+            scoped_tracepoint!(_frame_finish);
+            frame.finish().unwrap();
+        }
 
         trace!("finished redraw"; "time_taken" => ?(Instant::now() - start));
     }
@@ -388,6 +398,7 @@ impl<'a> SingleFrameRenderer<'a> {
         screen_position_difference / self.state.scroll_speed + self.current_position
     }
 
+    #[hawktracer(push_borders)]
     fn push_borders(&mut self) {
         // Left lane border.
         self.renderer.sprites.push(Sprite {
@@ -406,6 +417,7 @@ impl<'a> SingleFrameRenderer<'a> {
         });
     }
 
+    #[hawktracer(push_timing_lines)]
     fn push_timing_lines(&mut self) {
         let first_visible_position = self.screen_to_core(self.renderer.bottom - self.border_width);
         let one_past_last_visible_position = self.screen_to_core(self.renderer.top);
@@ -467,6 +479,7 @@ impl<'a> SingleFrameRenderer<'a> {
         }
     }
 
+    #[hawktracer(push_objects)]
     fn push_objects(&mut self) {
         // Yay, partial borrowing to win vs. the borrow checker...
         let state = self.state;
@@ -640,6 +653,7 @@ impl<'a> SingleFrameRenderer<'a> {
         }
     }
 
+    #[hawktracer(push_judgement_line)]
     fn push_judgement_line(&mut self) {
         self.renderer.sprites.push(Sprite {
             pos: Point2::new(
@@ -651,6 +665,7 @@ impl<'a> SingleFrameRenderer<'a> {
         });
     }
 
+    #[hawktracer(push_error_bar)]
     fn push_error_bar(&mut self) {
         let error_bar_width = 0.5;
         let error_bar_offset = error_bar_width / 2.;
@@ -705,6 +720,7 @@ impl<'a> SingleFrameRenderer<'a> {
         });
     }
 
+    #[hawktracer(push_timeline)]
     fn push_timeline(&mut self) {
         let first_timestamp = self.state.first_timestamp();
         if first_timestamp.is_none() {

@@ -18,6 +18,7 @@ use plitki_core::{
 };
 use plitki_map_qua::from_reader;
 use rodio::{Sink, Source};
+use rust_hawktracer::*;
 use slog::{o, Drain};
 use slog_scope::{debug, info, trace, warn};
 use smithay_client_toolkit::{
@@ -92,6 +93,12 @@ fn main() {
     better_panic::install();
 
     let mut opt = Opt::from_args();
+
+    let instance = HawktracerInstance::new();
+    let _listener = instance.create_listener(HawktracerListenerType::ToFile {
+        file_path: "trace.bin".into(),
+        buffer_size: 4096,
+    });
 
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::CompactFormat::new(decorator).build().fuse();
@@ -785,6 +792,8 @@ fn render_thread(
                 new_dimensions,
                 refresh_decorations,
             } => {
+                scoped_tracepoint!(_redraw_event);
+
                 // Update the dimensions if needed.
                 if let Some(new_dimensions) = new_dimensions {
                     if new_dimensions != dimensions {
