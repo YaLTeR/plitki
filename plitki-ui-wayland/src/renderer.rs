@@ -183,6 +183,16 @@ impl Renderer {
                 let scale = Matrix4::from_nonuniform_scale(sprite.scale.x, sprite.scale.y, 1.);
                 let offset = Matrix4::from_translation((sprite.pos - SPRITE_ORIGIN).extend(0.));
                 let mut model = normalized_to_pixel * offset * scale;
+
+                // Truncate coordinates to whole pixels.
+                model[3][0] = model[3][0].trunc();
+                model[3][1] = model[3][1].trunc();
+
+                // Make sure the size is at least 1 pixel.
+                // Technically the value 0.51 already works here.
+                model[0][0] = model[0][0].max(1.);
+                model[1][1] = model[1][1].max(1.);
+
                 let model = model.into();
 
                 let (r, g, b, a) = sprite.color.into_components();
