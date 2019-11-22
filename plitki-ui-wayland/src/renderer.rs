@@ -43,10 +43,7 @@ pub struct Renderer {
     index_buffer: IndexBuffer<u8>,
     dimensions: (u32, u32),
     ortho: Ortho<f32>,
-    left: f32,
-    right: f32,
-    bottom: f32,
-    top: f32,
+    horizontal_scale: f32,
     projection: Matrix4<f32>,
     sprites: Vec<Sprite>,
 }
@@ -145,11 +142,7 @@ impl Renderer {
         let ortho = compute_ortho(dimensions);
 
         let aspect_ratio = dimensions.0 as f32 / dimensions.1 as f32;
-        let (x, y) = if aspect_ratio > 1. {
-            (aspect_ratio, 1.)
-        } else {
-            (1., 1. / aspect_ratio)
-        };
+        let horizontal_scale = aspect_ratio.max(1.);
 
         Self {
             context,
@@ -158,10 +151,7 @@ impl Renderer {
             index_buffer,
             dimensions,
             ortho,
-            left: -x,
-            right: x,
-            bottom: -y,
-            top: y,
+            horizontal_scale,
             projection: ortho.into(),
             sprites: Vec::new(),
         }
@@ -169,13 +159,6 @@ impl Renderer {
 
     #[hawktracer(build_instance_data)]
     fn build_instance_data(&self) -> VertexBuffer<InstanceData> {
-        let normalized_to_pixel =
-            Matrix4::from_nonuniform_scale(
-                self.dimensions.0 as f32 / (self.right - self.left),
-                self.dimensions.1 as f32 / (self.top - self.bottom),
-                1.,
-            ) * Matrix4::from_translation(Vector2::new(-self.left, -self.bottom).extend(0.));
-
         let mut buffer = VertexBuffer::empty(&self.context, self.sprites.len()).unwrap();
         {
             let mut map = buffer.as_mut_slice().map_write();
@@ -184,11 +167,11 @@ impl Renderer {
 
                 let scale = Matrix4::from_nonuniform_scale(sprite.scale.x, sprite.scale.y, 1.);
                 let offset = Matrix4::from_translation((sprite.pos - SPRITE_ORIGIN).extend(0.));
-                let mut model = normalized_to_pixel * offset * scale;
+                let mut model = offset * scale;
 
-                // Truncate coordinates to whole pixels.
-                model[3][0] = model[3][0].trunc();
-                model[3][1] = model[3][1].trunc();
+                // Round coordinates to whole pixels.
+                model[3][0] = model[3][0].round();
+                model[3][1] = model[3][1].round();
 
                 // Make sure the size is at least 1 pixel.
                 // Technically the value 0.51 already works here.
@@ -203,6 +186,28 @@ impl Renderer {
             }
         }
         buffer
+    }
+
+    #[inline]
+    fn to_pixels(&self, size: f32) -> f32 {
+        // This returns the same result when using both X and Y.
+        size * (self.width() / (self.horizontal_scale * 2.))
+    }
+
+    #[inline]
+    fn from_pixels(&self, size: f32) -> f32 {
+        // This returns the same result when using both X and Y.
+        size / (self.width() / (self.horizontal_scale * 2.))
+    }
+
+    #[inline]
+    fn width(&self) -> f32 {
+        self.dimensions.0 as f32
+    }
+
+    #[inline]
+    fn height(&self) -> f32 {
+        self.dimensions.1 as f32
     }
 
     #[hawktracer(render)]
@@ -221,15 +226,7 @@ impl Renderer {
             self.projection = self.ortho.into();
 
             let aspect_ratio = dimensions.0 as f32 / dimensions.1 as f32;
-            let (x, y) = if aspect_ratio > 1. {
-                (aspect_ratio, 1.)
-            } else {
-                (1., 1. / aspect_ratio)
-            };
-            self.left = -x;
-            self.right = x;
-            self.bottom = -y;
-            self.top = y;
+            self.horizontal_scale = aspect_ratio.max(1.);
         }
 
         self.sprites.clear();
@@ -256,10 +253,12 @@ impl Renderer {
         if state.two_playfields {
             let lane_count = state.immutable.map.lanes.len();
             let lane_width = if lane_count < 6 { 0.2 } else { 0.15 };
+            let lane_width = self.to_pixels(lane_width).round();
             let border_offset = lane_width * lane_count as f32 / 2.;
+            let shift = (border_offset + self.to_pixels(0.1)).round();
 
             for sprite in &mut self.sprites {
-                sprite.pos.x -= border_offset + 0.1;
+                sprite.pos.x -= shift;
             }
 
             let left_len = self.sprites.len();
@@ -280,7 +279,7 @@ impl Renderer {
             }
 
             for sprite in &mut self.sprites[left_len..] {
-                sprite.pos.x += border_offset + 0.1;
+                sprite.pos.x += shift;
             }
         }
 
@@ -358,10 +357,12 @@ impl<'a> SingleFrameRenderer<'a> {
 
         let lane_count = state.immutable.map.lanes.len();
         let lane_width = if lane_count < 6 { 0.2 } else { 0.15 };
+        let note_height = renderer.to_pixels(lane_width / 2.).round();
+
+        let lane_width = renderer.to_pixels(lane_width).round();
         let border_offset = lane_width * lane_count as f32 / 2.;
-        let border_width = 0.01;
-        let judgement_line_position = renderer.bottom + 0.29;
-        let note_height = lane_width / 2.;
+        let border_width = renderer.to_pixels(0.01).round();
+        let judgement_line_position = renderer.to_pixels(0.29).round();
 
         let current_position = if no_scroll_speed_changes {
             map_timestamp.no_scroll_speed_change_position()
@@ -385,16 +386,31 @@ impl<'a> SingleFrameRenderer<'a> {
     }
 
     #[inline]
+    fn width(&self) -> f32 {
+        self.renderer.width()
+    }
+
+    #[inline]
+    fn height(&self) -> f32 {
+        self.renderer.height()
+    }
+
+    #[inline]
     fn core_to_screen(&self, core_position: Position) -> f32 {
         let screen_position_difference =
             (core_position - self.current_position) * self.state.scroll_speed;
-        self.judgement_line_position + from_core_position_difference(screen_position_difference)
+        self.judgement_line_position
+            + self
+                .renderer
+                .to_pixels(from_core_position_difference(screen_position_difference))
     }
 
     #[inline]
     fn screen_to_core(&self, screen_position: f32) -> Position {
-        let screen_position_difference =
-            to_core_position_difference(screen_position - self.judgement_line_position);
+        let screen_position_difference = to_core_position_difference(
+            self.renderer
+                .from_pixels(screen_position - self.judgement_line_position),
+        );
         screen_position_difference / self.state.scroll_speed + self.current_position
     }
 
@@ -403,24 +419,24 @@ impl<'a> SingleFrameRenderer<'a> {
         // Left lane border.
         self.renderer.sprites.push(Sprite {
             pos: Point2::new(
-                -self.border_offset - self.border_width,
-                self.renderer.bottom,
+                self.width() / 2. - self.border_offset - self.border_width,
+                0.,
             ),
-            scale: Vector2::new(self.border_width, self.renderer.top - self.renderer.bottom),
+            scale: Vector2::new(self.border_width, self.height()),
             color: Srgba::new(1., 1., 1., 1.),
         });
         // Right lane border.
         self.renderer.sprites.push(Sprite {
-            pos: Point2::new(self.border_offset, self.renderer.bottom),
-            scale: Vector2::new(self.border_width, self.renderer.top - self.renderer.bottom),
+            pos: Point2::new(self.width() / 2. + self.border_offset, 0.),
+            scale: Vector2::new(self.border_width, self.height()),
             color: Srgba::new(1., 1., 1., 1.),
         });
     }
 
     #[hawktracer(push_timing_lines)]
     fn push_timing_lines(&mut self) {
-        let first_visible_position = self.screen_to_core(self.renderer.bottom - self.border_width);
-        let one_past_last_visible_position = self.screen_to_core(self.renderer.top);
+        let first_visible_position = self.screen_to_core(self.border_width);
+        let one_past_last_visible_position = self.screen_to_core(self.height());
 
         let range = if self.no_scroll_speed_changes {
             let into_timestamp = |position| {
@@ -468,7 +484,10 @@ impl<'a> SingleFrameRenderer<'a> {
                 timing_line.position
             };
 
-            let pos = Point2::new(-self.border_offset, self.core_to_screen(position));
+            let pos = Point2::new(
+                self.width() / 2. - self.border_offset,
+                self.core_to_screen(position),
+            );
 
             self.renderer.sprites.push(Sprite {
                 pos,
@@ -484,8 +503,8 @@ impl<'a> SingleFrameRenderer<'a> {
         // Yay, partial borrowing to win vs. the borrow checker...
         let state = self.state;
 
-        let first_visible_position = self.screen_to_core(self.renderer.bottom - self.note_height);
-        let one_past_last_visible_position = self.screen_to_core(self.renderer.top);
+        let first_visible_position = self.screen_to_core(-self.note_height);
+        let one_past_last_visible_position = self.screen_to_core(self.height());
 
         for (lane, objects, object_states, object_caches) in
             (0..self.state.immutable.map.lanes.len()).map(|lane| {
@@ -613,15 +632,18 @@ impl<'a> SingleFrameRenderer<'a> {
         };
 
         let pos = Point2::new(
-            -self.border_offset + self.lane_width * lane as f32,
+            self.width() / 2. - self.border_offset + self.lane_width * lane as f32,
             self.core_to_screen(start),
         );
 
         let height = if let Some((ln_start, ln_end)) = ln_positions {
             let max_height =
-                to_core_position_difference(self.note_height / 2.) / self.state.scroll_speed;
+                to_core_position_difference(self.renderer.from_pixels(self.note_height / 2.))
+                    / self.state.scroll_speed;
             let capped_end = ln_start + (ln_end - ln_start).max(max_height);
-            from_core_position_difference((capped_end - start) * self.state.scroll_speed)
+            self.renderer.to_pixels(from_core_position_difference(
+                (capped_end - start) * self.state.scroll_speed,
+            ))
         } else {
             self.note_height
         };
@@ -657,7 +679,7 @@ impl<'a> SingleFrameRenderer<'a> {
     fn push_judgement_line(&mut self) {
         self.renderer.sprites.push(Sprite {
             pos: Point2::new(
-                -self.border_offset,
+                self.width() / 2. - self.border_offset,
                 self.judgement_line_position - self.border_width,
             ),
             scale: Vector2::new(self.border_offset * 2., self.border_width),
@@ -667,16 +689,17 @@ impl<'a> SingleFrameRenderer<'a> {
 
     #[hawktracer(push_error_bar)]
     fn push_error_bar(&mut self) {
-        let error_bar_width = 0.5;
+        let error_bar_width = self.renderer.to_pixels(0.5);
         let error_bar_offset = error_bar_width / 2.;
-        let error_bar_position = self.renderer.bottom + 1.;
-        let error_bar_height = 0.003;
-        let error_bar_hit_height = 0.05;
-        let error_bar_hit_width = 0.01;
-        let error_bar_perfect_hit_width = 0.003;
+        let error_bar_position = self.renderer.to_pixels(1.);
+        let error_bar_height = self.renderer.to_pixels(0.003);
+        let error_bar_hit_height = self.renderer.to_pixels(0.05);
+        let error_bar_hit_width = self.renderer.to_pixels(0.01);
+        let error_bar_perfect_hit_width = self.renderer.to_pixels(0.003);
 
-        let zero_error_bar_hit_position = -error_bar_hit_width / 2.;
-        let rightmost_error_bar_hit_position = error_bar_offset - error_bar_hit_width;
+        let zero_error_bar_hit_position = self.width() / 2. - error_bar_hit_width / 2.;
+        let rightmost_error_bar_hit_position =
+            self.width() / 2. + error_bar_offset - error_bar_hit_width;
         let highest_hit_difference = GameTimestampDifference::from_millis(76);
         let highest_hit_difference = highest_hit_difference.into_milli_hundredths() as f32;
         let hit_difference_offset_factor = (rightmost_error_bar_hit_position
@@ -685,7 +708,7 @@ impl<'a> SingleFrameRenderer<'a> {
 
         self.renderer.sprites.push(Sprite {
             pos: Point2::new(
-                -error_bar_offset,
+                self.width() / 2. - error_bar_offset,
                 error_bar_position - error_bar_height / 2.,
             ),
             scale: Vector2::new(error_bar_width, error_bar_height),
@@ -712,7 +735,7 @@ impl<'a> SingleFrameRenderer<'a> {
 
         self.renderer.sprites.push(Sprite {
             pos: Point2::new(
-                -error_bar_perfect_hit_width / 2.,
+                self.width() / 2. - error_bar_perfect_hit_width / 2.,
                 error_bar_position - error_bar_hit_height / 2.,
             ),
             scale: Vector2::new(error_bar_perfect_hit_width, error_bar_hit_height),
@@ -733,12 +756,12 @@ impl<'a> SingleFrameRenderer<'a> {
         let current_difference =
             self.map_timestamp.max(first_timestamp).min(last_timestamp) - first_timestamp;
 
-        let total_width = self.renderer.right - self.renderer.left;
+        let total_width = self.width();
         let width = f64::from(current_difference.into_milli_hundredths())
             * (f64::from(total_width) / f64::from(total_difference.into_milli_hundredths()));
 
         self.renderer.sprites.push(Sprite {
-            pos: Point2::new(self.renderer.left, self.renderer.bottom),
+            pos: Point2::new(0., 0.),
             scale: Vector2::new(width as f32, self.border_width * 3.),
             color: Srgba::new(1., 1., 1., 1.),
         });
