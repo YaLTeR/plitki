@@ -86,8 +86,8 @@ fn from_core_position_difference(x: ScreenPositionDifference) -> f32 {
     (x.0 as f64 / 1_000_000_000.) as f32
 }
 
-fn to_core_position_difference(x: f32) -> ScreenPositionDifference {
-    ScreenPositionDifference((f64::from(x) * 1_000_000_000.) as i64)
+fn to_core_position_difference(y: f32) -> ScreenPositionDifference {
+    ScreenPositionDifference((f64::from(y) * 1_000_000_000.) as i64)
 }
 
 impl Renderer {
