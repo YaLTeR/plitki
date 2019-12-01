@@ -85,6 +85,10 @@ struct Opt {
     #[structopt(long)]
     fix_osu_timing_line_animations: bool,
 
+    /// Disables render target time adjustment based on estimated presentation latency.
+    #[structopt(long)]
+    disable_frame_scheduling: bool,
+
     /// Path to a supported map file.
     path: Option<PathBuf>,
 }
@@ -597,6 +601,7 @@ fn main() {
         let presentation_clock_id = presentation_clock_id.clone();
         let start = start.clone();
         let fix_osu_timing_line_animations = opt.fix_osu_timing_line_animations;
+        let disable_frame_scheduling = opt.disable_frame_scheduling;
 
         thread::spawn(move || {
             render_thread(
@@ -609,6 +614,7 @@ fn main() {
                 presentation_clock_id,
                 start,
                 fix_osu_timing_line_animations,
+                disable_frame_scheduling,
             )
         })
     };
@@ -748,6 +754,7 @@ fn render_thread(
     presentation_clock_id: Arc<Mutex<u32>>,
     start_time: Arc<Mutex<Option<Duration>>>,
     fix_osu_timing_line_animations: bool,
+    disable_frame_scheduling: bool,
 ) {
     let surface = window.lock().unwrap().surface().clone();
     let (backend, context) = create_context(&display, &surface, dimensions);
@@ -814,7 +821,11 @@ fn render_thread(
 
                 let current_time = clock_gettime(clk_id.unwrap());
                 let elapsed = current_time - start.unwrap();
-                let target_time = frame_scheduler.get_target_time(current_time) - start.unwrap();
+                let target_time = if disable_frame_scheduling {
+                    elapsed
+                } else {
+                    frame_scheduler.get_target_time(current_time) - start.unwrap()
+                };
 
                 trace!(
                     "starting render";
