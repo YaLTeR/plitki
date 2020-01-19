@@ -26,6 +26,7 @@ impl Deref for GlutinRawBackend {
     }
 }
 
+// Based on https://github.com/glium/glium/blob/master/src/backend/glutin/mod.rs#L250
 unsafe impl Backend for GlutinRawBackend {
     #[inline]
     fn swap_buffers(&self) -> Result<(), SwapBuffersError> {
@@ -33,6 +34,13 @@ unsafe impl Backend for GlutinRawBackend {
             Ok(()) => Ok(()),
             Err(ContextError::IoError(e)) => panic!("I/O Error while swapping buffers: {:?}", e),
             Err(ContextError::OsError(e)) => panic!("OS Error while swapping buffers: {:?}", e),
+            // As of writing the FunctionUnavailable error is only thrown if
+            // you are swapping buffers with damage rectangles specified.
+            // Currently we don't support this so we just panic as this
+            // case should be unreachable.
+            Err(ContextError::FunctionUnavailable) => {
+                panic!("function unavailable error while swapping buffers")
+            }
             Err(ContextError::ContextLost) => Err(SwapBuffersError::ContextLost),
         }
     }

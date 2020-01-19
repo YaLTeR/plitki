@@ -11,7 +11,7 @@ byteorder = "1"
 slog = "2.5.2"
 slog-term = "2.4.1"
 slog-async = "2.3.0"
-glutin = "0.22.0-alpha2"
+glutin = "0.22.0"
 glium = { version = "0.25.1", default_features = false }
 takeable-option = "0.5.0"
 better-panic = "0.1.2"
