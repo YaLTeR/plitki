@@ -29,7 +29,7 @@ use smithay_client_toolkit::{
             wl_pointer::{self, ButtonState},
             wl_surface::WlSurface,
         },
-        Attached, Display, Main, Proxy,
+        Attached, Display, Main,
     },
     seat::keyboard::{keysyms, map_keyboard, Event as KbEvent, KeyState, RepeatKind},
     window::{ConceptFrame, Event as WEvent},
@@ -538,11 +538,7 @@ fn main() {
             }
         }
 
-        // This is annoying.
-        let surface = {
-            let proxy: Proxy<_> = window.surface().clone().into();
-            proxy.attach(event_queue.token())
-        };
+        let surface = window.surface().as_ref().attach(event_queue.token());
 
         // Subscribe to the first frame callback.
         let mut frame_handler = Some(FrameHandler {
@@ -741,8 +737,7 @@ fn render_thread(
     let frame_scheduler = FrameScheduler::new();
 
     let mut event_queue = display.create_event_queue();
-    let proxy: Proxy<_> = wp_presentation.into();
-    let wp_presentation = proxy.attach(event_queue.token());
+    let wp_presentation = wp_presentation.as_ref().attach(event_queue.token());
 
     let &(ref lock, ref cvar) = &*pair;
     loop {
