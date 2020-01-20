@@ -629,6 +629,11 @@ fn main() {
 
                 if let Some(new_dimensions) = new_dimensions {
                     if current_dimensions.get() != new_dimensions {
+                        // TODO: if the rendering is slow, this gets triggered much more
+                        // frequently, so the decorations resize faster than the surface itself.
+                        //
+                        // I'm not sure there's a good way of solving this without moving the
+                        // window handling to the rendering thread.
                         window.resize(new_dimensions.0, new_dimensions.1);
                     }
 
