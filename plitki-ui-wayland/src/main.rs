@@ -6,12 +6,15 @@ use std::{
     io::BufReader,
     path::PathBuf,
     rc::Rc,
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Mutex},
     thread,
     time::Duration,
 };
 
-use calloop::EventLoop;
+use calloop::{
+    channel::{sync_channel, SyncSender},
+    EventLoop,
+};
 use plitki_core::{
     map::Map,
     state::{GameState, LongNoteState, ObjectState, RegularObjectState},
@@ -53,12 +56,6 @@ use backend::create_context;
 
 mod renderer;
 use renderer::Renderer;
-
-#[derive(Debug)]
-enum RenderThreadEvent {
-    Exit,
-    Redraw { new_dimensions: Option<(u32, u32)> },
-}
 
 #[derive(StructOpt)]
 struct Opt {
@@ -153,45 +150,10 @@ fn main() {
     let (buf_input, buf_output) = state_buffer.split();
     let game_state_pair = Rc::new(RefCell::new((latest_game_state, buf_input)));
 
-    let (env, display, event_queue) = init_default_environment!(Environment, desktop)
+    let (env, display, mut event_queue) = init_default_environment!(Environment, desktop)
         .expect("Failed to connect to the wayland server.");
 
-    let mut event_loop = EventLoop::<Option<WEvent>>::new().unwrap();
-    let surface = env.create_surface_with_scale_callback(|new_dpi, _, _| {
-        debug!("DPI changed"; "dpi" => new_dpi);
-    });
-
-    const INITIAL_DIMENSIONS: (u32, u32) = (640, 360);
-    let mut window = env
-        .create_window::<ConceptFrame, _>(
-            surface,
-            INITIAL_DIMENSIONS, // the initial internal dimensions of the window
-            move |evt, mut dispatch_data| {
-                let next_action = dispatch_data.get::<Option<WEvent>>().unwrap();
-                // Check if we need to replace the old event by the new one.
-                let replace = match (&evt, &*next_action) {
-                // replace if there is no old event
-                (_, &None)
-                // or the old event is refresh
-                | (_, &Some(WEvent::Refresh))
-                // or we had a configure and received a new one
-                | (&WEvent::Configure { .. }, &Some(WEvent::Configure { .. }))
-                // or the new event is close
-                | (&WEvent::Close, _) => true,
-                // keep the old event otherwise
-                _ => false,
-            };
-                if replace {
-                    *next_action = Some(evt);
-                }
-            },
-            // creating the window may fail if the code drawing the frame
-            // fails to initialize itself. For ConceptFrame this should not happen
-            // unless the system is utterly broken, though.
-        )
-        .expect("Failed to create a window !");
-
-    window.set_title("Plitki Wayland".to_string());
+    let mut event_loop = EventLoop::new().unwrap();
 
     // Get the presentation-time global.
     let presentation_clock_id = Arc::new(Mutex::new(0));
@@ -222,6 +184,9 @@ fn main() {
         });
         wp_presentation
     };
+
+    // Get the presentation-time data.
+    event_queue.sync_roundtrip(&mut (), |_, _, _| {}).unwrap();
 
     let seats = env.get_all_seats();
     let seat = seats.get(0).expect("No seats found");
@@ -398,187 +363,119 @@ fn main() {
             .unwrap();
     }
 
-    let current_dimensions = Rc::new(Cell::new(INITIAL_DIMENSIONS));
-
     // Map the pointer.
-    {
-        let main_surface = window.surface().clone();
-        let current_dimensions = current_dimensions.clone();
-        let game_state_pair = game_state_pair.clone();
-        let presentation_clock_id = presentation_clock_id.clone();
-        let start = start.clone();
-        let mut mouse_on_main_surface = false;
-        let mut mouse_x = 0.;
-        let mut mouse_y = 0.;
-        let mut holding_left_mouse_button = false;
-
-        seat.get_pointer().quick_assign(move |_, evt, _| {
-            let set_playback_position = |mouse_x| {
-                let (state, _) = &*game_state_pair.borrow();
-
-                let first_timestamp = state.first_timestamp();
-                if first_timestamp.is_none() {
-                    return;
-                }
-                let first_timestamp = first_timestamp.unwrap();
-                let last_timestamp = state.last_timestamp().unwrap();
-
-                let total_difference = last_timestamp - first_timestamp;
-                let total_width = current_dimensions.get().0 as f32;
-
-                let timestamp = first_timestamp
-                    + MapTimestampDifference::from_milli_hundredths(
-                        (mouse_x
-                            / (f64::from(total_width)
-                                / f64::from(total_difference.into_milli_hundredths())))
-                            as i32,
-                    );
-
-                let elapsed = clock_gettime(*presentation_clock_id.lock().unwrap())
-                    - start.lock().unwrap().unwrap();
-                let elapsed_timestamp =
-                    GameTimestamp(elapsed.try_into().unwrap()).to_map(&state.timestamp_converter);
-
-                let difference = (timestamp - elapsed_timestamp)
-                    .to_game(&state.timestamp_converter)
-                    .as_millis();
-
-                if difference >= 0 {
-                    *start.lock().unwrap().as_mut().unwrap() -=
-                        Duration::from_millis(difference as u64);
-                } else {
-                    *start.lock().unwrap().as_mut().unwrap() +=
-                        Duration::from_millis(-difference as u64);
-                }
-
-                if let Some(sink) = &*sink.borrow() {
-                    sink.stop();
-                }
-            };
-
-            match evt {
-                wl_pointer::Event::Enter {
-                    surface,
-                    surface_x,
-                    surface_y,
-                    ..
-                } => {
-                    if main_surface == surface {
-                        trace!(
-                            "pointer entered";
-                            "surface_x" => surface_x,
-                            "surface_y" => surface_y,
-                        );
-                        mouse_on_main_surface = true;
-                        mouse_x = surface_x;
-                        mouse_y = surface_y;
-                    }
-                }
-                wl_pointer::Event::Leave { surface, .. } => {
-                    if main_surface == surface {
-                        trace!("pointer left");
-                        mouse_on_main_surface = false;
-                    }
-                }
-                wl_pointer::Event::Motion {
-                    surface_x,
-                    surface_y,
-                    ..
-                } if mouse_on_main_surface => {
-                    mouse_x = surface_x;
-                    mouse_y = surface_y;
-
-                    if holding_left_mouse_button {
-                        set_playback_position(mouse_x);
-                    }
-                }
-                wl_pointer::Event::Button { button, state, .. } if mouse_on_main_surface => {
-                    trace!(
-                        "pointer button";
-                        "button" => button,
-                        "state" => ?state,
-                    );
-
-                    if button == 0x110 {
-                        // Left mouse button.
-                        if state == ButtonState::Pressed {
-                            holding_left_mouse_button = true;
-                            set_playback_position(mouse_x);
-                        } else {
-                            holding_left_mouse_button = false;
-                        }
-                    }
-                }
-                _ => {}
-            }
-        });
-    }
-
-    // Start receiving the frame callbacks.
-    let need_redraw = Rc::new(Cell::new(false));
-    {
-        struct FrameHandler {
-            need_redraw: Rc<Cell<bool>>,
-            surface: Attached<WlSurface>,
-        }
-
-        impl FrameHandler {
-            fn done(self) {
-                trace!("frame done");
-
-                // This will get picked up in the event handling loop.
-                self.need_redraw.set(true);
-
-                // Subscribe to the next frame callback.
-                let surface = self.surface.clone();
-                let mut frame_callback = Some(self);
-                surface.frame().quick_assign(move |_, _, _| {
-                    frame_callback.take().unwrap().done();
-                });
-            }
-        }
-
-        let surface = window.surface().as_ref().attach(event_queue.token());
-
-        // Subscribe to the first frame callback.
-        let mut frame_handler = Some(FrameHandler {
-            need_redraw: need_redraw.clone(),
-            surface: surface.clone(),
-        });
-        surface.frame().quick_assign(move |_, _, _| {
-            frame_handler.take().unwrap().done();
-        });
-    }
-
-    // Start up the rendering thread.
-    let pair = Arc::new((Mutex::new(None), Condvar::new()));
-    let rendering_thread = {
-        let display = display.clone();
-        let surface = window.surface().clone();
-        let pair = pair.clone();
-        let presentation_clock_id = presentation_clock_id.clone();
-        let start = start.clone();
-        let fix_osu_timing_line_animations = opt.fix_osu_timing_line_animations;
-        let disable_frame_scheduling = opt.disable_frame_scheduling;
-        let wp_presentation = (**wp_presentation).clone();
-
-        thread::spawn(move || {
-            render_thread(
-                display,
-                surface,
-                INITIAL_DIMENSIONS,
-                pair,
-                buf_output,
-                wp_presentation,
-                presentation_clock_id,
-                start,
-                fix_osu_timing_line_animations,
-                disable_frame_scheduling,
-            )
-        })
-    };
-
-    let &(ref lock, ref cvar) = &*pair;
+    // {
+    //     let main_surface = window.surface().clone();
+    //     let current_dimensions = current_dimensions.clone();
+    //     let game_state_pair = game_state_pair.clone();
+    //     let presentation_clock_id = presentation_clock_id.clone();
+    //     let start = start.clone();
+    //     let mut mouse_on_main_surface = false;
+    //     let mut mouse_x = 0.;
+    //     let mut mouse_y = 0.;
+    //     let mut holding_left_mouse_button = false;
+    //
+    //     seat.get_pointer().quick_assign(move |_, evt, _| {
+    //         let set_playback_position = |mouse_x| {
+    //             let (state, _) = &*game_state_pair.borrow();
+    //
+    //             let first_timestamp = state.first_timestamp();
+    //             if first_timestamp.is_none() {
+    //                 return;
+    //             }
+    //             let first_timestamp = first_timestamp.unwrap();
+    //             let last_timestamp = state.last_timestamp().unwrap();
+    //
+    //             let total_difference = last_timestamp - first_timestamp;
+    //             let total_width = current_dimensions.get().0 as f32;
+    //
+    //             let timestamp = first_timestamp
+    //                 + MapTimestampDifference::from_milli_hundredths(
+    //                     (mouse_x
+    //                         / (f64::from(total_width)
+    //                             / f64::from(total_difference.into_milli_hundredths())))
+    //                         as i32,
+    //                 );
+    //
+    //             let elapsed = clock_gettime(*presentation_clock_id.lock().unwrap())
+    //                 - start.lock().unwrap().unwrap();
+    //             let elapsed_timestamp =
+    //                 GameTimestamp(elapsed.try_into().unwrap()).to_map(&state.timestamp_converter);
+    //
+    //             let difference = (timestamp - elapsed_timestamp)
+    //                 .to_game(&state.timestamp_converter)
+    //                 .as_millis();
+    //
+    //             if difference >= 0 {
+    //                 *start.lock().unwrap().as_mut().unwrap() -=
+    //                     Duration::from_millis(difference as u64);
+    //             } else {
+    //                 *start.lock().unwrap().as_mut().unwrap() +=
+    //                     Duration::from_millis(-difference as u64);
+    //             }
+    //
+    //             if let Some(sink) = &*sink.borrow() {
+    //                 sink.stop();
+    //             }
+    //         };
+    //
+    //         match evt {
+    //             wl_pointer::Event::Enter {
+    //                 surface,
+    //                 surface_x,
+    //                 surface_y,
+    //                 ..
+    //             } => {
+    //                 if main_surface == surface {
+    //                     trace!(
+    //                         "pointer entered";
+    //                         "surface_x" => surface_x,
+    //                         "surface_y" => surface_y,
+    //                     );
+    //                     mouse_on_main_surface = true;
+    //                     mouse_x = surface_x;
+    //                     mouse_y = surface_y;
+    //                 }
+    //             }
+    //             wl_pointer::Event::Leave { surface, .. } => {
+    //                 if main_surface == surface {
+    //                     trace!("pointer left");
+    //                     mouse_on_main_surface = false;
+    //                 }
+    //             }
+    //             wl_pointer::Event::Motion {
+    //                 surface_x,
+    //                 surface_y,
+    //                 ..
+    //             } if mouse_on_main_surface => {
+    //                 mouse_x = surface_x;
+    //                 mouse_y = surface_y;
+    //
+    //                 if holding_left_mouse_button {
+    //                     set_playback_position(mouse_x);
+    //                 }
+    //             }
+    //             wl_pointer::Event::Button { button, state, .. } if mouse_on_main_surface => {
+    //                 trace!(
+    //                     "pointer button";
+    //                     "button" => button,
+    //                     "state" => ?state,
+    //                 );
+    //
+    //                 if button == 0x110 {
+    //                     // Left mouse button.
+    //                     if state == ButtonState::Pressed {
+    //                         holding_left_mouse_button = true;
+    //                         set_playback_position(mouse_x);
+    //                     } else {
+    //                         holding_left_mouse_button = false;
+    //                     }
+    //                 }
+    //             }
+    //             _ => {}
+    //         }
+    //     });
+    // }
 
     if !env.get_shell().unwrap().needs_configure() {
         // Not sure how exactly this is supposed to work.
@@ -590,10 +487,40 @@ fn main() {
         // window.refresh();
     }
 
-    // We need to draw on the first configure. However, it will usually send None dimensions, and
-    // redrawing is not forced when the dimensions haven't changed. Thus, this variable is needed
-    // to force redrawing on the first configure.
-    let mut received_configure = false;
+    // Start up the rendering thread.
+    let (tx, rx) = sync_channel(1);
+    let should_quit = Rc::new(Cell::new(false));
+    {
+        let should_quit = should_quit.clone();
+        let _ = event_loop
+            .handle()
+            .insert_source(rx, move |_, _| {
+                should_quit.set(true);
+            })
+            .unwrap();
+    }
+
+    let rendering_thread = {
+        let display = display.clone();
+        let presentation_clock_id = presentation_clock_id.clone();
+        let start = start.clone();
+        let fix_osu_timing_line_animations = opt.fix_osu_timing_line_animations;
+        let disable_frame_scheduling = opt.disable_frame_scheduling;
+        let wp_presentation = (**wp_presentation).clone();
+
+        thread::spawn(move || {
+            render_thread(
+                display,
+                tx,
+                buf_output,
+                wp_presentation,
+                presentation_clock_id,
+                start,
+                fix_osu_timing_line_animations,
+                disable_frame_scheduling,
+            )
+        })
+    };
 
     let _ = event_loop
         .handle()
@@ -604,77 +531,33 @@ fn main() {
         })
         .unwrap();
 
-    let mut next_action = None;
     loop {
-        let mut new_dimensions = None;
-        let mut refresh_decorations = false;
-
-        trace!("main thread iteration"; "next_action" => ?next_action);
-
-        match next_action.take() {
-            Some(WEvent::Close) => break,
-            Some(WEvent::Refresh) => {
-                refresh_decorations = true;
-            }
-            Some(WEvent::Configure { new_size, .. }) => {
-                trace!("configure"; "new_size" => ?new_size);
-
-                new_dimensions = new_size;
-                refresh_decorations = true;
-
-                if !received_configure {
-                    received_configure = true;
-                    need_redraw.set(true);
-                }
-
-                if let Some(new_dimensions) = new_dimensions {
-                    if current_dimensions.get() != new_dimensions {
-                        // TODO: if the rendering is slow, this gets triggered much more
-                        // frequently, so the decorations resize faster than the surface itself.
-                        //
-                        // I'm not sure there's a good way of solving this without moving the
-                        // window handling to the rendering thread.
-                        window.resize(new_dimensions.0, new_dimensions.1);
-                    }
-
-                    current_dimensions.set(new_dimensions);
-                }
-            }
-            None => {}
-        }
-
-        if refresh_decorations {
-            window.refresh();
-        }
-
-        if need_redraw.get() || new_dimensions.is_some() {
-            need_redraw.set(false);
-            *lock.lock().unwrap() = Some(RenderThreadEvent::Redraw { new_dimensions });
-            cvar.notify_one();
-
-            // TODO: move this somewhere more appropriate.
-            let elapsed = clock_gettime(*presentation_clock_id.lock().unwrap())
-                - start.lock().unwrap().unwrap();
-            let elapsed_timestamp = elapsed.try_into().unwrap();
-
-            let (latest_game_state, buf_input) = &mut *game_state_pair.borrow_mut();
-            for lane in 0..latest_game_state.lane_states.len() {
-                latest_game_state.update(lane, GameTimestamp(elapsed_timestamp));
-            }
-            buf_input
-                .raw_input_buffer()
-                .update_to_latest(&latest_game_state);
-            buf_input.raw_publish();
-        }
+        // debug!("main thread iteration");
 
         display.flush().unwrap();
         event_loop
-            .dispatch(None, &mut next_action)
+            .dispatch(None, &mut ())
             .expect("Failed to dispatch all messages.");
+
+        if should_quit.get() {
+            break;
+        }
+
+        // TODO: move this somewhere more appropriate.
+        let elapsed =
+            clock_gettime(*presentation_clock_id.lock().unwrap()) - start.lock().unwrap().unwrap();
+        let elapsed_timestamp = elapsed.try_into().unwrap();
+
+        let (latest_game_state, buf_input) = &mut *game_state_pair.borrow_mut();
+        for lane in 0..latest_game_state.lane_states.len() {
+            latest_game_state.update(lane, GameTimestamp(elapsed_timestamp));
+        }
+        buf_input
+            .raw_input_buffer()
+            .update_to_latest(&latest_game_state);
+        buf_input.raw_publish();
     }
 
-    *lock.lock().unwrap() = Some(RenderThreadEvent::Exit);
-    cvar.notify_one();
     rendering_thread.join().unwrap();
 
     // Print hit statistics.
@@ -723,9 +606,7 @@ fn main() {
 
 fn render_thread(
     display: Display,
-    surface: WlSurface,
-    mut dimensions: (u32, u32),
-    pair: Arc<(Mutex<Option<RenderThreadEvent>>, Condvar)>,
+    signal_exit: SyncSender<()>,
     mut state_buffer: triple_buffer::Output<GameState>,
     wp_presentation: WpPresentation,
     presentation_clock_id: Arc<Mutex<u32>>,
@@ -733,132 +614,230 @@ fn render_thread(
     fix_osu_timing_line_animations: bool,
     disable_frame_scheduling: bool,
 ) {
-    let (backend, context) = create_context(&display, &surface, dimensions);
+    let mut event_queue = display.create_event_queue();
+    let env = init_default_environment!(Environment, desktop, with = (display, event_queue));
+
+    let surface = env.create_surface_with_scale_callback(|new_dpi, _, _| {
+        debug!("DPI changed"; "dpi" => new_dpi);
+    });
+
+    const INITIAL_DIMENSIONS: (u32, u32) = (640, 360);
+    let mut window = env
+        .create_window::<ConceptFrame, _>(
+            surface,
+            INITIAL_DIMENSIONS, // the initial internal dimensions of the window
+            move |evt, mut dispatch_data| {
+                let next_action = dispatch_data.get::<Option<WEvent>>().unwrap();
+                // Check if we need to replace the old event by the new one.
+                let replace = match (&evt, &*next_action) {
+                // replace if there is no old event
+                (_, &None)
+                // or the old event is refresh
+                | (_, &Some(WEvent::Refresh))
+                // or we had a configure and received a new one
+                | (&WEvent::Configure { .. }, &Some(WEvent::Configure { .. }))
+                // or the new event is close
+                | (&WEvent::Close, _) => true,
+                // keep the old event otherwise
+                _ => false,
+            };
+                if replace {
+                    *next_action = Some(evt);
+                }
+            },
+            // creating the window may fail if the code drawing the frame
+            // fails to initialize itself. For ConceptFrame this should not happen
+            // unless the system is utterly broken, though.
+        )
+        .expect("Failed to create a window!");
+
+    window.set_title("Plitki Wayland".to_string());
+
+    // Start receiving the frame callbacks.
+    let need_redraw = Rc::new(Cell::new(false));
+    {
+        struct FrameHandler {
+            need_redraw: Rc<Cell<bool>>,
+            surface: Attached<WlSurface>,
+        }
+
+        impl FrameHandler {
+            fn done(self) {
+                trace!("frame done");
+
+                // This will get picked up in the event handling loop.
+                self.need_redraw.set(true);
+
+                // Subscribe to the next frame callback.
+                let surface = self.surface.clone();
+                let mut frame_callback = Some(self);
+                surface.frame().quick_assign(move |_, _, _| {
+                    frame_callback.take().unwrap().done();
+                });
+            }
+        }
+
+        let surface = window.surface().as_ref().attach(event_queue.token());
+
+        // Subscribe to the first frame callback.
+        let mut frame_handler = Some(FrameHandler {
+            need_redraw: need_redraw.clone(),
+            surface: surface.clone(),
+        });
+        surface.frame().quick_assign(move |_, _, _| {
+            frame_handler.take().unwrap().done();
+        });
+    }
+
+    let mut dimensions = INITIAL_DIMENSIONS;
+    let (backend, context) = create_context(&display, window.surface(), dimensions);
     let mut renderer = Renderer::new(context, dimensions);
+
+    // We need to draw on the first configure. However, it will usually send None dimensions, and
+    // redrawing is not forced when the dimensions haven't changed. Thus, this variable is needed
+    // to force redrawing on the first configure.
+    let mut received_configure = false;
 
     let mut start = None;
     let mut clk_id = None;
 
     let frame_scheduler = FrameScheduler::new();
 
-    let mut event_queue = display.create_event_queue();
     let wp_presentation = wp_presentation.as_ref().attach(event_queue.token());
 
-    let &(ref lock, ref cvar) = &*pair;
+    let mut next_action = None;
     loop {
-        // Wait for an event.
-        let event = {
-            let mut event = lock.lock().unwrap();
-            while event.is_none() {
-                event = cvar.wait(event).unwrap();
-            }
-            event.take().unwrap()
-        };
-
-        trace!("render thread event"; "event" => ?event);
-
         event_queue
-            .dispatch_pending(&mut (), |_, _, _| {})
+            .dispatch_pending(&mut next_action, |_, _, _| {})
             .expect("Failed to dispatch all messages.");
 
-        if start.is_none() {
-            clk_id = Some(*presentation_clock_id.lock().unwrap());
-            start = Some(start_time.lock().unwrap().unwrap());
-            debug!("start"; "start" => ?start.unwrap());
-        } else if start_time.lock().unwrap().unwrap() != start.unwrap() {
-            start = Some(start_time.lock().unwrap().unwrap());
-            debug!("start"; "start" => ?start.unwrap());
-        }
+        let mut new_dimensions = None;
+        let mut refresh_decorations = false;
 
-        match event {
-            RenderThreadEvent::Exit => break,
-            RenderThreadEvent::Redraw { new_dimensions } => {
-                scoped_tracepoint!(_redraw_event);
+        // debug!("rendering thread iteration"; "next_action" => ?next_action);
 
-                // Update the dimensions if needed.
+        match next_action.take() {
+            Some(WEvent::Close) => break,
+            Some(WEvent::Refresh) => {
+                refresh_decorations = true;
+            }
+            Some(WEvent::Configure { new_size, .. }) => {
+                trace!("configure"; "new_size" => ?new_size);
+
+                new_dimensions = new_size;
+                refresh_decorations = true;
+
+                if !received_configure {
+                    received_configure = true;
+                    need_redraw.set(true);
+                }
+
                 if let Some(new_dimensions) = new_dimensions {
-                    if new_dimensions != dimensions {
+                    if dimensions != new_dimensions {
                         dimensions = new_dimensions;
+                        window.resize(dimensions.0, dimensions.1);
                         backend.borrow_mut().resize(dimensions);
                     }
                 }
-
-                state_buffer.raw_update();
-                let state = state_buffer.raw_output_buffer();
-
-                let current_time = clock_gettime(clk_id.unwrap());
-                let elapsed = current_time - start.unwrap();
-                let target_time = if disable_frame_scheduling {
-                    elapsed
-                } else {
-                    frame_scheduler.get_target_time(current_time) - start.unwrap()
-                };
-
-                trace!(
-                    "starting render";
-                    "elapsed" => ?elapsed,
-                    "target_time" => ?target_time
-                );
-
-                {
-                    let frame_scheduler = frame_scheduler.clone();
-                    let render_start_time = current_time;
-
-                    wp_presentation.feedback(&surface).quick_assign(
-                        move |_, event, _| match event {
-                            wp_presentation_feedback::Event::Discarded => {
-                                warn!(
-                                    "frame discarded";
-                                    "target_time" => ?target_time
-                                );
-                            }
-                            wp_presentation_feedback::Event::Presented {
-                                tv_sec_hi,
-                                tv_sec_lo,
-                                tv_nsec,
-                                refresh,
-                                ..
-                            } => {
-                                let last_presentation = Duration::new(
-                                    (u64::from(tv_sec_hi) << 32) | u64::from(tv_sec_lo),
-                                    tv_nsec,
-                                );
-                                let refresh_time = Duration::new(0, refresh);
-
-                                frame_scheduler.presented(
-                                    render_start_time,
-                                    last_presentation,
-                                    refresh_time,
-                                );
-
-                                let presentation_time = last_presentation - start.unwrap();
-                                let (presentation_latency, sign) = presentation_time
-                                    .checked_sub(target_time)
-                                    .map(|x| (x, ""))
-                                    .unwrap_or_else(|| (target_time - presentation_time, "-"));
-
-                                trace!(
-                                    "frame presented";
-                                    "elapsed" => ?elapsed,
-                                    "target_time" => ?target_time,
-                                    "presentation_time" => ?presentation_time,
-                                    "presentation_latency"
-                                        => &format!("{}{:?}", sign, presentation_latency),
-                                    "refresh" => ?refresh_time
-                                );
-                            }
-                            _ => (),
-                        },
-                    );
-                }
-
-                renderer.render(
-                    dimensions,
-                    target_time,
-                    state,
-                    fix_osu_timing_line_animations,
-                );
             }
+            None => {}
+        }
+
+        if refresh_decorations {
+            window.refresh();
+        }
+
+        if need_redraw.get() || new_dimensions.is_some() {
+            scoped_tracepoint!(_redraw_handler);
+
+            need_redraw.set(false);
+
+            if start.is_none() {
+                clk_id = Some(*presentation_clock_id.lock().unwrap());
+                start = Some(start_time.lock().unwrap().unwrap());
+                debug!("start"; "start" => ?start.unwrap());
+            } else if start_time.lock().unwrap().unwrap() != start.unwrap() {
+                start = Some(start_time.lock().unwrap().unwrap());
+                debug!("start"; "start" => ?start.unwrap());
+            }
+
+            state_buffer.raw_update();
+            let state = state_buffer.raw_output_buffer();
+
+            let current_time = clock_gettime(clk_id.unwrap());
+            let elapsed = current_time - start.unwrap();
+            let target_time = if disable_frame_scheduling {
+                elapsed
+            } else {
+                frame_scheduler.get_target_time(current_time) - start.unwrap()
+            };
+
+            trace!(
+                "starting render";
+                "elapsed" => ?elapsed,
+                "target_time" => ?target_time
+            );
+
+            {
+                let frame_scheduler = frame_scheduler.clone();
+                let render_start_time = current_time;
+
+                wp_presentation
+                    .feedback(window.surface())
+                    .quick_assign(move |_, event, _| match event {
+                        wp_presentation_feedback::Event::Discarded => {
+                            warn!(
+                                "frame discarded";
+                                "target_time" => ?target_time
+                            );
+                        }
+                        wp_presentation_feedback::Event::Presented {
+                            tv_sec_hi,
+                            tv_sec_lo,
+                            tv_nsec,
+                            refresh,
+                            ..
+                        } => {
+                            let last_presentation = Duration::new(
+                                (u64::from(tv_sec_hi) << 32) | u64::from(tv_sec_lo),
+                                tv_nsec,
+                            );
+                            let refresh_time = Duration::new(0, refresh);
+
+                            frame_scheduler.presented(
+                                render_start_time,
+                                last_presentation,
+                                refresh_time,
+                            );
+
+                            let presentation_time = last_presentation - start.unwrap();
+                            let (presentation_latency, sign) = presentation_time
+                                .checked_sub(target_time)
+                                .map(|x| (x, ""))
+                                .unwrap_or_else(|| (target_time - presentation_time, "-"));
+
+                            trace!(
+                                "frame presented";
+                                "elapsed" => ?elapsed,
+                                "target_time" => ?target_time,
+                                "presentation_time" => ?presentation_time,
+                                "presentation_latency"
+                                    => &format!("{}{:?}", sign, presentation_latency),
+                                "refresh" => ?refresh_time
+                            );
+                        }
+                        _ => (),
+                    });
+            }
+
+            renderer.render(
+                dimensions,
+                target_time,
+                state,
+                fix_osu_timing_line_animations,
+            );
         }
     }
+
+    signal_exit.send(()).unwrap();
 }
