@@ -186,6 +186,10 @@ pub struct Qua {
     pub difficulty_name: Option<String>,
     #[serde(rename = "AudioFile")]
     pub audio_file: Option<String>,
+    #[serde(default, rename = "BPMDoesNotAffectScrollVelocity")]
+    pub bpm_does_not_affect_scroll_velocity: bool,
+    #[serde(default, rename = "InitialScrollVelocity")]
+    pub initial_scroll_velocity: f32,
     #[serde(rename = "TimingPoints")]
     pub timing_points: Vec<TimingPoint>,
     #[serde(rename = "SliderVelocities")]
@@ -412,6 +416,8 @@ impl From<Map> for Qua {
             difficulty_name: map.difficulty_name,
             creator: map.mapper,
             audio_file: map.audio_file,
+            bpm_does_not_affect_scroll_velocity: false,
+            initial_scroll_velocity: 0.,
             timing_points: map.timing_points.into_iter().map(Into::into).collect(),
             slider_velocities: Vec::new(),
             hit_objects: map

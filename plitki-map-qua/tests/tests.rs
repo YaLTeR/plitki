@@ -26,6 +26,8 @@ fn parse_sample() {
         difficulty_name: Some("Easy".to_owned()),
         creator: Some("YaLTeR".to_owned()),
         audio_file: Some("song.mp3".to_owned()),
+        bpm_does_not_affect_scroll_velocity: false,
+        initial_scroll_velocity: 0.,
         timing_points: vec![
             TimingPoint {
                 start_time: 0.,
@@ -264,6 +266,8 @@ fn base_bpm_no_durations() {
         creator: None,
         difficulty_name: None,
         audio_file: None,
+        bpm_does_not_affect_scroll_velocity: false,
+        initial_scroll_velocity: 0.,
         timing_points: vec![
             TimingPoint {
                 start_time: 100.0,
@@ -299,6 +303,8 @@ fn timing_points_override_svs() {
         creator: None,
         difficulty_name: None,
         audio_file: None,
+        bpm_does_not_affect_scroll_velocity: false,
+        initial_scroll_velocity: 0.,
         timing_points: vec![
             TimingPoint {
                 start_time: 0.0,
@@ -395,6 +401,8 @@ fn sv_before_first_timing_point() {
         creator: None,
         difficulty_name: None,
         audio_file: None,
+        bpm_does_not_affect_scroll_velocity: false,
+        initial_scroll_velocity: 0.,
         timing_points: vec![TimingPoint {
             start_time: 0.0,
             bpm: 1.0,
@@ -448,6 +456,8 @@ fn sv_at_first_timing_point() {
         creator: None,
         difficulty_name: None,
         audio_file: None,
+        bpm_does_not_affect_scroll_velocity: false,
+        initial_scroll_velocity: 0.,
         timing_points: vec![TimingPoint {
             start_time: 0.0,
             bpm: 1.0,
@@ -498,6 +508,8 @@ fn sv_too_large() {
         creator: None,
         difficulty_name: None,
         audio_file: None,
+        bpm_does_not_affect_scroll_velocity: false,
+        initial_scroll_velocity: 0.,
         timing_points: vec![
             TimingPoint {
                 start_time: 0.0,
@@ -565,6 +577,8 @@ fn proptest_regression_1() {
         creator: None,
         difficulty_name: None,
         audio_file: None,
+        bpm_does_not_affect_scroll_velocity: false,
+        initial_scroll_velocity: 0.,
         timing_points: vec![TimingPoint {
             start_time: 0.0,
             bpm: 1.0,
@@ -592,6 +606,8 @@ fn proptest_regression_2() {
         creator: None,
         difficulty_name: None,
         audio_file: None,
+        bpm_does_not_affect_scroll_velocity: false,
+        initial_scroll_velocity: 0.,
         timing_points: vec![TimingPoint {
             start_time: 0.0,
             bpm: 1.0,
@@ -622,6 +638,8 @@ fn proptest_regression_3() {
         creator: None,
         difficulty_name: None,
         audio_file: None,
+        bpm_does_not_affect_scroll_velocity: false,
+        initial_scroll_velocity: 0.,
         timing_points: vec![TimingPoint {
             start_time: 0.0,
             bpm: 1.0,
@@ -653,6 +671,8 @@ fn proptest_regression_4() {
         creator: None,
         difficulty_name: None,
         audio_file: None,
+        bpm_does_not_affect_scroll_velocity: false,
+        initial_scroll_velocity: 0.,
         timing_points: vec![TimingPoint {
             start_time: 0.0,
             bpm: 1.0,
@@ -696,6 +716,8 @@ fn proptest_regression_5() {
         creator: None,
         difficulty_name: None,
         audio_file: None,
+        bpm_does_not_affect_scroll_velocity: false,
+        initial_scroll_velocity: 0.,
         timing_points: vec![
             TimingPoint {
                 start_time: 0.0,
@@ -744,6 +766,8 @@ fn proptest_regression_6() {
         creator: None,
         difficulty_name: None,
         audio_file: None,
+        bpm_does_not_affect_scroll_velocity: false,
+        initial_scroll_velocity: 0.,
         timing_points: vec![
             TimingPoint {
                 start_time: -37700.0,
@@ -792,6 +816,8 @@ fn proptest_regression_7() {
         creator: None,
         difficulty_name: None,
         audio_file: None,
+        bpm_does_not_affect_scroll_velocity: false,
+        initial_scroll_velocity: 0.,
         timing_points: vec![
             TimingPoint {
                 start_time: -83000.0,
@@ -836,6 +862,8 @@ fn proptest_regression_8() {
         creator: None,
         difficulty_name: None,
         audio_file: None,
+        bpm_does_not_affect_scroll_velocity: false,
+        initial_scroll_velocity: 0.,
         timing_points: vec![
             TimingPoint {
                 start_time: -98800.0,
@@ -1191,6 +1219,8 @@ fn normalize_svs_test() {
         creator: None,
         difficulty_name: None,
         audio_file: None,
+        bpm_does_not_affect_scroll_velocity: false,
+        initial_scroll_velocity: 0.,
         timing_points: vec![TimingPoint {
             start_time: 0.0,
             bpm: 1.0,
@@ -1314,6 +1344,8 @@ prop_compose! {
             creator,
             difficulty_name,
             audio_file,
+            bpm_does_not_affect_scroll_velocity: false,
+            initial_scroll_velocity: 0.,
             hit_objects,
             timing_points,
             slider_velocities,
