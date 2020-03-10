@@ -137,6 +137,26 @@ pub struct SliderVelocity {
     pub multiplier: f32,
 }
 
+impl From<SliderVelocity> for ScrollSpeedChange {
+    #[inline]
+    fn from(x: SliderVelocity) -> Self {
+        Self {
+            timestamp: MapTimestamp::from_milli_hundredths((x.start_time * 100.) as i32),
+            multiplier: ScrollSpeedMultiplier::saturating_from_f32(x.multiplier),
+        }
+    }
+}
+
+impl From<ScrollSpeedChange> for SliderVelocity {
+    #[inline]
+    fn from(x: ScrollSpeedChange) -> Self {
+        Self {
+            start_time: x.timestamp.into_milli_hundredths() as f32 / 100.,
+            multiplier: x.multiplier.as_f32(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub struct HitObject {
     #[serde(default, rename = "StartTime")]
@@ -376,15 +396,6 @@ impl From<Qua> for Map {
         // TODO: this shouldn't panic and should probably be TryFrom instead.
         qua.normalize_svs();
 
-        let scroll_speed_changes = qua
-            .slider_velocities
-            .drain(..)
-            .map(|sv| ScrollSpeedChange {
-                timestamp: MapTimestamp::from_milli_hundredths((sv.start_time * 100.) as i32),
-                multiplier: ScrollSpeedMultiplier::saturating_from_f32(sv.multiplier),
-            })
-            .collect();
-
         let mut lanes = vec![Lane::new(); qua.lane_count()];
         for hit_object in qua.hit_objects.drain(..) {
             assert!(hit_object.lane > 0);
@@ -400,7 +411,7 @@ impl From<Qua> for Map {
             mapper: qua.creator,
             audio_file: qua.audio_file,
             timing_points: qua.timing_points.into_iter().map(Into::into).collect(),
-            scroll_speed_changes,
+            scroll_speed_changes: qua.slider_velocities.into_iter().map(Into::into).collect(),
             initial_scroll_speed_multiplier: ScrollSpeedMultiplier::saturating_from_f32(
                 qua.initial_scroll_velocity,
             ),
