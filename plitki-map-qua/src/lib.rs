@@ -266,48 +266,47 @@ impl Qua {
             f32::from_bits(bits)
         }
     }
-}
 
-impl From<Qua> for Map {
-    #[inline]
-    fn from(mut qua: Qua) -> Self {
-        // TODO: this shouldn't panic and should probably be TryFrom instead.
-        qua.timing_points
+    /// Converts slider velocities to the normalized form (BPM does not affect SV).
+    pub fn normalize_svs(&mut self) {
+        if self.bpm_does_not_affect_scroll_velocity {
+            // Already normalized.
+            return;
+        }
+
+        self.timing_points
             .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
-        qua.slider_velocities
+        self.slider_velocities
             .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
 
         // TODO: this fallback isn't really justified...
-        let base_bpm = if qua.hit_objects.is_empty() {
-            qua.timing_points[0].bpm
+        let base_bpm = if self.hit_objects.is_empty() {
+            self.timing_points[0].bpm
         } else {
-            qua.base_bpm()
+            self.base_bpm()
         };
 
-        let mut timing_points = Vec::with_capacity(qua.timing_points.len());
-
         let mut scroll_speed_changes = Vec::new();
-        let mut current_bpm = qua.timing_points.first().unwrap().bpm;
+        let mut current_bpm = self.timing_points.first().unwrap().bpm;
         let mut current_sv_index = 0;
         let mut current_sv_start_time = None;
         let mut current_sv_multiplier = 1.;
         let mut current_adjusted_sv_multiplier = None;
         let mut initial_scroll_speed_multiplier = None;
 
-        for timing_point in qua.timing_points.drain(..) {
+        for timing_point in &self.timing_points {
             loop {
-                if current_sv_index >= qua.slider_velocities.len() {
+                if current_sv_index >= self.slider_velocities.len() {
                     break;
                 }
 
-                let sv = qua.slider_velocities[current_sv_index];
+                let sv = self.slider_velocities[current_sv_index];
                 if sv.start_time > timing_point.start_time {
                     break;
                 }
 
                 if sv.start_time < timing_point.start_time {
-                    let multiplier =
-                        ScrollSpeedMultiplier::from_f32(sv.multiplier * (current_bpm / base_bpm));
+                    let multiplier = sv.multiplier * (current_bpm / base_bpm);
 
                     if current_adjusted_sv_multiplier.is_none() {
                         current_adjusted_sv_multiplier = Some(multiplier);
@@ -315,10 +314,8 @@ impl From<Qua> for Map {
                     }
 
                     if multiplier != current_adjusted_sv_multiplier.unwrap() {
-                        scroll_speed_changes.push(ScrollSpeedChange {
-                            timestamp: MapTimestamp::from_milli_hundredths(
-                                (sv.start_time * 100.) as i32,
-                            ),
+                        scroll_speed_changes.push(SliderVelocity {
+                            start_time: sv.start_time,
                             multiplier,
                         });
                         current_adjusted_sv_multiplier = Some(multiplier);
@@ -340,9 +337,7 @@ impl From<Qua> for Map {
 
             current_bpm = timing_point.bpm;
 
-            let multiplier = ScrollSpeedMultiplier::saturating_from_f32(
-                current_sv_multiplier * (current_bpm / base_bpm),
-            );
+            let multiplier = current_sv_multiplier * (current_bpm / base_bpm);
 
             if current_adjusted_sv_multiplier.is_none() {
                 current_adjusted_sv_multiplier = Some(multiplier);
@@ -350,30 +345,45 @@ impl From<Qua> for Map {
             }
 
             if multiplier != current_adjusted_sv_multiplier.unwrap() {
-                scroll_speed_changes.push(ScrollSpeedChange {
-                    timestamp: MapTimestamp::from_milli_hundredths(
-                        (timing_point.start_time * 100.) as i32,
-                    ),
+                scroll_speed_changes.push(SliderVelocity {
+                    start_time: timing_point.start_time,
                     multiplier,
                 });
                 current_adjusted_sv_multiplier = Some(multiplier);
             }
-
-            timing_points.push(timing_point.into());
         }
 
-        for sv in &qua.slider_velocities[current_sv_index..] {
-            let multiplier = ScrollSpeedMultiplier::saturating_from_f32(
-                sv.multiplier * (current_bpm / base_bpm),
-            );
+        for sv in &self.slider_velocities[current_sv_index..] {
+            let multiplier = sv.multiplier * (current_bpm / base_bpm);
             if multiplier != current_adjusted_sv_multiplier.unwrap() {
-                scroll_speed_changes.push(ScrollSpeedChange {
-                    timestamp: MapTimestamp::from_milli_hundredths((sv.start_time * 100.) as i32),
+                scroll_speed_changes.push(SliderVelocity {
+                    start_time: sv.start_time,
                     multiplier,
                 });
                 current_adjusted_sv_multiplier = Some(multiplier);
             }
         }
+
+        self.bpm_does_not_affect_scroll_velocity = true;
+        self.initial_scroll_velocity = initial_scroll_speed_multiplier.unwrap_or(1.);
+        self.slider_velocities = scroll_speed_changes;
+    }
+}
+
+impl From<Qua> for Map {
+    #[inline]
+    fn from(mut qua: Qua) -> Self {
+        // TODO: this shouldn't panic and should probably be TryFrom instead.
+        qua.normalize_svs();
+
+        let scroll_speed_changes = qua
+            .slider_velocities
+            .drain(..)
+            .map(|sv| ScrollSpeedChange {
+                timestamp: MapTimestamp::from_milli_hundredths((sv.start_time * 100.) as i32),
+                multiplier: ScrollSpeedMultiplier::saturating_from_f32(sv.multiplier),
+            })
+            .collect();
 
         let mut lanes = vec![Lane::new(); qua.lane_count()];
         for hit_object in qua.hit_objects.drain(..) {
@@ -389,9 +399,11 @@ impl From<Qua> for Map {
             difficulty_name: qua.difficulty_name,
             mapper: qua.creator,
             audio_file: qua.audio_file,
-            timing_points,
+            timing_points: qua.timing_points.into_iter().map(Into::into).collect(),
             scroll_speed_changes,
-            initial_scroll_speed_multiplier: initial_scroll_speed_multiplier.unwrap_or_default(),
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::saturating_from_f32(
+                qua.initial_scroll_velocity,
+            ),
             lanes,
         }
     }
