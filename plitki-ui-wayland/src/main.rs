@@ -23,7 +23,7 @@ use rust_hawktracer::*;
 use slog::{o, Drain};
 use slog_scope::{debug, info, trace, warn};
 use smithay_client_toolkit::{
-    default_environment, init_default_environment,
+    default_environment, new_default_environment,
     reexports::client::{
         protocol::{
             wl_pointer::{self, ButtonState},
@@ -31,7 +31,7 @@ use smithay_client_toolkit::{
         },
         Attached, Display, Main,
     },
-    seat::keyboard::{keysyms, map_keyboard, Event as KbEvent, KeyState, RepeatKind},
+    seat::keyboard::{keysyms, map_keyboard_repeat, Event as KbEvent, KeyState, RepeatKind},
     window::{ConceptFrame, Event as WEvent},
     WaylandSource,
 };
@@ -153,18 +153,17 @@ fn main() {
     let (buf_input, buf_output) = state_buffer.split();
     let game_state_pair = Rc::new(RefCell::new((latest_game_state, buf_input)));
 
-    let (env, display, event_queue) = init_default_environment!(Environment, desktop)
+    let (env, display, event_queue) = new_default_environment!(Environment, desktop)
         .expect("Failed to connect to the wayland server.");
 
     let mut event_loop = EventLoop::<Option<WEvent>>::new().unwrap();
-    let surface = env.create_surface_with_scale_callback(|new_dpi, _, _| {
-        debug!("DPI changed"; "dpi" => new_dpi);
-    });
+    let surface = env.create_surface().detach();
 
     const INITIAL_DIMENSIONS: (u32, u32) = (640, 360);
     let mut window = env
         .create_window::<ConceptFrame, _>(
             surface,
+            None,
             INITIAL_DIMENSIONS, // the initial internal dimensions of the window
             move |evt, mut dispatch_data| {
                 let next_action = dispatch_data.get::<Option<WEvent>>().unwrap();
@@ -232,7 +231,8 @@ fn main() {
         let start = start.clone();
         let game_state_pair = game_state_pair.clone();
 
-        let (_, repeat_source) = map_keyboard(
+        let _ = map_keyboard_repeat(
+            event_loop.handle(),
             &seat,
             None,
             RepeatKind::System,
@@ -391,11 +391,6 @@ fn main() {
             },
         )
         .expect("Failed to map keyboard");
-
-        event_loop
-            .handle()
-            .insert_source(repeat_source, |_, _| {})
-            .unwrap();
     }
 
     let current_dimensions = Rc::new(Cell::new(INITIAL_DIMENSIONS));
@@ -595,13 +590,8 @@ fn main() {
     // to force redrawing on the first configure.
     let mut received_configure = false;
 
-    let _ = event_loop
-        .handle()
-        .insert_source(WaylandSource::new(event_queue), |ret, _| {
-            if let Err(e) = ret {
-                panic!("Wayland connection lost: {:?}", e);
-            }
-        })
+    WaylandSource::new(event_queue)
+        .quick_insert(event_loop.handle())
         .unwrap();
 
     let mut next_action = None;

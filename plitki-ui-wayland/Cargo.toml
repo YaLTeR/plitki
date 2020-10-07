@@ -5,8 +5,8 @@ authors = ["Ivan Molodetskikh <yalterz@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-wayland-client = { git = "https://github.com/Smithay/wayland-rs", features = [ "dlopen" ] } # dlopen required due to glutin
-smithay-client-toolkit = { git = "https://github.com/Smithay/client-toolkit.git" }
+wayland-client = { version = "0.28.0", features = [ "dlopen" ] } # dlopen required due to glutin
+smithay-client-toolkit = "0.12.0"
 byteorder = "1"
 slog = "2.5.2"
 slog-term = "2.4.1"
@@ -19,14 +19,14 @@ plitki-core = { path = "../plitki-core" }
 plitki-map-qua = { path = "../plitki-map-qua" }
 triple_buffer = { version = "5.0.0", features = [ "raw" ] }
 cgmath = "0.17.0"
-wayland-protocols = { git = "https://github.com/Smithay/wayland-rs" }
+wayland-protocols = "0.28.0"
 libc = "0.2.61"
 slog-scope = "4.1.2"
 palette = "0.4.1"
 rodio = "0.9.0"
 structopt = "0.3"
 rust_hawktracer = "0.5.0"
-calloop = { git = "https://github.com/Smithay/calloop" }
+calloop = "0.6.5"
 
 [features]
 profiling = ["rust_hawktracer/profiling_enabled"]
