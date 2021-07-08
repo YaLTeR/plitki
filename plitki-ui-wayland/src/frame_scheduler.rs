@@ -1,9 +1,10 @@
 use std::{
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        Arc, Mutex,
+    },
     time::Duration,
 };
-
-use slog_scope::warn;
 
 /// Information about the last presentation.
 #[derive(Debug, Clone)]
@@ -12,16 +13,6 @@ struct PresentationInfo {
     last_presentation: Duration,
     /// Time between successive presentations.
     refresh_time: Duration,
-    /// Latency, in presentations.
-    ///
-    /// This is computed as the number of presentations between the first presentation after a
-    /// render start time and the presentation where the frame is actually shown. For example, if
-    /// this is `0`, the frame is predicted to be shown on the next presentation after the render
-    /// start time. If this is `1`, the frame will be delayed to one presentation after that.
-    ///
-    /// Note that this latency, as it is, includes both any compositor-induced latency, and the
-    /// latency arising from rendering simply taking a long time (e.g. with an FPS cap).
-    latency: u32,
 }
 
 /// Scheduler that computes target rendering time.
@@ -29,6 +20,8 @@ struct PresentationInfo {
 pub struct FrameScheduler {
     /// Information about the last presentation.
     presentation_info: Arc<Mutex<Option<PresentationInfo>>>,
+    /// Number of commits that haven't received presentation feedback yet.
+    pending_commits: Arc<AtomicU32>,
 }
 
 impl FrameScheduler {
@@ -36,49 +29,26 @@ impl FrameScheduler {
     pub fn new() -> Self {
         Self {
             presentation_info: Arc::new(Mutex::new(None)),
+            pending_commits: Arc::new(AtomicU32::new(0)),
         }
+    }
+
+    /// Informs the frame scheduler that a frame has been discarded.
+    pub fn discarded(&self) {
+        self.pending_commits.fetch_sub(1, Ordering::Relaxed);
     }
 
     /// Informs the frame scheduler that a frame has been presented.
     ///
-    /// A frame which started rendering at `render_start_time` has been presented at
-    /// `presentation_time`, with the reported `refresh_time` until the next presentation.
-    pub fn presented(
-        &self,
-        render_start_time: Duration,
-        presentation_time: Duration,
-        refresh_time: Duration,
-    ) {
-        let mut first_refresh_after_render_start = presentation_time - refresh_time;
-        let mut latency = 1;
-        while first_refresh_after_render_start > render_start_time {
-            first_refresh_after_render_start -= refresh_time;
-            latency += 1;
-        }
-        first_refresh_after_render_start += refresh_time;
-        latency -= 1;
+    /// A frame has been presented at `presentation_time`, with the reported `refresh_time` until
+    /// the next presentation.
+    pub fn presented(&self, presentation_time: Duration, refresh_time: Duration) {
+        self.pending_commits.fetch_sub(1, Ordering::Relaxed);
 
         let mut guard = self.presentation_info.lock().unwrap();
-
-        if let Some(old_info) = &*guard {
-            if old_info.latency != latency {
-                warn!(
-                    "latency changed";
-                    "old latency" => ?(old_info.latency * old_info.refresh_time),
-                    "new latency" => ?(latency * refresh_time),
-                );
-            }
-        } else {
-            warn!(
-                "latency set";
-                "new latency" => ?(latency * refresh_time),
-            );
-        }
-
         *guard = Some(PresentationInfo {
             last_presentation: presentation_time,
             refresh_time,
-            latency,
         });
     }
 
@@ -96,14 +66,19 @@ impl FrameScheduler {
         let PresentationInfo {
             last_presentation,
             refresh_time,
-            latency,
         } = presentation_info.unwrap();
 
-        let mut next_refresh = last_presentation;
+        let pending_commits = self.pending_commits.load(Ordering::Relaxed);
+        let mut next_refresh = last_presentation + refresh_time * (pending_commits + 1);
         while next_refresh < render_start_time {
             next_refresh += refresh_time;
         }
 
-        next_refresh + refresh_time * latency
+        next_refresh
+    }
+
+    /// Informs the frame scheduler that a frame has been committed.
+    pub fn commit(&self) {
+        self.pending_commits.fetch_add(1, Ordering::Relaxed);
     }
 }

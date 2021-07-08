@@ -792,7 +792,6 @@ fn render_thread(
 
                 {
                     let frame_scheduler = frame_scheduler.clone();
-                    let render_start_time = current_time;
 
                     wp_presentation.feedback(&surface).quick_assign(
                         move |_, event, _| match event {
@@ -801,6 +800,8 @@ fn render_thread(
                                     "frame discarded";
                                     "target_time" => ?target_time
                                 );
+
+                                frame_scheduler.discarded();
                             }
                             wp_presentation_feedback::Event::Presented {
                                 tv_sec_hi,
@@ -815,11 +816,7 @@ fn render_thread(
                                 );
                                 let refresh_time = Duration::new(0, refresh);
 
-                                frame_scheduler.presented(
-                                    render_start_time,
-                                    last_presentation,
-                                    refresh_time,
-                                );
+                                frame_scheduler.presented(last_presentation, refresh_time);
 
                                 let presentation_time = last_presentation - start.unwrap();
                                 let (presentation_latency, sign) = presentation_time
@@ -841,6 +838,8 @@ fn render_thread(
                         },
                     );
                 }
+
+                frame_scheduler.commit();
 
                 renderer.render(
                     dimensions,
