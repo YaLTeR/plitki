@@ -808,6 +808,8 @@ fn render_thread(
                                 tv_sec_lo,
                                 tv_nsec,
                                 refresh,
+                                seq_hi,
+                                seq_lo,
                                 ..
                             } => {
                                 let last_presentation = Duration::new(
@@ -831,7 +833,8 @@ fn render_thread(
                                     "presentation_time" => ?presentation_time,
                                     "presentation_latency"
                                         => &format!("{}{:?}", sign, presentation_latency),
-                                    "refresh" => ?refresh_time
+                                    "refresh" => ?refresh_time,
+                                    "sequence" => (u64::from(seq_hi) << 32) | u64::from(seq_lo),
                                 );
                             }
                             _ => (),
