@@ -770,6 +770,7 @@ fn main() {
     info!("hit statistics"; "average hit difference" => average_hit_difference);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_thread(
     display: Display,
     surface: WlSurface,
