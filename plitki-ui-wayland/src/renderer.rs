@@ -648,6 +648,7 @@ impl<'a> SingleFrameRenderer<'a> {
             self.note_height
         };
 
+        #[allow(clippy::collapsible_else_if)]
         let mut color = if self.state.lane_states.len() == 4 {
             if lane == 0 || lane == 3 {
                 Srgba::new(1., 1., 1., 1.)

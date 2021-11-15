@@ -168,18 +168,17 @@ fn main() {
             move |evt, mut dispatch_data| {
                 let next_action = dispatch_data.get::<Option<WEvent>>().unwrap();
                 // Check if we need to replace the old event by the new one.
-                let replace = match (&evt, &*next_action) {
-                // replace if there is no old event
-                (_, &None)
-                // or the old event is refresh
-                | (_, &Some(WEvent::Refresh))
-                // or we had a configure and received a new one
-                | (&WEvent::Configure { .. }, &Some(WEvent::Configure { .. }))
-                // or the new event is close
-                | (&WEvent::Close, _) => true,
-                // keep the old event otherwise
-                _ => false,
-            };
+                let replace = matches!(
+                    (&evt, &*next_action),
+                    // replace if there is no old event
+                    (_, &None)
+                    // or the old event is refresh
+                    | (_, &Some(WEvent::Refresh))
+                    // or we had a configure and received a new one
+                    | (&WEvent::Configure { .. }, &Some(WEvent::Configure { .. }))
+                    // or the new event is close
+                    | (&WEvent::Close, _)
+                );
                 if replace {
                     *next_action = Some(evt);
                 }
@@ -233,7 +232,7 @@ fn main() {
 
         let _ = map_keyboard_repeat(
             event_loop.handle(),
-            &seat,
+            seat,
             None,
             RepeatKind::System,
             move |event: KbEvent, _, _| match event {
@@ -404,7 +403,7 @@ fn main() {
         let start = start.clone();
         let mut mouse_on_main_surface = false;
         let mut mouse_x = 0.;
-        let mut mouse_y = 0.;
+        let mut _mouse_y = 0.;
         let mut holding_left_mouse_button = false;
 
         seat.get_pointer().quick_assign(move |_, evt, _| {
@@ -466,7 +465,7 @@ fn main() {
                         );
                         mouse_on_main_surface = true;
                         mouse_x = surface_x;
-                        mouse_y = surface_y;
+                        _mouse_y = surface_y;
                     }
                 }
                 wl_pointer::Event::Leave { surface, .. } => {
@@ -481,7 +480,7 @@ fn main() {
                     ..
                 } if mouse_on_main_surface => {
                     mouse_x = surface_x;
-                    mouse_y = surface_y;
+                    _mouse_y = surface_y;
 
                     if holding_left_mouse_button {
                         set_playback_position(mouse_x);
