@@ -7,7 +7,7 @@ use circular_queue::CircularQueue;
 use crate::{
     map::Map,
     object::Object,
-    scroll::{Position, ScrollSpeed},
+    scroll::Position,
     timing::{
         GameTimestamp, GameTimestampDifference, MapTimestamp, MapTimestampDifference,
         TimestampConverter,
@@ -21,15 +21,6 @@ pub struct GameState {
     ///
     /// Stored in an `Arc` so it doesn't have to be cloned.
     pub immutable: Arc<ImmutableGameState>,
-    // TODO: extract unrelated fields out.
-    /// If `true`, heavily limit the FPS for testing.
-    pub cap_fps: bool,
-    /// Note scrolling speed.
-    pub scroll_speed: ScrollSpeed,
-    /// If `true`, disable scroll speed changes.
-    pub no_scroll_speed_changes: bool,
-    /// If `true`, draws two playfields, one regular and another without scroll speed changes.
-    pub two_playfields: bool,
     /// Converter between game timestamps and map timestamps.
     pub timestamp_converter: TimestampConverter,
     /// Contains states of the objects in lanes.
@@ -366,10 +357,6 @@ impl GameState {
 
         Self {
             immutable: Arc::new(immutable),
-            cap_fps: false,
-            scroll_speed: ScrollSpeed(32),
-            no_scroll_speed_changes: false,
-            two_playfields: false,
             timestamp_converter,
             lane_states,
             last_hits: CircularQueue::with_capacity(32),
@@ -403,10 +390,6 @@ impl GameState {
     /// Panics if the `latest` state is older than `self` (as indicated by `first_active_object` in
     /// one of the lane states being bigger than the one in the `latest` state).
     pub fn update_to_latest(&mut self, latest: &GameState) {
-        self.cap_fps = latest.cap_fps;
-        self.scroll_speed = latest.scroll_speed;
-        self.no_scroll_speed_changes = latest.no_scroll_speed_changes;
-        self.two_playfields = latest.two_playfields;
         self.timestamp_converter = latest.timestamp_converter;
         self.last_hits = latest.last_hits.clone();
 
@@ -1213,10 +1196,8 @@ mod tests {
         let mut state = GameState::new(map);
 
         let mut state2 = state.clone();
-        state2.cap_fps = true;
         state2.timestamp_converter.global_offset = GameTimestampDifference::from_millis(10_000);
         state2.timestamp_converter.local_offset = MapTimestampDifference::from_millis(20_000);
-        state2.scroll_speed = ScrollSpeed(5);
         state2.lane_states[0].first_active_object = 1;
         state2.lane_states[0].object_states[0] = ObjectState::Regular(RegularObjectState::Hit {
             difference: GameTimestampDifference::from_millis(0),

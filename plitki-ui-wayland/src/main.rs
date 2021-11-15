@@ -14,6 +14,7 @@ use std::{
 use calloop::EventLoop;
 use plitki_core::{
     map::Map,
+    scroll::ScrollSpeed,
     state::{GameState, LongNoteState, ObjectState, RegularObjectState},
     timing::{GameTimestamp, GameTimestampDifference, MapTimestampDifference},
 };
@@ -89,6 +90,39 @@ struct Opt {
 
 default_environment!(Environment, desktop);
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct State {
+    pub game_state: GameState,
+    /// If `true`, heavily limit the FPS for testing.
+    pub cap_fps: bool,
+    /// Note scrolling speed.
+    pub scroll_speed: ScrollSpeed,
+    /// If `true`, disable scroll speed changes.
+    pub no_scroll_speed_changes: bool,
+    /// If `true`, draws two playfields, one regular and another without scroll speed changes.
+    pub two_playfields: bool,
+}
+
+impl State {
+    fn new(map: Map) -> Self {
+        Self {
+            game_state: GameState::new(map),
+            cap_fps: false,
+            scroll_speed: ScrollSpeed(32),
+            no_scroll_speed_changes: false,
+            two_playfields: false,
+        }
+    }
+
+    fn update_to_latest(&mut self, latest: &State) {
+        self.game_state.update_to_latest(&latest.game_state);
+        self.cap_fps = latest.cap_fps;
+        self.scroll_speed = latest.scroll_speed;
+        self.no_scroll_speed_changes = latest.no_scroll_speed_changes;
+        self.two_playfields = latest.two_playfields;
+    }
+}
+
 fn main() {
     better_panic::install();
 
@@ -143,15 +177,15 @@ fn main() {
     // The latest game state on the main thread. Main thread uses this for updates relying on
     // previous game state (for example, toggling a bool), and then refreshes the triple buffered
     // state accordingly.
-    let mut latest_game_state = GameState::new(map);
-    latest_game_state.timestamp_converter.global_offset =
+    let mut latest_state = State::new(map);
+    latest_state.game_state.timestamp_converter.global_offset =
         GameTimestampDifference::from_millis(i32::from(opt.global_offset));
-    latest_game_state.timestamp_converter.local_offset =
+    latest_state.game_state.timestamp_converter.local_offset =
         MapTimestampDifference::from_millis(i32::from(opt.local_offset));
 
-    let state_buffer = TripleBuffer::new(latest_game_state.clone());
+    let state_buffer = TripleBuffer::new(latest_state.clone());
     let (buf_input, buf_output) = state_buffer.split();
-    let game_state_pair = Rc::new(RefCell::new((latest_game_state, buf_input)));
+    let state_pair = Rc::new(RefCell::new((latest_state, buf_input)));
 
     let (env, display, event_queue) = new_default_environment!(Environment, desktop)
         .expect("Failed to connect to the wayland server.");
@@ -228,7 +262,7 @@ fn main() {
     {
         let presentation_clock_id = presentation_clock_id.clone();
         let start = start.clone();
-        let game_state_pair = game_state_pair.clone();
+        let state_pair = state_pair.clone();
 
         let _ = map_keyboard_repeat(
             event_loop.handle(),
@@ -258,111 +292,138 @@ fn main() {
                         - start.lock().unwrap().unwrap();
                     let elapsed_timestamp = elapsed.try_into().unwrap();
 
-                    let (latest_game_state, buf_input) = &mut *game_state_pair.borrow_mut();
+                    let (latest_state, buf_input) = &mut *state_pair.borrow_mut();
 
                     match state {
                         KeyState::Pressed => match keysym {
                             keysyms::XKB_KEY_v => {
-                                latest_game_state.cap_fps = !latest_game_state.cap_fps;
-                                debug!("changed cap_fps"; "cap_fps" => latest_game_state.cap_fps);
+                                latest_state.cap_fps = !latest_state.cap_fps;
+                                debug!("changed cap_fps"; "cap_fps" => latest_state.cap_fps);
                             }
                             keysyms::XKB_KEY_n => {
-                                latest_game_state.no_scroll_speed_changes =
-                                    !latest_game_state.no_scroll_speed_changes;
+                                latest_state.no_scroll_speed_changes =
+                                    !latest_state.no_scroll_speed_changes;
                                 debug!(
                                     "changed no_scroll_speed_changes";
                                     "no_scroll_speed_changes"
-                                        => latest_game_state.no_scroll_speed_changes
+                                        => latest_state.no_scroll_speed_changes
                                 );
                             }
                             keysyms::XKB_KEY_m => {
-                                latest_game_state.two_playfields =
-                                    !latest_game_state.two_playfields;
+                                latest_state.two_playfields = !latest_state.two_playfields;
                                 debug!(
                                     "changed two_playfields";
-                                    "two_playfields" => latest_game_state.two_playfields
+                                    "two_playfields" => latest_state.two_playfields
                                 );
                             }
                             keysyms::XKB_KEY_F3 => {
-                                latest_game_state.scroll_speed.0 =
-                                    (latest_game_state.scroll_speed.0 - 1).max(1);
+                                latest_state.scroll_speed.0 =
+                                    (latest_state.scroll_speed.0 - 1).max(1);
                                 debug!(
                                     "changed scroll_speed";
-                                    "scroll_speed" => ?latest_game_state.scroll_speed
+                                    "scroll_speed" => ?latest_state.scroll_speed
                                 );
                             }
                             keysyms::XKB_KEY_F4 => {
-                                latest_game_state.scroll_speed.0 += 1;
+                                latest_state.scroll_speed.0 += 1;
                                 debug!(
                                     "changed scroll_speed";
-                                    "scroll_speed" => ?latest_game_state.scroll_speed
+                                    "scroll_speed" => ?latest_state.scroll_speed
                                 );
                             }
                             keysyms::XKB_KEY_minus => {
-                                latest_game_state.timestamp_converter.local_offset =
-                                    latest_game_state.timestamp_converter.local_offset
+                                latest_state.game_state.timestamp_converter.local_offset =
+                                    latest_state.game_state.timestamp_converter.local_offset
                                         - MapTimestampDifference::from_millis(5);
                                 debug!(
                                     "changed local_offset";
                                     "local_offset"
-                                        => ?latest_game_state.timestamp_converter.local_offset
+                                        => ?latest_state.game_state.timestamp_converter.local_offset
                                 );
                             }
                             keysyms::XKB_KEY_plus | keysyms::XKB_KEY_equal => {
-                                latest_game_state.timestamp_converter.local_offset =
-                                    latest_game_state.timestamp_converter.local_offset
+                                latest_state.game_state.timestamp_converter.local_offset =
+                                    latest_state.game_state.timestamp_converter.local_offset
                                         + MapTimestampDifference::from_millis(5);
                                 debug!(
                                     "changed local_offset";
                                     "local_offset"
-                                        => ?latest_game_state.timestamp_converter.local_offset
+                                        => ?latest_state.game_state.timestamp_converter.local_offset
                                 );
                             }
                             keysyms::XKB_KEY_z | keysyms::XKB_KEY_a => {
-                                latest_game_state.key_press(0, GameTimestamp(elapsed_timestamp));
+                                latest_state
+                                    .game_state
+                                    .key_press(0, GameTimestamp(elapsed_timestamp));
                             }
                             keysyms::XKB_KEY_x | keysyms::XKB_KEY_s => {
-                                latest_game_state.key_press(1, GameTimestamp(elapsed_timestamp));
+                                latest_state
+                                    .game_state
+                                    .key_press(1, GameTimestamp(elapsed_timestamp));
                             }
                             keysyms::XKB_KEY_period | keysyms::XKB_KEY_d => {
-                                latest_game_state.key_press(2, GameTimestamp(elapsed_timestamp));
+                                latest_state
+                                    .game_state
+                                    .key_press(2, GameTimestamp(elapsed_timestamp));
                             }
                             keysyms::XKB_KEY_slash | keysyms::XKB_KEY_space => {
-                                latest_game_state.key_press(3, GameTimestamp(elapsed_timestamp));
+                                latest_state
+                                    .game_state
+                                    .key_press(3, GameTimestamp(elapsed_timestamp));
                             }
                             keysyms::XKB_KEY_l => {
-                                latest_game_state.key_press(4, GameTimestamp(elapsed_timestamp));
+                                latest_state
+                                    .game_state
+                                    .key_press(4, GameTimestamp(elapsed_timestamp));
                             }
                             keysyms::XKB_KEY_semicolon => {
-                                latest_game_state.key_press(5, GameTimestamp(elapsed_timestamp));
+                                latest_state
+                                    .game_state
+                                    .key_press(5, GameTimestamp(elapsed_timestamp));
                             }
                             keysyms::XKB_KEY_apostrophe => {
-                                latest_game_state.key_press(6, GameTimestamp(elapsed_timestamp));
+                                latest_state
+                                    .game_state
+                                    .key_press(6, GameTimestamp(elapsed_timestamp));
                             }
                             _ => (),
                         },
 
                         KeyState::Released => match keysym {
                             keysyms::XKB_KEY_z | keysyms::XKB_KEY_a => {
-                                latest_game_state.key_release(0, GameTimestamp(elapsed_timestamp));
+                                latest_state
+                                    .game_state
+                                    .key_release(0, GameTimestamp(elapsed_timestamp));
                             }
                             keysyms::XKB_KEY_x | keysyms::XKB_KEY_s => {
-                                latest_game_state.key_release(1, GameTimestamp(elapsed_timestamp));
+                                latest_state
+                                    .game_state
+                                    .key_release(1, GameTimestamp(elapsed_timestamp));
                             }
                             keysyms::XKB_KEY_period | keysyms::XKB_KEY_d => {
-                                latest_game_state.key_release(2, GameTimestamp(elapsed_timestamp));
+                                latest_state
+                                    .game_state
+                                    .key_release(2, GameTimestamp(elapsed_timestamp));
                             }
                             keysyms::XKB_KEY_slash | keysyms::XKB_KEY_space => {
-                                latest_game_state.key_release(3, GameTimestamp(elapsed_timestamp));
+                                latest_state
+                                    .game_state
+                                    .key_release(3, GameTimestamp(elapsed_timestamp));
                             }
                             keysyms::XKB_KEY_l => {
-                                latest_game_state.key_release(4, GameTimestamp(elapsed_timestamp));
+                                latest_state
+                                    .game_state
+                                    .key_release(4, GameTimestamp(elapsed_timestamp));
                             }
                             keysyms::XKB_KEY_semicolon => {
-                                latest_game_state.key_release(5, GameTimestamp(elapsed_timestamp));
+                                latest_state
+                                    .game_state
+                                    .key_release(5, GameTimestamp(elapsed_timestamp));
                             }
                             keysyms::XKB_KEY_apostrophe => {
-                                latest_game_state.key_release(6, GameTimestamp(elapsed_timestamp));
+                                latest_state
+                                    .game_state
+                                    .key_release(6, GameTimestamp(elapsed_timestamp));
                             }
                             _ => (),
                         },
@@ -371,7 +432,7 @@ fn main() {
                     }
 
                     // if (something changed)?
-                    buf_input.input_buffer().update_to_latest(latest_game_state);
+                    buf_input.input_buffer().update_to_latest(latest_state);
                     buf_input.publish();
                 }
                 KbEvent::Repeat {
@@ -396,7 +457,7 @@ fn main() {
     {
         let main_surface = window.surface().clone();
         let current_dimensions = current_dimensions.clone();
-        let game_state_pair = game_state_pair.clone();
+        let game_state_pair = state_pair.clone();
         let presentation_clock_id = presentation_clock_id.clone();
         let start = start.clone();
         let mut mouse_on_main_surface = false;
@@ -408,12 +469,12 @@ fn main() {
             let set_playback_position = |mouse_x| {
                 let (state, _) = &*game_state_pair.borrow();
 
-                let first_timestamp = state.first_timestamp();
+                let first_timestamp = state.game_state.first_timestamp();
                 if first_timestamp.is_none() {
                     return;
                 }
                 let first_timestamp = first_timestamp.unwrap();
-                let last_timestamp = state.last_timestamp().unwrap();
+                let last_timestamp = state.game_state.last_timestamp().unwrap();
 
                 let total_difference = last_timestamp - first_timestamp;
                 let total_width = current_dimensions.get().0 as f32;
@@ -428,11 +489,11 @@ fn main() {
 
                 let elapsed = clock_gettime(*presentation_clock_id.lock().unwrap())
                     - start.lock().unwrap().unwrap();
-                let elapsed_timestamp =
-                    GameTimestamp(elapsed.try_into().unwrap()).to_map(&state.timestamp_converter);
+                let elapsed_timestamp = GameTimestamp(elapsed.try_into().unwrap())
+                    .to_map(&state.game_state.timestamp_converter);
 
                 let difference = (timestamp - elapsed_timestamp)
-                    .to_game(&state.timestamp_converter)
+                    .to_game(&state.game_state.timestamp_converter)
                     .as_millis();
 
                 if difference >= 0 {
@@ -644,11 +705,13 @@ fn main() {
                 - start.lock().unwrap().unwrap();
             let elapsed_timestamp = elapsed.try_into().unwrap();
 
-            let (latest_game_state, buf_input) = &mut *game_state_pair.borrow_mut();
-            for lane in 0..latest_game_state.lane_states.len() {
-                latest_game_state.update(lane, GameTimestamp(elapsed_timestamp));
+            let (latest_state, buf_input) = &mut *state_pair.borrow_mut();
+            for lane in 0..latest_state.game_state.lane_states.len() {
+                latest_state
+                    .game_state
+                    .update(lane, GameTimestamp(elapsed_timestamp));
             }
-            buf_input.input_buffer().update_to_latest(latest_game_state);
+            buf_input.input_buffer().update_to_latest(latest_state);
             buf_input.publish();
         }
 
@@ -663,10 +726,11 @@ fn main() {
     rendering_thread.join().unwrap();
 
     // Print hit statistics.
-    let (latest_game_state, _) = &mut *game_state_pair.borrow_mut();
+    let (latest_state, _) = &mut *state_pair.borrow_mut();
     let mut difference_sum = GameTimestampDifference::from_millis(0);
     let mut difference_count = 0u32;
-    for object in latest_game_state
+    for object in latest_state
+        .game_state
         .lane_states
         .iter()
         .flat_map(|x| x.object_states.iter())
@@ -711,7 +775,7 @@ fn render_thread(
     surface: WlSurface,
     mut dimensions: (u32, u32),
     pair: Arc<(Mutex<Option<RenderThreadEvent>>, Condvar)>,
-    mut state_buffer: triple_buffer::Output<GameState>,
+    mut state_buffer: triple_buffer::Output<State>,
     wp_presentation: WpPresentation,
     presentation_clock_id: Arc<Mutex<u32>>,
     start_time: Arc<Mutex<Option<Duration>>>,

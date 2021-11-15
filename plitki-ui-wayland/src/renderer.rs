@@ -19,7 +19,7 @@ use plitki_core::{
 use rust_hawktracer::*;
 use slog_scope::trace;
 
-use crate::GameState;
+use crate::State;
 
 #[derive(Copy, Clone)]
 struct Vertex {
@@ -50,7 +50,7 @@ pub struct Renderer {
 
 pub struct SingleFrameRenderer<'a> {
     renderer: &'a mut Renderer,
-    state: &'a GameState,
+    state: &'a State,
     game_timestamp: GameTimestamp,
     map_timestamp: MapTimestamp,
     current_position: Position,
@@ -211,11 +211,11 @@ impl Renderer {
     }
 
     #[hawktracer(render)]
-    pub fn render(
+    pub(crate) fn render(
         &mut self,
         dimensions: (u32, u32),
         elapsed: Duration,
-        state: &GameState,
+        state: &State,
         fix_osu_timing_line_animations: bool,
     ) {
         let start = Instant::now();
@@ -251,7 +251,7 @@ impl Renderer {
         }
 
         if state.two_playfields {
-            let lane_count = state.immutable.map.lanes.len();
+            let lane_count = state.game_state.immutable.map.lanes.len();
             let lane_width = if lane_count < 6 { 0.2 } else { 0.15 };
             let lane_width = self.to_pixels(lane_width).round();
             let border_offset = lane_width * lane_count as f32 / 2.;
@@ -341,21 +341,21 @@ impl<'a> SingleFrameRenderer<'a> {
     fn new(
         renderer: &'a mut Renderer,
         elapsed: Duration,
-        state: &'a GameState,
+        state: &'a State,
         fix_osu_timing_line_animations: bool,
         no_scroll_speed_changes: bool,
     ) -> Self {
         let elapsed_timestamp = GameTimestamp(elapsed.try_into().unwrap());
 
-        let map_timestamp = elapsed_timestamp.to_map(&state.timestamp_converter);
+        let map_timestamp = elapsed_timestamp.to_map(&state.game_state.timestamp_converter);
         let map_timestamp = if fix_osu_timing_line_animations {
             MapTimestamp::from_millis(map_timestamp.as_millis())
         } else {
             map_timestamp
         };
-        let game_timestamp = map_timestamp.to_game(&state.timestamp_converter);
+        let game_timestamp = map_timestamp.to_game(&state.game_state.timestamp_converter);
 
-        let lane_count = state.immutable.map.lanes.len();
+        let lane_count = state.game_state.immutable.map.lanes.len();
         let lane_width = if lane_count < 6 { 0.2 } else { 0.15 };
         let note_height = renderer.to_pixels(lane_width / 2.).round();
 
@@ -367,7 +367,7 @@ impl<'a> SingleFrameRenderer<'a> {
         let current_position = if no_scroll_speed_changes {
             map_timestamp.no_scroll_speed_change_position()
         } else {
-            state.position_at_time(map_timestamp)
+            state.game_state.position_at_time(map_timestamp)
         };
 
         Self {
@@ -448,12 +448,14 @@ impl<'a> SingleFrameRenderer<'a> {
 
             let first_index = self
                 .state
+                .game_state
                 .immutable
                 .timing_lines
                 .binary_search_by_key(&first_timestamp, |timing_line| timing_line.timestamp)
                 .unwrap_or_else(identity);
             let last_index = self
                 .state
+                .game_state
                 .immutable
                 .timing_lines
                 .binary_search_by_key(&last_timestamp, |timing_line| timing_line.timestamp)
@@ -462,12 +464,14 @@ impl<'a> SingleFrameRenderer<'a> {
         } else {
             let first_index = self
                 .state
+                .game_state
                 .immutable
                 .timing_lines
                 .binary_search_by_key(&first_visible_position, |timing_line| timing_line.position)
                 .unwrap_or_else(identity);
             let last_index = self
                 .state
+                .game_state
                 .immutable
                 .timing_lines
                 .binary_search_by_key(&one_past_last_visible_position, |timing_line| {
@@ -477,7 +481,10 @@ impl<'a> SingleFrameRenderer<'a> {
             first_index..last_index
         };
 
-        for timing_line in self.state.immutable.timing_lines[range].iter().rev() {
+        for timing_line in self.state.game_state.immutable.timing_lines[range]
+            .iter()
+            .rev()
+        {
             let position = if self.no_scroll_speed_changes {
                 timing_line.timestamp.no_scroll_speed_change_position()
             } else {
@@ -507,12 +514,12 @@ impl<'a> SingleFrameRenderer<'a> {
         let one_past_last_visible_position = self.screen_to_core(self.height());
 
         for (lane, objects, object_states, object_caches) in
-            (0..self.state.immutable.map.lanes.len()).map(|lane| {
+            (0..self.state.game_state.immutable.map.lanes.len()).map(|lane| {
                 (
                     lane,
-                    &state.immutable.map.lanes[lane].objects[..],
-                    &state.lane_states[lane].object_states[..],
-                    &state.immutable.lane_caches[lane].object_caches[..],
+                    &state.game_state.immutable.map.lanes[lane].objects[..],
+                    &state.game_state.lane_states[lane].object_states[..],
+                    &state.game_state.immutable.lane_caches[lane].object_caches[..],
                 )
             })
         {
@@ -609,12 +616,16 @@ impl<'a> SingleFrameRenderer<'a> {
                 Object::LongNote { start, end } => match *object_state {
                     ObjectState::LongNote(LongNoteState::Held { .. }) => self
                         .state
+                        .game_state
                         .position_at_time(self.map_timestamp.min(end).max(start)),
 
                     ObjectState::LongNote(LongNoteState::Missed {
                         held_until: Some(held_until),
                         ..
-                    }) => self.state.position_at_time(held_until.max(start)),
+                    }) => self
+                        .state
+                        .game_state
+                        .position_at_time(held_until.max(start)),
 
                     _ => object_cache.start_position(),
                 },
@@ -649,14 +660,16 @@ impl<'a> SingleFrameRenderer<'a> {
         };
 
         #[allow(clippy::collapsible_else_if)]
-        let mut color = if self.state.lane_states.len() == 4 {
+        let mut color = if self.state.game_state.lane_states.len() == 4 {
             if lane == 0 || lane == 3 {
                 Srgba::new(1., 1., 1., 1.)
             } else {
                 Srgba::new(0., 0.5, 1., 1.)
             }
         } else {
-            if self.state.lane_states.len() % 2 == 1 && lane == self.state.lane_states.len() / 2 {
+            if self.state.game_state.lane_states.len() % 2 == 1
+                && lane == self.state.game_state.lane_states.len() / 2
+            {
                 Srgba::new(1., 1., 0., 1.)
             } else if lane % 2 == 0 {
                 Srgba::new(1., 1., 1., 1.)
@@ -719,7 +732,7 @@ impl<'a> SingleFrameRenderer<'a> {
         for Hit {
             timestamp,
             difference,
-        } in self.state.last_hits.iter()
+        } in self.state.game_state.last_hits.iter()
         {
             let offset = difference.into_milli_hundredths() as f32 * hit_difference_offset_factor
                 + zero_error_bar_hit_position;
@@ -746,12 +759,12 @@ impl<'a> SingleFrameRenderer<'a> {
 
     #[hawktracer(push_timeline)]
     fn push_timeline(&mut self) {
-        let first_timestamp = self.state.first_timestamp();
+        let first_timestamp = self.state.game_state.first_timestamp();
         if first_timestamp.is_none() {
             return;
         }
         let first_timestamp = first_timestamp.unwrap();
-        let last_timestamp = self.state.last_timestamp().unwrap();
+        let last_timestamp = self.state.game_state.last_timestamp().unwrap();
 
         let total_difference = last_timestamp - first_timestamp;
         let current_difference =
