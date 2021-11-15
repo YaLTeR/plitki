@@ -668,11 +668,11 @@ impl ImmutableGameState {
 impl ObjectState {
     /// Returns `true` if the object has been hit.
     pub fn is_hit(&self) -> bool {
-        match self {
+        matches!(
+            self,
             Self::Regular(RegularObjectState::Hit { .. })
-            | Self::LongNote(LongNoteState::Hit { .. }) => true,
-            _ => false,
-        }
+                | Self::LongNote(LongNoteState::Hit { .. })
+        )
     }
 }
 
