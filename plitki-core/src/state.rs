@@ -383,6 +383,18 @@ impl GameState {
         self.immutable.last_timestamp()
     }
 
+    /// Returns the start position of the first object.
+    #[inline]
+    pub fn first_position(&self) -> Option<Position> {
+        self.immutable.first_position()
+    }
+
+    /// Returns the end position of the last object.
+    #[inline]
+    pub fn last_position(&self) -> Option<Position> {
+        self.immutable.last_position()
+    }
+
     /// Updates the state to match the `latest` state.
     ///
     /// # Panics
@@ -644,6 +656,26 @@ impl ImmutableGameState {
             .iter()
             .filter_map(|lane| lane.objects.last())
             .map(Object::end_timestamp)
+            .max()
+    }
+
+    /// Returns the start position of the first object.
+    #[inline]
+    fn first_position(&self) -> Option<Position> {
+        self.lane_caches
+            .iter()
+            .filter_map(|lane| lane.object_caches.first())
+            .map(ObjectCache::start_position)
+            .min()
+    }
+
+    /// Returns the end position of the last object.
+    #[inline]
+    fn last_position(&self) -> Option<Position> {
+        self.lane_caches
+            .iter()
+            .filter_map(|lane| lane.object_caches.first())
+            .map(ObjectCache::end_position)
             .max()
     }
 }
