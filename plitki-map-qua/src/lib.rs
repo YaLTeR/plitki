@@ -332,6 +332,7 @@ impl Qua {
                         initial_scroll_speed_multiplier = Some(multiplier);
                     }
 
+                    #[allow(clippy::float_cmp)]
                     if multiplier != current_adjusted_sv_multiplier.unwrap() {
                         scroll_speed_changes.push(SliderVelocity {
                             start_time: sv.start_time,
@@ -363,6 +364,7 @@ impl Qua {
                 initial_scroll_speed_multiplier = Some(multiplier);
             }
 
+            #[allow(clippy::float_cmp)]
             if multiplier != current_adjusted_sv_multiplier.unwrap() {
                 scroll_speed_changes.push(SliderVelocity {
                     start_time: timing_point.start_time,
@@ -374,6 +376,7 @@ impl Qua {
 
         for sv in &self.slider_velocities[current_sv_index..] {
             let multiplier = sv.multiplier * (current_bpm / base_bpm);
+            #[allow(clippy::float_cmp)]
             if multiplier != current_adjusted_sv_multiplier.unwrap() {
                 scroll_speed_changes.push(SliderVelocity {
                     start_time: sv.start_time,
