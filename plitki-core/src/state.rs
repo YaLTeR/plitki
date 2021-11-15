@@ -19,7 +19,7 @@ use crate::{
 pub struct GameState {
     /// The immutable part of the game state.
     ///
-    /// Stored in an `Arc` so it doesn't have to be cloned.
+    /// Stored in an [`Arc`] so it doesn't have to be cloned.
     pub immutable: Arc<ImmutableGameState>,
     /// Converter between game timestamps and map timestamps.
     pub timestamp_converter: TimestampConverter,
@@ -43,7 +43,7 @@ pub struct ImmutableGameState {
     pub lane_caches: Vec<LaneCache>,
     /// A cache of positions for each scroll speed change timestamp.
     ///
-    /// Indices into the cache are equal to indices into `map.scroll_speed_changes`.
+    /// Indices into the cache are equal to indices into [`Map::scroll_speed_changes`].
     pub position_cache: Vec<CachedPosition>,
     /// Pre-computed timing lines.
     pub timing_lines: Vec<TimingLine>,
