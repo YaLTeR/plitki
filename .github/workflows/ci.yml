@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 1 * *' # Monthly
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+
+      matrix:
+        rust: [stable, beta]
+        configuration: [debug, release]
+
+        exclude:
+          - configuration: release
+            rust: beta
+
+        include:
+          - configuration: release
+            release-flag: '--release'
+
+    name: ${{ matrix.rust }} - ${{ matrix.configuration }}
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install libasound2-dev libxxf86vm-dev libosmesa6-dev libssl-dev
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          override: true
+          toolchain: ${{ matrix.rust }}
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: ${{ matrix.release-flag }}
+
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: ${{ matrix.release-flag }}
+
+  clippy:
+    strategy:
+      fail-fast: false
+
+    name: clippy
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          override: true
+          toolchain: stable
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: Run clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  rustfmt:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          override: true
+          toolchain: nightly
+          components: rustfmt
+
+      - name: Run rustfmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
