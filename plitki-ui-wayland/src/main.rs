@@ -371,10 +371,8 @@ fn main() {
                     }
 
                     // if (something changed)?
-                    buf_input
-                        .raw_input_buffer()
-                        .update_to_latest(&latest_game_state);
-                    buf_input.raw_publish();
+                    buf_input.input_buffer().update_to_latest(latest_game_state);
+                    buf_input.publish();
                 }
                 KbEvent::Repeat {
                     time, keysym, utf8, ..
@@ -650,10 +648,8 @@ fn main() {
             for lane in 0..latest_game_state.lane_states.len() {
                 latest_game_state.update(lane, GameTimestamp(elapsed_timestamp));
             }
-            buf_input
-                .raw_input_buffer()
-                .update_to_latest(&latest_game_state);
-            buf_input.raw_publish();
+            buf_input.input_buffer().update_to_latest(latest_game_state);
+            buf_input.publish();
         }
 
         display.flush().unwrap();
@@ -772,8 +768,8 @@ fn render_thread(
                     }
                 }
 
-                state_buffer.raw_update();
-                let state = state_buffer.raw_output_buffer();
+                state_buffer.update();
+                let state = state_buffer.output_buffer();
 
                 let current_time = clock_gettime(clk_id.unwrap());
                 let elapsed = current_time - start.unwrap();
