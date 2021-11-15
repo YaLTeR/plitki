@@ -21,8 +21,6 @@ pub struct Timestamp(i32);
 /// A difference between [`Timestamp`]s.
 ///
 /// Represented the same way as a [`Timestamp`].
-///
-/// [`Timestamp`]: struct.Timestamp.html
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct TimestampDifference(i32);
 
@@ -31,8 +29,6 @@ pub struct TimestampDifference(i32);
 pub struct MapTimestamp(pub Timestamp);
 
 /// A difference between [`MapTimestamp`]s.
-///
-/// [`MapTimestamp`]: struct.MapTimestamp.html
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct MapTimestampDifference(pub TimestampDifference);
 
@@ -41,8 +37,6 @@ pub struct MapTimestampDifference(pub TimestampDifference);
 pub struct GameTimestamp(pub Timestamp);
 
 /// A difference between [`GameTimestamp`]s.
-///
-/// [`GameTimestamp`]: struct.GameTimestamp.html
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct GameTimestampDifference(pub TimestampDifference);
 
@@ -366,9 +360,7 @@ impl TimestampConverter {
     /// Converts a game timestamp into a map timestamp.
     ///
     /// Takes global and local offsets into account. For differences (which do _not_ need to
-    /// consider global and local offsets) use [`game_to_map_difference`].
-    ///
-    /// [`game_to_map_difference`]: #method.game_to_map_difference
+    /// consider global and local offsets) use [`Self::game_to_map_difference()`].
     #[inline]
     pub fn game_to_map(&self, timestamp: GameTimestamp) -> MapTimestamp {
         MapTimestamp((timestamp + self.global_offset).0) - self.local_offset
@@ -377,9 +369,7 @@ impl TimestampConverter {
     /// Converts a map timestamp into a game timestamp.
     ///
     /// Takes global and local offsets into account. For differences (which do _not_ need to consider global
-    /// offset) use [`map_to_game_difference`].
-    ///
-    /// [`map_to_game_difference`]: #method.map_to_game_difference
+    /// offset) use [`Self::map_to_game_difference()`].
     #[inline]
     pub fn map_to_game(&self, timestamp: MapTimestamp) -> GameTimestamp {
         GameTimestamp((timestamp + self.local_offset).0) - self.global_offset
@@ -388,9 +378,7 @@ impl TimestampConverter {
     /// Converts a game difference into a map difference.
     ///
     /// Difference conversion does _not_ consider global and local offsets. For timestamps (which need to
-    /// consider global and local offsets) use [`game_to_map`].
-    ///
-    /// [`game_to_map`]: #method.game_to_map
+    /// consider global and local offsets) use [`Self::game_to_map()`].
     #[inline]
     pub fn game_to_map_difference(
         &self,
@@ -402,9 +390,7 @@ impl TimestampConverter {
     /// Converts a map difference into a game difference.
     ///
     /// Difference conversion does _not_ consider global and local offsets. For timestamps (which need to
-    /// consider global and local offsets) use [`map_to_game`].
-    ///
-    /// [`map_to_game`]: #method.map_to_game
+    /// consider global and local offsets) use [`Self::map_to_game()`].
     #[inline]
     pub fn map_to_game_difference(
         &self,

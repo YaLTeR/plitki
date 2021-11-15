@@ -10,8 +10,6 @@ use crate::{impl_ops, timing::MapTimestampDifference};
 ///
 /// Note that `Position` does _not_ take into account the actual scroll speed;
 /// [`ScreenPositionDifference`] does.
-///
-/// [`ScreenPositionDifference`]: struct.ScreenPositionDifference.html
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Position(pub(crate) i64);
 
@@ -28,9 +26,6 @@ impl_ops!(Position, PositionDifference);
 ///
 /// In accordance with the [`ScrollSpeed`] units, a `ScreenPositionDifference` of `2_000_000_000`
 /// corresponds to one vertical square screen.
-///
-/// [`PositionDifference`]: struct.PositionDifference.html
-/// [`ScrollSpeed`]: struct.ScrollSpeed.html
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ScreenPositionDifference(pub i64);
 
@@ -44,10 +39,6 @@ pub struct ScreenPositionDifference(pub i64);
 /// a [`PositionDifference`] and a [`ScreenPositionDifference`]. You could also think of this as a
 /// "zoom-level" (the higher the scroll speed, the more "zoomed-in" the view of the map is). The
 /// actual "velocity" is, then, the [`ScrollSpeedMultiplier`].
-///
-/// [`PositionDifference`]: struct.PositionDifference.html
-/// [`ScreenPositionDifference`]: struct.ScreenPositionDifference.html
-/// [`ScrollSpeedMultiplier`]: struct.ScrollSpeedMultiplier.html
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ScrollSpeed(pub u8);
 
@@ -60,11 +51,6 @@ pub struct ScrollSpeed(pub u8);
 /// a given time frame, which you can multiply by a [`MapTimestampDifference`] and get the
 /// resulting [`PositionDifference`]. [`ScrollSpeed`], then, becomes the unit-less multiplier to
 /// convert between a [`PositionDifference`] and a [`ScreenPositionDifference`].
-///
-/// [`MapTimestampDifference`]: ../timing/struct.MapTimestampDifference.html
-/// [`PositionDifference`]: struct.PositionDifference.html
-/// [`ScrollSpeed`]: struct.ScrollSpeed.html
-/// [`ScreenPositionDifference`]: struct.ScreenPositionDifference.html
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ScrollSpeedMultiplier(i32);
 
