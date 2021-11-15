@@ -66,6 +66,11 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install libasound2-dev libxxf86vm-dev libosmesa6-dev libssl-dev
+
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
