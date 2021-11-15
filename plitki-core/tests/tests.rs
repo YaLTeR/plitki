@@ -6,6 +6,7 @@ use plitki_core::timing::Timestamp;
 use proptest::prelude::*;
 
 proptest! {
+    #[allow(clippy::inconsistent_digit_grouping)]
     #[test]
     fn duration_to_timestamp_and_back(secs in 0..i32::max_value() as u64 / 1_000_00,
                                       rest in 0..1_000_00u32) {

@@ -1556,6 +1556,7 @@ mod tests {
         );
     }
 
+    #[allow(clippy::inconsistent_digit_grouping)]
     #[test]
     fn game_state_timing_lines() {
         let map = Map {
@@ -1630,11 +1631,11 @@ mod tests {
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(40),
-                    position: Position(4000),
+                    position: Position(40_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(80),
-                    position: Position(8000),
+                    position: Position(80_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(120),
