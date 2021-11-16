@@ -10,7 +10,7 @@ pub(crate) struct BoxedMap(Map);
 mod imp {
     use std::cell::RefCell;
 
-    use gtk::{gdk, gio};
+    use gtk::gdk;
     use log::{debug, trace};
     use once_cell::sync::Lazy;
     use once_cell::unsync::OnceCell;
