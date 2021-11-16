@@ -99,12 +99,16 @@ impl Map {
         changes.sort_by_key(|a| a.timestamp);
 
         let initial_multiplier = self.initial_scroll_speed_multiplier;
-        let first_meaningful_change_index = if let Some((index, _)) = changes
+        let first_meaningful_change_index = if let Some((mut i, _)) = changes
             .iter()
             .enumerate()
             .find(|(_, x)| x.multiplier != initial_multiplier)
         {
-            index
+            // Skip to the last among the duplicates so the loop below works correctly.
+            while i + 1 < changes.len() && changes[i + 1].timestamp == changes[i].timestamp {
+                i += 1;
+            }
+            i
         } else {
             changes.clear();
             return;
@@ -282,5 +286,35 @@ mod tests {
                 multiplier: ScrollSpeedMultiplier::new(1),
             },][..]
         );
+    }
+
+    #[test]
+    fn sort_and_dedup_scroll_speed_changes_proptest_regression_1() {
+        let mut map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: vec![],
+            scroll_speed_changes: vec![
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::zero(),
+                    multiplier: ScrollSpeedMultiplier::new(0),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::zero(),
+                    multiplier: ScrollSpeedMultiplier::new(0),
+                },
+                ScrollSpeedChange {
+                    timestamp: MapTimestamp::zero(),
+                    multiplier: ScrollSpeedMultiplier::new(0),
+                },
+            ],
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(-1),
+            lanes: vec![],
+        };
+
+        map.sort_and_dedup_scroll_speed_changes();
     }
 }
