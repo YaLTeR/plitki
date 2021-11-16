@@ -52,8 +52,26 @@ fn on_activate(app: &gtk::Application) {
     let scrolled_window = gtk::ScrolledWindowBuilder::new()
         .child(&view)
         .hscrollbar_policy(gtk::PolicyType::Never)
+        .vexpand(true)
         .build();
-    window.set_child(Some(&scrolled_window));
+
+    let scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0., 255., 1.);
+    scale.set_draw_value(true);
+    scale.set_hexpand(true);
+    view.bind_property("scroll-speed", &scale.adjustment(), "value")
+        .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+        .build()
+        .unwrap();
+
+    let scroll_speed_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    scroll_speed_box.append(&gtk::Label::new(Some("Scroll Speed")));
+    scroll_speed_box.append(&scale);
+
+    let box_ = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    box_.append(&scrolled_window);
+    box_.append(&scroll_speed_box);
+
+    window.set_child(Some(&box_));
 
     window.present();
 }

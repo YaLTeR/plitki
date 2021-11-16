@@ -100,20 +100,31 @@ mod imp {
 
         fn properties() -> &'static [glib::ParamSpec] {
             static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-                vec![glib::ParamSpec::new_boxed(
-                    "map",
-                    "map",
-                    "map",
-                    BoxedMap::static_type(),
-                    glib::ParamFlags::WRITABLE | glib::ParamFlags::CONSTRUCT_ONLY,
-                )]
+                vec![
+                    glib::ParamSpec::new_boxed(
+                        "map",
+                        "map",
+                        "map",
+                        BoxedMap::static_type(),
+                        glib::ParamFlags::WRITABLE | glib::ParamFlags::CONSTRUCT_ONLY,
+                    ),
+                    glib::ParamSpec::new_uint(
+                        "scroll-speed",
+                        "scroll-speed",
+                        "scroll-speed",
+                        0,
+                        255,
+                        32,
+                        glib::ParamFlags::READABLE | glib::ParamFlags::WRITABLE,
+                    ),
+                ]
             });
             PROPERTIES.as_ref()
         }
 
         fn set_property(
             &self,
-            _obj: &Self::Type,
+            obj: &Self::Type,
             _id: usize,
             value: &glib::Value,
             pspec: &glib::ParamSpec,
@@ -125,6 +136,26 @@ mod imp {
                     self.state
                         .set(RefCell::new(state))
                         .expect("property set more than once");
+                }
+                "scroll-speed" => {
+                    let speed = value.get::<u32>().expect("wrong property type");
+                    let speed: u8 = speed.try_into().expect("value outside u8 range");
+                    let mut state = self.state.get().expect("map needs to be set").borrow_mut();
+
+                    if state.scroll_speed.0 != speed {
+                        state.scroll_speed = ScrollSpeed(speed);
+                        obj.queue_resize();
+                    }
+                }
+                _ => unimplemented!(),
+            }
+        }
+
+        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+            match pspec.name() {
+                "scroll-speed" => {
+                    let state = self.state.get().expect("map needs to be set").borrow();
+                    state.scroll_speed.0.to_value()
                 }
                 _ => unimplemented!(),
             }
