@@ -169,7 +169,7 @@ mod imp {
                         (difference.0 as f64 / 2_000_000_000. * square_width as f64).round() as i32
                     };
 
-                    let first_position = state.game.first_position().unwrap();
+                    let first_position = state.game.min_position().unwrap();
 
                     let (l, position) = state
                         .game
@@ -212,7 +212,7 @@ mod imp {
                 (difference.0 as f64 / 2_000_000_000. * square_width as f64).round() as i32
             };
 
-            let first_position = state.game.first_position().unwrap();
+            let first_position = state.game.min_position().unwrap();
 
             for (l, (cache, widgets)) in state
                 .game

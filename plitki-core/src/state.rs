@@ -47,6 +47,10 @@ pub struct ImmutableGameState {
     pub position_cache: Vec<CachedPosition>,
     /// Pre-computed timing lines.
     pub timing_lines: Vec<TimingLine>,
+    /// Minimum position across all objects.
+    pub min_position: Option<Position>,
+    /// Maximum position across all objects.
+    pub max_position: Option<Position>,
 }
 
 /// States of a regular object.
@@ -317,6 +321,8 @@ impl GameState {
             position_cache,
             lane_caches: Vec::new(),
             timing_lines: Vec::new(),
+            min_position: None,
+            max_position: None,
         };
 
         // Now that we can use position_at_time(), fill in the lane caches.
@@ -336,6 +342,20 @@ impl GameState {
                         end_position: immutable.position_at_time(end),
                     }),
                 };
+
+                // Update minimum and maximum position.
+                let mut min = cache.start_position().min(cache.end_position());
+                if let Some(min_position) = immutable.min_position {
+                    min = min.min(min_position);
+                }
+                immutable.min_position = Some(min);
+
+                let mut max = cache.start_position().max(cache.end_position());
+                if let Some(max_position) = immutable.max_position {
+                    max = max.max(max_position);
+                }
+                immutable.max_position = Some(max);
+
                 object_caches.push(cache);
             }
 
@@ -407,16 +427,16 @@ impl GameState {
         self.immutable.last_timestamp()
     }
 
-    /// Returns the start position of the first object.
+    /// Returns the minimum position across all objects.
     #[inline]
-    pub fn first_position(&self) -> Option<Position> {
-        self.immutable.first_position()
+    pub fn min_position(&self) -> Option<Position> {
+        self.immutable.min_position
     }
 
-    /// Returns the end position of the last object.
+    /// Returns the maximum position across all objects.
     #[inline]
-    pub fn last_position(&self) -> Option<Position> {
-        self.immutable.last_position()
+    pub fn max_position(&self) -> Option<Position> {
+        self.immutable.max_position
     }
 
     /// Updates the state to match the `latest` state.
@@ -682,26 +702,6 @@ impl ImmutableGameState {
             .map(Object::end_timestamp)
             .max()
     }
-
-    /// Returns the start position of the first object.
-    #[inline]
-    fn first_position(&self) -> Option<Position> {
-        self.lane_caches
-            .iter()
-            .filter_map(|lane| lane.object_caches.first())
-            .map(ObjectCache::start_position)
-            .min()
-    }
-
-    /// Returns the end position of the last object.
-    #[inline]
-    fn last_position(&self) -> Option<Position> {
-        self.lane_caches
-            .iter()
-            .filter_map(|lane| lane.object_caches.first())
-            .map(ObjectCache::end_position)
-            .max()
-    }
 }
 
 impl ObjectState {
@@ -743,7 +743,7 @@ impl ObjectCache {
 mod tests {
     use super::*;
     use crate::{
-        map::{Lane, ScrollSpeedChange, TimeSignature, TimingPoint},
+        map::{Lane, ScrollSpeedChange, TimeSignature, TimingPoint, Valid},
         scroll::ScrollSpeedMultiplier,
     };
     use alloc::vec;
@@ -1817,10 +1817,93 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn min_position_proptest_regression_1() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: vec![],
+            scroll_speed_changes: vec![],
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(-1),
+            lanes: vec![Lane {
+                objects: vec![
+                    Object::Regular {
+                        timestamp: MapTimestamp::from_milli_hundredths(-1),
+                    },
+                    Object::Regular {
+                        timestamp: MapTimestamp::from_milli_hundredths(0),
+                    },
+                ],
+            }],
+        };
+
+        let state = GameState::new(map).unwrap();
+        assert_eq!(state.min_position(), Some(Position(0)));
+    }
+
+    #[test]
+    fn min_position_proptest_regression_2() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: vec![],
+            scroll_speed_changes: vec![ScrollSpeedChange {
+                timestamp: MapTimestamp::from_milli_hundredths(0),
+                multiplier: ScrollSpeedMultiplier::new(1),
+            }],
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(-1),
+            lanes: vec![Lane {
+                objects: vec![Object::LongNote {
+                    start: MapTimestamp::from_milli_hundredths(-1),
+                    end: MapTimestamp::from_milli_hundredths(0),
+                }],
+            }],
+        };
+
+        let state = GameState::new(map).unwrap();
+        assert_eq!(state.min_position(), Some(Position(0)));
+    }
+
     proptest! {
         #[test]
         fn game_state_new_doesnt_panic(map: Map) {
             let _ = GameState::new(map);
+        }
+
+        #[test]
+        fn min_position(map in any_with::<Map>(Valid(true))) {
+            let state = GameState::new(map).unwrap();
+
+            let result = state.min_position();
+            let correct = state
+                .immutable
+                .lane_caches
+                .iter()
+                .flat_map(|lane| lane.object_caches.iter())
+                .map(|object| object.start_position().min(object.end_position()))
+                .min();
+            prop_assert_eq!(result, correct);
+        }
+
+        #[test]
+        fn max_position(map in any_with::<Map>(Valid(true))) {
+            let state = GameState::new(map).unwrap();
+
+            let result = state.max_position();
+            let correct = state
+                .immutable
+                .lane_caches
+                .iter()
+                .flat_map(|lane| lane.object_caches.iter())
+                .map(|object| object.start_position().max(object.end_position()))
+                .max();
+            prop_assert_eq!(result, correct);
         }
     }
 }
