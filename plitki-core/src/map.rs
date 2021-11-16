@@ -366,4 +366,33 @@ mod tests {
 
         map.sort_and_dedup_scroll_speed_changes();
     }
+
+    proptest! {
+        #[test]
+        fn sort_and_dedup_scroll_speed_changes_doesnt_panic(mut map: Map) {
+            map.sort_and_dedup_scroll_speed_changes();
+        }
+
+        #[test]
+        fn sort_and_dedup_scroll_speed_changes_first_sv_not_equal_to_initial(mut map: Map) {
+            prop_assume!(!map.scroll_speed_changes.is_empty());
+
+            map.sort_and_dedup_scroll_speed_changes();
+
+            prop_assert_ne!(map.initial_scroll_speed_multiplier, map.scroll_speed_changes.first().unwrap().multiplier);
+        }
+
+        #[test]
+        fn sort_and_dedup_scroll_speed_changes_timestamps_monotonically_increase(mut map: Map) {
+            prop_assume!(!map.scroll_speed_changes.is_empty());
+
+            map.sort_and_dedup_scroll_speed_changes();
+
+            prop_assume!(map.scroll_speed_changes.len() >= 2);
+
+            for ab in map.scroll_speed_changes.windows(2) {
+                prop_assert!(ab[0].timestamp < ab[1].timestamp);
+            }
+        }
+    }
 }

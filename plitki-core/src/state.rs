@@ -1877,6 +1877,11 @@ mod tests {
         }
 
         #[test]
+        fn game_state_new_with_valid_map_succeeds(map in any_with::<Map>(Valid(true))) {
+            let _ = GameState::new(map).unwrap();
+        }
+
+        #[test]
         fn min_position(map in any_with::<Map>(Valid(true))) {
             let state = GameState::new(map).unwrap();
 
