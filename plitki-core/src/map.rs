@@ -2,6 +2,8 @@
 use alloc::{string::String, vec::Vec};
 
 #[cfg(test)]
+use proptest::prelude::*;
+#[cfg(test)]
 use proptest_derive::Arbitrary;
 
 use crate::{
@@ -10,17 +12,60 @@ use crate::{
     timing::{MapTimestamp, MapTimestampDifference},
 };
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[cfg(test)]
+pub struct Valid(pub bool);
+
+#[cfg(test)]
+fn arbitrary_valid_lane() -> impl proptest::strategy::Strategy<Value = Vec<Object>> {
+    (0usize..50).prop_flat_map(|length| {
+        proptest::collection::vec(any::<MapTimestamp>(), length * 2)
+            .prop_map(|mut timestamps| {
+                timestamps.sort_unstable();
+                timestamps.dedup();
+                timestamps
+            })
+            .prop_flat_map(|timestamps| {
+                proptest::collection::vec(any::<bool>(), timestamps.len() / 2).prop_map(
+                    move |is_ln| {
+                        let mut objects = Vec::new();
+                        for (ab, is_ln) in timestamps.chunks_exact(2).zip(is_ln) {
+                            if is_ln {
+                                objects.push(Object::LongNote {
+                                    start: ab[0],
+                                    end: ab[1],
+                                });
+                            } else {
+                                objects.push(Object::Regular { timestamp: ab[0] });
+                                objects.push(Object::Regular { timestamp: ab[1] });
+                            }
+                        }
+                        objects
+                    },
+                )
+            })
+    })
+}
+
 /// One lane in a map.
 #[derive(Debug, Eq, PartialEq, Clone, Default)]
 #[cfg_attr(test, derive(Arbitrary))]
+#[cfg_attr(test, proptest(params(Valid)))]
 pub struct Lane {
     /// Objects in this lane.
+    #[cfg_attr(
+        test,
+        proptest(
+            strategy = "if params.0 { arbitrary_valid_lane().boxed() } else { any::<Vec<Object>>().boxed() }"
+        )
+    )]
     pub objects: Vec<Object>,
 }
 
 /// A map (beatmap, chart, file).
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
+#[cfg_attr(test, proptest(params(Valid)))]
 pub struct Map {
     // TODO: separate these out? Leave only the actual object info here?
     // Idea for separation: Mapset contains Difficulties, which have this info plus a Map which has
@@ -43,6 +88,10 @@ pub struct Map {
     /// The scroll speed multiplier in effect at the map start, before any scroll speed changes.
     pub initial_scroll_speed_multiplier: ScrollSpeedMultiplier,
     /// Lanes constituting the map.
+    #[cfg_attr(
+        test,
+        proptest(strategy = "any_with::<Vec<Lane>>(((0..10).into(), params))")
+    )]
     pub lanes: Vec<Lane>,
 }
 
