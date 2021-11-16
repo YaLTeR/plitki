@@ -313,7 +313,15 @@ impl Qua {
         let mut current_adjusted_sv_multiplier = None;
         let mut initial_scroll_speed_multiplier = None;
 
-        for timing_point in &self.timing_points {
+        for (i, timing_point) in self.timing_points.iter().enumerate() {
+            let mut next_timing_point_has_same_timestamp = false;
+            if let Some(next_point) = self.timing_points.get(i + 1) {
+                #[allow(clippy::float_cmp)]
+                if timing_point.start_time == next_point.start_time {
+                    next_timing_point_has_same_timestamp = true;
+                }
+            }
+
             loop {
                 if current_sv_index >= self.slider_velocities.len() {
                     break;
@@ -321,6 +329,14 @@ impl Qua {
 
                 let sv = self.slider_velocities[current_sv_index];
                 if sv.start_time > timing_point.start_time {
+                    break;
+                }
+
+                // If there are more timing points on this timestamp, the SV only applies on the
+                // very last one, so skip it for now.
+                #[allow(clippy::float_cmp)]
+                if next_timing_point_has_same_timestamp && sv.start_time == timing_point.start_time
+                {
                     break;
                 }
 
