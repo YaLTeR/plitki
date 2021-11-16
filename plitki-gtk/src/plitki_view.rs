@@ -63,15 +63,23 @@ mod imp {
                 map.difficulty_name.as_ref().unwrap()
             );
 
-            let texture = gdk::MemoryTexture::new(
-                3,
-                1,
-                gdk::MemoryFormat::R8g8b8,
-                &glib::Bytes::from_static(&[50, 200, 50, 200, 200, 50, 200, 50, 50]),
-                3,
-            );
+            let textures = [
+                [0, 200, 0, 0, 200, 0],
+                [50, 50, 255, 50, 50, 255],
+                [50, 50, 255, 50, 50, 255],
+                [0, 200, 0, 0, 200, 0],
+            ]
+            .map(|arr| {
+                gdk::MemoryTexture::new(
+                    2,
+                    1,
+                    gdk::MemoryFormat::R8g8b8,
+                    &glib::Bytes::from(&arr),
+                    2,
+                )
+            });
 
-            for lane in &map.lanes {
+            for (lane, texture) in map.lanes.iter().zip(textures) {
                 let mut widgets = Vec::new();
 
                 for _object in &lane.objects {
