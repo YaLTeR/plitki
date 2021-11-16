@@ -18,9 +18,10 @@ use crate::{
 /// A point in time.
 ///
 /// Timestamps are represented as `i32`s in <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
+/// Timestamps range from -2<sup>30</sup> to 2<sup>30</sup>-1
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 #[cfg_attr(test, derive(Arbitrary))]
-pub struct Timestamp(i32);
+pub struct Timestamp(#[cfg_attr(test, proptest(strategy = "-(2i32.pow(30))..2i32.pow(30)"))] i32);
 
 /// A difference between [`Timestamp`]s.
 ///
@@ -87,7 +88,7 @@ impl Timestamp {
     /// Panics if `millis` overflows the `Timestamp`.
     #[inline]
     pub fn from_millis(millis: i32) -> Self {
-        Self(
+        Self::from_milli_hundredths(
             millis
                 .checked_mul(100)
                 .expect("overflow when converting milliseconds to Timestamp"),
@@ -102,8 +103,15 @@ impl Timestamp {
 
     /// Creates a new `Timestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths of a
     /// millisecond.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `milli_hundredths` overflows the `Timestamp`.
     #[inline]
     pub fn from_milli_hundredths(milli_hundredths: i32) -> Self {
+        assert!(milli_hundredths < 2i32.pow(30));
+        assert!(milli_hundredths >= -(2i32.pow(30)));
+
         Self(milli_hundredths)
     }
 
@@ -139,6 +147,10 @@ impl MapTimestamp {
 
     /// Creates a new `MapTimestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths of
     /// a millisecond.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `milli_hundredths` overflows the `MapTimestamp`.
     #[inline]
     pub fn from_milli_hundredths(milli_hundredths: i32) -> Self {
         Self(Timestamp::from_milli_hundredths(milli_hundredths))
@@ -182,6 +194,10 @@ impl GameTimestamp {
 
     /// Creates a new `GameTimestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths
     /// of a millisecond.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `milli_hundredths` overflows the `GameTimestamp`.
     #[inline]
     pub fn from_milli_hundredths(milli_hundredths: i32) -> Self {
         Self(Timestamp::from_milli_hundredths(milli_hundredths))
@@ -303,10 +319,10 @@ impl TryFrom<Duration> for Timestamp {
         // Maybe use a method instead of TryFrom? Seems to be too much effort to use it while
         // preserving the lossless-ness of the conversion...
         let value = d.as_micros() / 10;
-        if value > i32::max_value() as u128 {
+        if value >= 2u128.pow(30) {
             Err(TryFromDurationError(()))
         } else {
-            Ok(Self(value as i32))
+            Ok(Self::from_milli_hundredths(value as i32))
         }
     }
 }

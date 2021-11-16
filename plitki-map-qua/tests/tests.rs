@@ -684,11 +684,11 @@ fn proptest_regression_4() {
                 multiplier: -8.0,
             },
             SliderVelocity {
-                start_time: -15_698_166.0,
+                start_time: -1_569_816.0,
                 multiplier: -8.0,
             },
             SliderVelocity {
-                start_time: -12_057_820.0,
+                start_time: -1_205_782.0,
                 multiplier: -4.0,
             },
         ],
@@ -1004,12 +1004,12 @@ fn normalize_svs_test() {
 
 prop_compose! {
     fn arbitrary_hit_object(mode: GameMode)
-                           (start_time in 0..i32::max_value() / 100, // TODO
+                           (start_time in 0..2i32.pow(30) / 100, // TODO
                             is_long_note in any::<bool>())
                            (start_time in Just(start_time),
                             lane in 1..=mode.lane_count(),
                             end_time in if is_long_note {
-                                (start_time..i32::max_value() / 100).boxed()
+                                (start_time..2i32.pow(30) / 100).boxed()
                             } else {
                                 Just(0).boxed()
                             })
