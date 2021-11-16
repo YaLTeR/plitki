@@ -113,7 +113,7 @@ mod imp {
             match pspec.name() {
                 "map" => {
                     let map = value.get::<BoxedMap>().expect("wrong property type").0;
-                    let state = State::new(GameState::new(map));
+                    let state = State::new(GameState::new(map).expect("invalid map"));
                     self.state
                         .set(RefCell::new(state))
                         .expect("property set more than once");

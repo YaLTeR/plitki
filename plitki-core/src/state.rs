@@ -185,9 +185,31 @@ pub struct Hit {
     pub difference: GameTimestampDifference,
 }
 
+/// An error returned from [`GameState::new()`].
+#[derive(Clone, PartialEq, Eq)]
+pub enum GameStateCreationError {
+    /// The map has overlapping objects.
+    ///
+    /// The tuple contains the map, as well as two overlapping objects.
+    MapHasOverlappingObjects(Map, Object, Object),
+}
+
+// Manual implementation to avoid printing the whole `Map`.
+impl core::fmt::Debug for GameStateCreationError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::MapHasOverlappingObjects(_map, a, b) => f
+                .debug_tuple("MapHasOverlappingObjects")
+                .field(a)
+                .field(b)
+                .finish(),
+        }
+    }
+}
+
 impl GameState {
     /// Creates a new `GameState` given a map.
-    pub fn new(mut map: Map) -> Self {
+    pub fn new(mut map: Map) -> Result<Self, GameStateCreationError> {
         map.sort_and_dedup_scroll_speed_changes();
 
         // Compute the position cache.
@@ -265,7 +287,9 @@ impl GameState {
                 let (a, b) = (window[0], window[1]);
                 // This does not permit an object at an LN end timestamp... Which is probably a
                 // good thing, especially considering the traditional LN skins with an LN end.
-                assert!(a.end_timestamp() < b.start_timestamp());
+                if a.end_timestamp() >= b.start_timestamp() {
+                    return Err(GameStateCreationError::MapHasOverlappingObjects(map, a, b));
+                }
             }
 
             // Create states for the objects in this lane.
@@ -355,12 +379,12 @@ impl GameState {
         }
         immutable.timing_lines = timing_lines;
 
-        Self {
+        Ok(Self {
             immutable: Arc::new(immutable),
             timestamp_converter,
             lane_states,
             last_hits: CircularQueue::with_capacity(32),
-        }
+        })
     }
 
     /// Returns the map position at the given map timestamp.
@@ -1760,5 +1784,35 @@ mod tests {
         });
         assert_eq!(ln.start_position(), Position(20));
         assert_eq!(ln.end_position(), Position(30));
+    }
+
+    #[test]
+    fn game_state_new_with_overlapping_objects() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: vec![],
+            scroll_speed_changes: vec![],
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::default(),
+            lanes: vec![Lane {
+                objects: vec![
+                    Object::LongNote {
+                        start: MapTimestamp::zero(),
+                        end: MapTimestamp::from_milli_hundredths(100),
+                    },
+                    Object::Regular {
+                        timestamp: MapTimestamp::zero(),
+                    },
+                ],
+            }],
+        };
+
+        assert!(matches!(
+            GameState::new(map),
+            Err(GameStateCreationError::MapHasOverlappingObjects(_, _, _))
+        ));
     }
 }
