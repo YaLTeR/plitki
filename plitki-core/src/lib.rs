@@ -1,7 +1,7 @@
 //! `plitki-core` is a crate that provides a lot of functionality for implementing a vertical
 //! scrolling rhythm game (VSRG).
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 #![warn(missing_docs)]
 
 extern crate alloc;

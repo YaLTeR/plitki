@@ -1,6 +1,9 @@
 //! Functionality related to mapsets and maps.
 use alloc::{string::String, vec::Vec};
 
+#[cfg(test)]
+use proptest_derive::Arbitrary;
+
 use crate::{
     object::Object,
     scroll::ScrollSpeedMultiplier,
@@ -9,6 +12,7 @@ use crate::{
 
 /// One lane in a map.
 #[derive(Debug, Eq, PartialEq, Clone, Default)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Lane {
     /// Objects in this lane.
     pub objects: Vec<Object>,
@@ -16,6 +20,7 @@ pub struct Lane {
 
 /// A map (beatmap, chart, file).
 #[derive(Debug, Eq, PartialEq, Clone)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Map {
     // TODO: separate these out? Leave only the actual object info here?
     // Idea for separation: Mapset contains Difficulties, which have this info plus a Map which has
@@ -43,6 +48,7 @@ pub struct Map {
 
 /// A scroll speed change (an SV).
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct ScrollSpeedChange {
     /// Timestamp when this change takes an effect.
     pub timestamp: MapTimestamp,
@@ -52,6 +58,7 @@ pub struct ScrollSpeedChange {
 
 /// A change of the BPM or time signature.
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct TimingPoint {
     /// Timestamp when this change takes an effect.
     pub timestamp: MapTimestamp,
@@ -63,6 +70,7 @@ pub struct TimingPoint {
 
 /// A time signature.
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct TimeSignature {
     /// How many beats to count.
     ///

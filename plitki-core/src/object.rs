@@ -1,9 +1,13 @@
 //! Functionality related to objects that constitute the maps.
 
+#[cfg(test)]
+use proptest_derive::Arbitrary;
+
 use crate::timing::MapTimestamp;
 
 /// An object that appears on the lanes, such as a regular note or a long note.
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum Object {
     /// A regular object, hit by tapping a key.
     Regular {

@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 84557f700c76e0c4281b6dd28664e760fc2cb71fe6b393abcf1f930c9d589962 # shrinks to map = Map { song_artist: None, song_title: None, difficulty_name: None, mapper: None, audio_file: None, timing_points: [], scroll_speed_changes: [], initial_scroll_speed_multiplier: ScrollSpeedMultiplier(0), lanes: [Lane { objects: [LongNote { start: MapTimestamp(Timestamp(0)), end: MapTimestamp(Timestamp(200093093)) }, Regular { timestamp: MapTimestamp(Timestamp(0)) }] }] }

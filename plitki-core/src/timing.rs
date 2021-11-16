@@ -7,6 +7,9 @@ use core::{
     time::Duration,
 };
 
+#[cfg(test)]
+use proptest_derive::Arbitrary;
+
 use crate::{
     impl_ops,
     scroll::{Position, ScrollSpeedMultiplier},
@@ -16,20 +19,24 @@ use crate::{
 ///
 /// Timestamps are represented as `i32`s in <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Timestamp(i32);
 
 /// A difference between [`Timestamp`]s.
 ///
 /// Represented the same way as a [`Timestamp`].
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct TimestampDifference(i32);
 
 /// A point in time, measured in map time.
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct MapTimestamp(pub Timestamp);
 
 /// A difference between [`MapTimestamp`]s.
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct MapTimestampDifference(pub TimestampDifference);
 
 /// A point in time, measured in game time.

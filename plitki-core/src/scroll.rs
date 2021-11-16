@@ -1,6 +1,9 @@
 //! Object positioning on screen.
 use core::ops::{Add, Div, Mul, Sub};
 
+#[cfg(test)]
+use proptest_derive::Arbitrary;
+
 use crate::{impl_ops, timing::MapTimestampDifference};
 
 /// Object position, taking scroll speed changes into account.
@@ -52,7 +55,10 @@ pub struct ScrollSpeed(pub u8);
 /// resulting [`PositionDifference`]. [`ScrollSpeed`], then, becomes the unit-less multiplier to
 /// convert between a [`PositionDifference`] and a [`ScreenPositionDifference`].
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct ScrollSpeedMultiplier(i32);
+#[cfg_attr(test, derive(Arbitrary))]
+pub struct ScrollSpeedMultiplier(
+    #[cfg_attr(test, proptest(strategy = "-(2i32.pow(24))..2i32.pow(24)"))] i32,
+);
 
 // (MapTimestampDifference / Rate) * ScrollSpeed * ScrollSpeedMultiplier = ScreenPositionDifference
 //

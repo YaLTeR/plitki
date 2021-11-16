@@ -747,6 +747,7 @@ mod tests {
         scroll::ScrollSpeedMultiplier,
     };
     use alloc::vec;
+    use proptest::prelude::*;
 
     #[test]
     fn game_state_objects_sorted() {
@@ -807,7 +808,7 @@ mod tests {
             ],
         };
 
-        let state = GameState::new(map);
+        let state = GameState::new(map).unwrap();
 
         for lane in &state.immutable.map.lanes {
             for xs in lane.objects.windows(2) {
@@ -842,7 +843,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map);
+        let mut state = GameState::new(map).unwrap();
         state.key_press(0, GameTimestamp::from_millis(10_000));
 
         assert_eq!(
@@ -886,7 +887,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map);
+        let mut state = GameState::new(map).unwrap();
         state.key_press(0, GameTimestamp::from_millis(10));
 
         assert_eq!(
@@ -926,7 +927,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map);
+        let mut state = GameState::new(map).unwrap();
         state.key_press(0, GameTimestamp::from_millis(5_000));
         state.key_release(0, GameTimestamp::from_millis(10_000));
 
@@ -969,7 +970,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map);
+        let mut state = GameState::new(map).unwrap();
         state.key_press(0, GameTimestamp::from_millis(5_000));
         state.key_release(0, GameTimestamp::from_millis(7_000));
 
@@ -1010,7 +1011,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map);
+        let mut state = GameState::new(map).unwrap();
         state.key_press(0, GameTimestamp::from_millis(5_000));
         state.key_release(0, GameTimestamp::from_millis(15_000));
 
@@ -1053,7 +1054,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map);
+        let mut state = GameState::new(map).unwrap();
         state.key_press(0, GameTimestamp::from_millis(7_000));
         state.key_release(0, GameTimestamp::from_millis(10_000));
 
@@ -1088,7 +1089,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map);
+        let mut state = GameState::new(map).unwrap();
         state.key_press(0, GameTimestamp::from_millis(5_000));
 
         assert_eq!(
@@ -1125,7 +1126,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map);
+        let mut state = GameState::new(map).unwrap();
         state.update(0, GameTimestamp::from_millis(15_000));
 
         assert_eq!(
@@ -1158,7 +1159,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map);
+        let mut state = GameState::new(map).unwrap();
         state.timestamp_converter.global_offset = GameTimestampDifference::from_millis(10_000);
 
         state.key_press(0, GameTimestamp::from_millis(0));
@@ -1201,7 +1202,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map);
+        let mut state = GameState::new(map).unwrap();
         state.timestamp_converter.local_offset = MapTimestampDifference::from_millis(-10_000);
 
         state.key_press(0, GameTimestamp::from_millis(0));
@@ -1249,7 +1250,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map);
+        let mut state = GameState::new(map).unwrap();
 
         let mut state2 = state.clone();
         state2.timestamp_converter.global_offset = GameTimestampDifference::from_millis(10_000);
@@ -1286,7 +1287,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map);
+        let mut state = GameState::new(map).unwrap();
 
         let mut state2 = state.clone();
         state2.lane_states[0].first_active_object = 1;
@@ -1310,7 +1311,7 @@ mod tests {
             lanes: vec![Lane { objects: vec![] }],
         };
 
-        let mut state = GameState::new(map);
+        let mut state = GameState::new(map).unwrap();
         let state2 = state.clone();
 
         state.update_to_latest(&state2);
@@ -1360,7 +1361,7 @@ mod tests {
             lanes: vec![Lane { objects: vec![] }],
         };
 
-        let state = GameState::new(map);
+        let state = GameState::new(map).unwrap();
 
         assert_eq!(
             state.immutable.position_cache.len(),
@@ -1424,7 +1425,7 @@ mod tests {
             lanes: vec![Lane { objects: vec![] }],
         };
 
-        let state = GameState::new(map);
+        let state = GameState::new(map).unwrap();
 
         assert_eq!(
             &state.immutable.position_cache[..],
@@ -1484,7 +1485,7 @@ mod tests {
             lanes: vec![Lane { objects: vec![] }],
         };
 
-        let state = GameState::new(map);
+        let state = GameState::new(map).unwrap();
 
         assert_eq!(
             state.position_at_time(MapTimestamp::from_milli_hundredths(-250)),
@@ -1569,7 +1570,7 @@ mod tests {
             ],
         };
 
-        let state = GameState::new(map);
+        let state = GameState::new(map).unwrap();
 
         assert_eq!(
             state.immutable.lane_caches[0].object_caches[0],
@@ -1657,7 +1658,7 @@ mod tests {
             lanes: vec![Lane { objects: vec![] }],
         };
 
-        let state = GameState::new(map);
+        let state = GameState::new(map).unwrap();
 
         assert_eq!(
             &state.immutable.timing_lines[..],
@@ -1738,7 +1739,7 @@ mod tests {
             ],
         };
 
-        let state = GameState::new(map);
+        let state = GameState::new(map).unwrap();
 
         assert_eq!(
             state.first_timestamp(),
@@ -1764,7 +1765,7 @@ mod tests {
             lanes: vec![],
         };
 
-        let state = GameState::new(map);
+        let state = GameState::new(map).unwrap();
 
         assert_eq!(state.first_timestamp(), None);
         assert_eq!(state.last_timestamp(), None);
@@ -1814,5 +1815,12 @@ mod tests {
             GameState::new(map),
             Err(GameStateCreationError::MapHasOverlappingObjects(_, _, _))
         ));
+    }
+
+    proptest! {
+        #[test]
+        fn game_state_new_doesnt_panic(map: Map) {
+            let _ = GameState::new(map);
+        }
     }
 }
