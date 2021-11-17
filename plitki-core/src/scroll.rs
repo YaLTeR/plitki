@@ -43,6 +43,7 @@ pub struct ScreenPositionDifference(pub i64);
 /// "zoom-level" (the higher the scroll speed, the more "zoomed-in" the view of the map is). The
 /// actual "velocity" is, then, the [`ScrollSpeedMultiplier`].
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct ScrollSpeed(pub u8);
 
 /// Scrolling speed multiplier, otherwise known as SV (Scroll Velocity, Slider Velocity).
@@ -209,5 +210,30 @@ impl Div<ScrollSpeedMultiplier> for PositionDifference {
     #[inline]
     fn div(self, rhs: ScrollSpeedMultiplier) -> Self::Output {
         MapTimestampDifference::from_milli_hundredths((self.0 / i64::from(rhs.0)) as i32)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn timestamp_difference_times_scroll_speed_multiplier_doesnt_panic(
+            difference: MapTimestampDifference,
+            multiplier: ScrollSpeedMultiplier,
+        ) {
+            let _ = difference * multiplier;
+        }
+
+        #[test]
+        fn position_difference_times_scroll_speed_doesnt_panic(
+            difference: MapTimestampDifference,
+            multiplier: ScrollSpeedMultiplier,
+            speed: ScrollSpeed,
+        ) {
+            let _ = (difference * multiplier) * speed;
+        }
     }
 }

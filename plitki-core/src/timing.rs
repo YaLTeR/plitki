@@ -454,5 +454,10 @@ mod tests {
 
             prop_assert_eq!(duration, duration2);
         }
+
+        #[test]
+        fn subtracting_timestamps_doesnt_panic(a: Timestamp, b: Timestamp) {
+            let _ = a - b;
+        }
     }
 }
