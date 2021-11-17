@@ -335,9 +335,9 @@ mod imp {
                             let height = widget.measure(gtk::Orientation::Vertical, lane_width).1;
 
                             transform = transform
-                                .translate(&graphene::Point::new(lane_width as f32, height as f32))
+                                .translate(&graphene::Point::new(0., height as f32))
                                 .unwrap()
-                                .rotate(180.)
+                                .scale(1., -1.)
                                 .unwrap();
 
                             height

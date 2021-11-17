@@ -124,12 +124,9 @@ mod imp {
                     -1,
                     Some(
                         &gsk::Transform::new()
-                            .translate(&graphene::Point::new(
-                                width as f32,
-                                (height + tail_height / 2) as f32,
-                            ))
+                            .translate(&graphene::Point::new(0., (height + tail_height / 2) as f32))
                             .unwrap()
-                            .rotate(180.)
+                            .scale(1., -1.)
                             .unwrap(),
                     ),
                 );
@@ -143,12 +140,9 @@ mod imp {
                 -1,
                 Some(
                     &gsk::Transform::new()
-                        .translate(&graphene::Point::new(
-                            width as f32,
-                            (height + tail_height) as f32,
-                        ))
+                        .translate(&graphene::Point::new(0., (height + tail_height) as f32))
                         .unwrap()
-                        .rotate(180.)
+                        .scale(1., -1.)
                         .unwrap(),
                 ),
             );
@@ -159,9 +153,9 @@ mod imp {
                 -1,
                 Some(
                     &gsk::Transform::new()
-                        .translate(&graphene::Point::new(width as f32, head_height as f32))
+                        .translate(&graphene::Point::new(0., head_height as f32))
                         .unwrap()
-                        .rotate(180.)
+                        .scale(1., -1.)
                         .unwrap(),
                 ),
             );
