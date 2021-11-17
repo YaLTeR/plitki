@@ -3,6 +3,8 @@ use gtk::gdk;
 use gtk::prelude::*;
 use log::info;
 
+mod long_note;
+
 mod plitki_view;
 use plitki_core::map::Map;
 use plitki_view::PlitkiView;

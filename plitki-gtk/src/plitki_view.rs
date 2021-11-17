@@ -10,19 +10,21 @@ pub(crate) struct BoxedMap(Map);
 mod imp {
     use std::cell::RefCell;
 
-    use gtk::{gdk, gio};
+    use gtk::{gdk, gio, graphene, gsk};
     use log::{debug, trace};
     use once_cell::sync::Lazy;
     use once_cell::unsync::OnceCell;
+    use plitki_core::object::Object;
     use plitki_core::scroll::{ScreenPositionDifference, ScrollSpeed};
-    use plitki_core::state::GameState;
+    use plitki_core::state::{GameState, ObjectCache};
 
     use super::*;
+    use crate::long_note::LongNote;
 
     #[derive(Debug)]
     struct State {
         game: GameState,
-        objects: Vec<Vec<gtk::Picture>>,
+        objects: Vec<Vec<gtk::Widget>>,
         scroll_speed: ScrollSpeed,
     }
 
@@ -80,12 +82,55 @@ mod imp {
             ]
             .map(load_texture);
 
-            for (lane, texture) in map.lanes.iter().zip(textures) {
+            let heads = [
+                "note-holdhitobject-1.png",
+                "note-holdhitobject-2.png",
+                "note-holdhitobject-3.png",
+                "note-holdhitobject-4.png",
+            ]
+            .map(load_texture);
+            let tails = [
+                "note-holdend-1.png",
+                "note-holdend-2.png",
+                "note-holdend-3.png",
+                "note-holdend-4.png",
+            ]
+            .map(load_texture);
+            let bodies = [
+                "note-holdbody-1.png",
+                "note-holdbody-2.png",
+                "note-holdbody-3.png",
+                "note-holdbody-4.png",
+            ]
+            .map(load_texture);
+
+            for ((((lane, texture), head), tail), body) in map
+                .lanes
+                .iter()
+                .zip(textures)
+                .zip(heads)
+                .zip(tails)
+                .zip(bodies)
+            {
                 let mut widgets = Vec::new();
 
-                for _object in &lane.objects {
-                    let picture = gtk::Picture::for_paintable(Some(&texture));
-                    widgets.push(picture);
+                for object in &lane.objects {
+                    let widget: gtk::Widget = match object {
+                        Object::Regular { .. } => {
+                            gtk::Picture::for_paintable(Some(&texture)).upcast()
+                        }
+                        Object::LongNote { .. } => LongNote::new(
+                            gtk::Picture::for_paintable(Some(&head)).upcast_ref(),
+                            gtk::Picture::for_paintable(Some(&tail)).upcast_ref(),
+                            gtk::Picture::builder()
+                                .paintable(&body)
+                                .keep_aspect_ratio(false)
+                                .build()
+                                .upcast_ref(),
+                        )
+                        .upcast(),
+                    };
+                    widgets.push(widget);
                 }
 
                 // Set parent in reverse to get the right draw order.
@@ -233,8 +278,15 @@ mod imp {
                     let difference = position - first_position;
                     let y = to_pixels(difference * state.scroll_speed);
 
-                    let widget = state.objects[l].last().unwrap();
-                    let last_object_height = widget.measure(orientation, lane_width).1;
+                    let object = state.game.immutable.map.lanes[l].objects.last().unwrap();
+                    let last_object_height = match object {
+                        Object::Regular { .. } => {
+                            let widget = state.objects[l].last().unwrap();
+                            widget.measure(orientation, lane_width).1
+                        }
+                        // TODO: LN measurement?
+                        Object::LongNote { .. } => 0,
+                    };
 
                     let min_height = y + last_object_height;
                     trace!("returning height = {}", min_height);
@@ -274,16 +326,29 @@ mod imp {
                     let difference = position - first_position;
                     let y = to_pixels(difference * state.scroll_speed);
 
-                    let height = widget.measure(gtk::Orientation::Vertical, lane_width).1;
-                    widget.size_allocate(
-                        &gdk::Rectangle {
-                            x,
-                            y,
-                            width: lane_width,
-                            height,
-                        },
-                        -1,
-                    );
+                    let mut transform = gsk::Transform::new()
+                        .translate(&graphene::Point::new(x as f32, y as f32))
+                        .unwrap();
+
+                    let height = match cache {
+                        ObjectCache::Regular(_) => {
+                            let height = widget.measure(gtk::Orientation::Vertical, lane_width).1;
+
+                            transform = transform
+                                .translate(&graphene::Point::new(lane_width as f32, height as f32))
+                                .unwrap()
+                                .rotate(180.)
+                                .unwrap();
+
+                            height
+                        }
+                        ObjectCache::LongNote(_) => {
+                            let difference = cache.end_position() - position;
+                            to_pixels(difference * state.scroll_speed)
+                        }
+                    };
+
+                    widget.allocate(lane_width, height, -1, Some(&transform));
                 }
             }
         }
