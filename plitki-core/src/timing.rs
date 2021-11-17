@@ -427,6 +427,7 @@ impl TimestampConverter {
 mod tests {
     use super::*;
     use core::convert::TryFrom;
+    use proptest::prelude::*;
 
     #[test]
     fn timestamp_from_duration() {
@@ -438,5 +439,20 @@ mod tests {
     fn timestamp_from_non_representable_duration() {
         let timestamp = Timestamp::try_from(Duration::from_millis(u64::max_value()));
         assert_eq!(timestamp, Err(TryFromDurationError(())));
+    }
+
+    proptest! {
+        #[allow(clippy::inconsistent_digit_grouping)]
+        #[test]
+        fn duration_to_timestamp_and_back(
+            secs in 0..2u64.pow(30) / 1_000_00,
+            rest in 0..1_000_00u32,
+        ) {
+            let duration = Duration::new(secs, rest * 10_000);
+            let timestamp = Timestamp::try_from(duration).unwrap();
+            let duration2 = Duration::try_from(timestamp).unwrap();
+
+            prop_assert_eq!(duration, duration2);
+        }
     }
 }
