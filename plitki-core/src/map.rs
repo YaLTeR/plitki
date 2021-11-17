@@ -18,31 +18,31 @@ pub struct Valid(pub bool);
 
 #[cfg(test)]
 fn arbitrary_valid_lane() -> impl proptest::strategy::Strategy<Value = Vec<Object>> {
-    (0usize..50).prop_flat_map(|length| {
-        proptest::collection::vec(any::<MapTimestamp>(), length * 2)
-            .prop_map(|mut timestamps| {
+    (0usize..100).prop_flat_map(|length| {
+        (
+            proptest::collection::vec(any::<MapTimestamp>(), length),
+            proptest::collection::vec(any::<bool>(), (length + 1) / 2),
+        )
+            .prop_map(|(mut timestamps, is_ln)| {
                 timestamps.sort_unstable();
                 timestamps.dedup();
-                timestamps
-            })
-            .prop_flat_map(|timestamps| {
-                proptest::collection::vec(any::<bool>(), timestamps.len() / 2).prop_map(
-                    move |is_ln| {
-                        let mut objects = Vec::new();
-                        for (ab, is_ln) in timestamps.chunks_exact(2).zip(is_ln) {
+
+                let mut objects = Vec::new();
+                for (ab, is_ln) in timestamps.chunks(2).zip(is_ln) {
+                    match *ab {
+                        [a, b] => {
                             if is_ln {
-                                objects.push(Object::LongNote {
-                                    start: ab[0],
-                                    end: ab[1],
-                                });
+                                objects.push(Object::LongNote { start: a, end: b });
                             } else {
-                                objects.push(Object::Regular { timestamp: ab[0] });
-                                objects.push(Object::Regular { timestamp: ab[1] });
+                                objects.push(Object::Regular { timestamp: a });
+                                objects.push(Object::Regular { timestamp: b });
                             }
                         }
-                        objects
-                    },
-                )
+                        [a] => objects.push(Object::Regular { timestamp: a }),
+                        _ => unreachable!(),
+                    }
+                }
+                objects
             })
     })
 }
