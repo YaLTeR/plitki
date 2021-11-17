@@ -81,8 +81,12 @@ mod imp {
 
                 for _object in &lane.objects {
                     let picture = gtk::Picture::for_paintable(Some(&texture));
-                    picture.set_parent(obj);
                     widgets.push(picture);
+                }
+
+                // Set parent in reverse to get the right draw order.
+                for widget in widgets.iter().rev() {
+                    widget.set_parent(obj);
                 }
 
                 state.objects.push(widgets);
