@@ -10,7 +10,7 @@ pub(crate) struct BoxedMap(Map);
 mod imp {
     use std::cell::RefCell;
 
-    use gtk::gdk;
+    use gtk::{gdk, gio};
     use log::{debug, trace};
     use once_cell::sync::Lazy;
     use once_cell::unsync::OnceCell;
@@ -34,6 +34,11 @@ mod imp {
                 scroll_speed: ScrollSpeed(32),
             }
         }
+    }
+
+    fn load_texture(filename: &str) -> gdk::Texture {
+        const SKIN_DIR: &str = "/var/mnt/hdd/Games/SteamLibraryLinux/steamapps/common/Quaver/Skins/Nimbus/4k/HitObjects";
+        gdk::Texture::from_file(&gio::File::for_path(format!("{}/{}", SKIN_DIR, filename))).unwrap()
     }
 
     #[derive(Debug, Default)]
@@ -64,20 +69,12 @@ mod imp {
             );
 
             let textures = [
-                [0, 200, 0, 0, 200, 0],
-                [50, 50, 255, 50, 50, 255],
-                [50, 50, 255, 50, 50, 255],
-                [0, 200, 0, 0, 200, 0],
+                "note-hitobject-1.png",
+                "note-hitobject-2.png",
+                "note-hitobject-3.png",
+                "note-hitobject-4.png",
             ]
-            .map(|arr| {
-                gdk::MemoryTexture::new(
-                    2,
-                    1,
-                    gdk::MemoryFormat::R8g8b8,
-                    &glib::Bytes::from(&arr),
-                    2,
-                )
-            });
+            .map(load_texture);
 
             for (lane, texture) in map.lanes.iter().zip(textures) {
                 let mut widgets = Vec::new();
