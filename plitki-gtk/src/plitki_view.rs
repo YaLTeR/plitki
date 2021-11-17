@@ -51,6 +51,10 @@ mod imp {
         const NAME: &'static str = "PlitkiView";
         type Type = super::PlitkiView;
         type ParentType = gtk::Widget;
+
+        fn class_init(klass: &mut Self::Class) {
+            klass.set_css_name("plitki-view");
+        }
     }
 
     impl ObjectImpl for PlitkiView {
