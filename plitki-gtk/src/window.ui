@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="PlitkiGtkWindow" parent="GtkApplicationWindow">
+    <property name="default-width">800</property>
+    <property name="default-height">600</property>
+    <child type="titlebar">
+      <object class="AdwHeaderBar">
+        <property name="centering-policy">strict</property>
+        <child type="start">
+          <object class="GtkButton" id="button_open">
+            <property name="child">
+              <object class="AdwButtonContent">
+                <property name="icon-name">document-open-symbolic</property>
+                <property name="label" translatable="yes">_Open</property>
+                <property name="use-underline">True</property>
+              </object>
+            </property>
+          </object>
+        </child>
+        <child type="title">
+          <object class="AdwViewSwitcherTitle" id="title">
+            <property name="stack">stack</property>
+            <property name="title">plitki-gtk</property>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <child>
+          <object class="AdwViewStack" id="stack">
+            <child>
+              <object class="AdwViewStackPage">
+                <property name="title">Playfield</property>
+                <property name="icon-name">applications-games-symbolic</property>
+                <property name="child">
+                  <object class="AdwBin" />
+                </property>
+              </object>
+            </child>
+            <child>
+              <object class="AdwViewStackPage">
+                <property name="title">Long Note</property>
+                <property name="icon-name">emblem-system-symbolic</property>
+                <property name="child">
+                  <object class="GtkBox" id="box_long_note">
+                    <property name="orientation">vertical</property>
+                    <child>
+                      <object class="GtkSeparator" />
+                    </child>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="margin-start">12</property>
+                        <property name="margin-end">12</property>
+                        <property name="margin-top">6</property>
+                        <property name="margin-bottom">6</property>
+                        <property name="spacing">6</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">Length</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkScale" id="scale_length">
+                            <property name="hexpand">true</property>
+                            <property name="adjustment">
+                              <object class="GtkAdjustment">
+                                <property name="upper">6000000000</property>
+                                <property name="lower">0</property>
+                                <property name="value">0</property>
+                                <property name="step-increment">1</property>
+                                <property name="page-increment">10</property>
+                              </object>
+                            </property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="AdwViewSwitcherBar">
+            <property name="stack">stack</property>
+            <binding name="reveal">
+              <lookup name="title-visible">title</lookup>
+            </binding>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>
