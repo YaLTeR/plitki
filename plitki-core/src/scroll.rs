@@ -29,7 +29,7 @@ impl_ops!(Position, PositionDifference);
 ///
 /// In accordance with the [`ScrollSpeed`] units, a `ScreenPositionDifference` of `2_000_000_000`
 /// corresponds to one vertical square screen.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ScreenPositionDifference(pub i64);
 
 /// Scrolling speed.
