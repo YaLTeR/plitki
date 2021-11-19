@@ -44,14 +44,14 @@ mod imp {
     }
 
     #[derive(Debug, Default)]
-    pub struct PlitkiView {
+    pub struct View {
         state: OnceCell<RefCell<State>>,
     }
 
     #[glib::object_subclass]
-    impl ObjectSubclass for PlitkiView {
+    impl ObjectSubclass for View {
         const NAME: &'static str = "PlitkiView";
-        type Type = super::PlitkiView;
+        type Type = super::View;
         type ParentType = gtk::Widget;
 
         fn class_init(klass: &mut Self::Class) {
@@ -59,7 +59,7 @@ mod imp {
         }
     }
 
-    impl ObjectImpl for PlitkiView {
+    impl ObjectImpl for View {
         fn constructed(&self, obj: &Self::Type) {
             self.parent_constructed(obj);
 
@@ -212,7 +212,7 @@ mod imp {
         }
     }
 
-    impl WidgetImpl for PlitkiView {
+    impl WidgetImpl for View {
         fn request_mode(&self, _widget: &Self::Type) -> gtk::SizeRequestMode {
             gtk::SizeRequestMode::HeightForWidth
         }
@@ -223,7 +223,7 @@ mod imp {
             orientation: gtk::Orientation,
             for_size: i32,
         ) -> (i32, i32, i32, i32) {
-            trace!("PlitkiView::measure({}, {})", orientation, for_size);
+            trace!("View::measure({}, {})", orientation, for_size);
 
             match orientation {
                 gtk::Orientation::Horizontal => {
@@ -297,7 +297,7 @@ mod imp {
         }
 
         fn size_allocate(&self, _widget: &Self::Type, width: i32, height: i32, _baseline: i32) {
-            trace!("PlitkiView::size_allocate({}, {})", width, height);
+            trace!("View::size_allocate({}, {})", width, height);
 
             let state = self.state().borrow();
 
@@ -354,7 +354,7 @@ mod imp {
         }
     }
 
-    impl PlitkiView {
+    impl View {
         fn state(&self) -> &RefCell<State> {
             self.state
                 .get()
@@ -364,11 +364,11 @@ mod imp {
 }
 
 glib::wrapper! {
-    pub struct PlitkiView(ObjectSubclass<imp::PlitkiView>)
+    pub struct View(ObjectSubclass<imp::View>)
         @extends gtk::Widget;
 }
 
-impl PlitkiView {
+impl View {
     pub(crate) fn new(map: Map) -> Self {
         glib::Object::new(&[("map", &BoxedMap(map))]).unwrap()
     }
