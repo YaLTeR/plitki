@@ -248,55 +248,67 @@ mod imp {
                         let lane_count: u8 = lane_count.try_into().unwrap();
 
                         let min_position = state.game.min_position().unwrap();
-                        let max_regular = state.game.max_regular().unwrap();
-                        let max_long_note = state.game.max_long_note().unwrap();
 
-                        // All regular notes are the same so just take the first one.
-                        let regular_widget = state
-                            .objects
-                            .iter()
-                            .flat_map(|lane| lane.iter())
-                            .find(|widget| widget.is::<gtk::Picture>())
-                            .unwrap();
-                        let nat_regular = regular_widget
-                            .measure(gtk::Orientation::Vertical, lane_width)
-                            .1;
-                        let regular_y = to_pixels(
-                            (max_regular.position - min_position) * state.scroll_speed,
-                            lane_width,
-                            lane_count,
-                        );
+                        let (regular_y, nat_regular) =
+                            if let Some(max_regular) = state.game.max_regular() {
+                                // All regular notes are the same so just take the first one.
+                                let regular_widget = state
+                                    .objects
+                                    .iter()
+                                    .flat_map(|lane| lane.iter())
+                                    .find(|widget| widget.is::<gtk::Picture>())
+                                    .unwrap();
+                                let nat_regular = regular_widget
+                                    .measure(gtk::Orientation::Vertical, lane_width)
+                                    .1;
+                                let regular_y = to_pixels(
+                                    (max_regular.position - min_position) * state.scroll_speed,
+                                    lane_width,
+                                    lane_count,
+                                );
 
-                        // We need the right long note though.
-                        let max_long_note_widget = state
-                            .objects
-                            .iter()
-                            .zip(&state.game.immutable.lane_caches)
-                            .flat_map(|(widget_lane, lane)| {
-                                widget_lane.iter().zip(&lane.object_caches)
-                            })
-                            .find_map(|(widget, cache)| {
-                                if let ObjectCache::LongNote(cache) = cache {
-                                    if *cache == max_long_note {
-                                        Some(widget)
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
-                            })
-                            .unwrap();
-                        let nat_long_note = max_long_note_widget
-                            .measure(gtk::Orientation::Vertical, lane_width)
-                            .1;
-                        let long_note_y = to_pixels(
-                            (max_long_note.start_position.min(max_long_note.end_position)
-                                - min_position)
-                                * state.scroll_speed,
-                            lane_width,
-                            lane_count,
-                        );
+                                (nat_regular, regular_y)
+                            } else {
+                                (0, 0)
+                            };
+
+                        let (long_note_y, nat_long_note) =
+                            if let Some(max_long_note) = state.game.max_long_note() {
+                                // We need the right long note though.
+                                let max_long_note_widget = state
+                                    .objects
+                                    .iter()
+                                    .zip(&state.game.immutable.lane_caches)
+                                    .flat_map(|(widget_lane, lane)| {
+                                        widget_lane.iter().zip(&lane.object_caches)
+                                    })
+                                    .find_map(|(widget, cache)| {
+                                        if let ObjectCache::LongNote(cache) = cache {
+                                            if *cache == max_long_note {
+                                                Some(widget)
+                                            } else {
+                                                None
+                                            }
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .unwrap();
+                                let nat_long_note = max_long_note_widget
+                                    .measure(gtk::Orientation::Vertical, lane_width)
+                                    .1;
+                                let long_note_y = to_pixels(
+                                    (max_long_note.start_position.min(max_long_note.end_position)
+                                        - min_position)
+                                        * state.scroll_speed,
+                                    lane_width,
+                                    lane_count,
+                                );
+
+                                (long_note_y, nat_long_note)
+                            } else {
+                                (0, 0)
+                            };
 
                         let nat = (regular_y + nat_regular).max(long_note_y + nat_long_note);
                         trace!("returning for height = {}: nat width = {}", for_size, nat);
