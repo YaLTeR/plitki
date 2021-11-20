@@ -185,7 +185,7 @@ mod imp {
             orientation: gtk::Orientation,
             for_size: i32,
         ) -> (i32, i32, i32, i32) {
-            trace!("PlitkiLongNote::measure({}, {})", orientation, for_size);
+            trace!("LongNote::measure({}, {})", orientation, for_size);
 
             // We only support can-shrink paintables which can always go down to zero, so our min
             // size is always zero.
@@ -284,7 +284,7 @@ mod imp {
         }
 
         fn size_allocate(&self, widget: &Self::Type, width: i32, height: i32, _baseline: i32) {
-            trace!("PlitkiLongNote::size_allocate({}, {})", width, height);
+            trace!("LongNote::size_allocate({}, {})", width, height);
 
             // Check that the given width would fit into the given height.
             let nat_height = self.measure(widget, gtk::Orientation::Vertical, width).1;
