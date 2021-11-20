@@ -47,10 +47,18 @@ pub struct ImmutableGameState {
     pub position_cache: Vec<CachedPosition>,
     /// Pre-computed timing lines.
     pub timing_lines: Vec<TimingLine>,
+
+    /// Regular object which has the minimum position.
+    pub min_regular: Option<RegularObjectCache>,
+    /// Long note, one of the ends of which has the minimum position.
+    pub min_long_note: Option<LongNoteCache>,
+    /// Regular object which has the minimum position.
+    pub max_regular: Option<RegularObjectCache>,
+    /// Long note, one of the ends of which has the maximum position.
+    pub max_long_note: Option<LongNoteCache>,
+
     /// Minimum position across all objects.
     pub min_position: Option<Position>,
-    /// Maximum position across all objects.
-    pub max_position: Option<Position>,
 }
 
 /// States of a regular object.
@@ -321,9 +329,17 @@ impl GameState {
             position_cache,
             lane_caches: Vec::new(),
             timing_lines: Vec::new(),
+            min_regular: None,
+            min_long_note: None,
+            max_regular: None,
+            max_long_note: None,
             min_position: None,
-            max_position: None,
         };
+
+        let mut min_regular_position = None;
+        let mut min_long_note_position = None;
+        let mut max_regular_position = None;
+        let mut max_long_note_position = None;
 
         // Now that we can use position_at_time(), fill in the lane caches.
         let mut lane_caches = Vec::with_capacity(immutable.map.lanes.len());
@@ -344,17 +360,62 @@ impl GameState {
                 };
 
                 // Update minimum and maximum position.
-                let mut min = cache.start_position().min(cache.end_position());
-                if let Some(min_position) = immutable.min_position {
-                    min = min.min(min_position);
+                let min = cache.start_position().min(cache.end_position());
+                match cache {
+                    ObjectCache::Regular(cache) => {
+                        if let Some(min_position) = min_regular_position {
+                            if min < min_position {
+                                min_regular_position = Some(min);
+                                immutable.min_regular = Some(cache);
+                            }
+                        } else {
+                            min_regular_position = Some(min);
+                            immutable.min_regular = Some(cache);
+                        }
+                    }
+                    ObjectCache::LongNote(cache) => {
+                        if let Some(min_position) = min_long_note_position {
+                            if min < min_position {
+                                min_long_note_position = Some(min);
+                                immutable.min_long_note = Some(cache);
+                            }
+                        } else {
+                            min_long_note_position = Some(min);
+                            immutable.min_long_note = Some(cache);
+                        }
+                    }
                 }
-                immutable.min_position = Some(min);
+                if let Some(ref mut min_position) = immutable.min_position {
+                    *min_position = (*min_position).min(min);
+                } else {
+                    immutable.min_position = Some(min);
+                }
 
-                let mut max = cache.start_position().max(cache.end_position());
-                if let Some(max_position) = immutable.max_position {
-                    max = max.max(max_position);
+                let max = cache.start_position().max(cache.end_position());
+                match cache {
+                    ObjectCache::Regular(cache) => {
+                        if let Some(max_position) = max_regular_position {
+                            if max > max_position {
+                                max_regular_position = Some(max);
+                                immutable.max_regular = Some(cache);
+                            }
+                        } else {
+                            max_regular_position = Some(max);
+                            immutable.max_regular = Some(cache);
+                        }
+                    }
+                    ObjectCache::LongNote(cache) => {
+                        if let Some(max_position) = max_long_note_position {
+                            if max > max_position {
+                                max_long_note_position = Some(max);
+                                immutable.max_long_note = Some(cache);
+                            }
+                        } else {
+                            max_long_note_position = Some(max);
+                            immutable.max_long_note = Some(cache);
+                        }
+                    }
                 }
-                immutable.max_position = Some(max);
 
                 object_caches.push(cache);
             }
@@ -427,16 +488,34 @@ impl GameState {
         self.immutable.last_timestamp()
     }
 
+    /// Returns the regular object which has the minimum position.
+    #[inline]
+    pub fn min_regular(&self) -> Option<RegularObjectCache> {
+        self.immutable.min_regular
+    }
+
+    /// Returns the long note, one of the ends of which has the minimum position.
+    #[inline]
+    pub fn min_long_note(&self) -> Option<LongNoteCache> {
+        self.immutable.min_long_note
+    }
+
+    /// Returns the regular object which has the maximum position.
+    #[inline]
+    pub fn max_regular(&self) -> Option<RegularObjectCache> {
+        self.immutable.max_regular
+    }
+
+    /// Returns the long note, one of the ends of which has the maximum position.
+    #[inline]
+    pub fn max_long_note(&self) -> Option<LongNoteCache> {
+        self.immutable.max_long_note
+    }
+
     /// Returns the minimum position across all objects.
     #[inline]
     pub fn min_position(&self) -> Option<Position> {
         self.immutable.min_position
-    }
-
-    /// Returns the maximum position across all objects.
-    #[inline]
-    pub fn max_position(&self) -> Option<Position> {
-        self.immutable.max_position
     }
 
     /// Updates the state to match the `latest` state.
@@ -1818,7 +1897,7 @@ mod tests {
     }
 
     #[test]
-    fn min_position_proptest_regression_1() {
+    fn min_regular_proptest_regression_1() {
         let map = Map {
             song_artist: None,
             song_title: None,
@@ -1841,33 +1920,12 @@ mod tests {
         };
 
         let state = GameState::new(map).unwrap();
-        assert_eq!(state.min_position(), Some(Position(0)));
-    }
-
-    #[test]
-    fn min_position_proptest_regression_2() {
-        let map = Map {
-            song_artist: None,
-            song_title: None,
-            difficulty_name: None,
-            mapper: None,
-            audio_file: None,
-            timing_points: vec![],
-            scroll_speed_changes: vec![ScrollSpeedChange {
-                timestamp: MapTimestamp::from_milli_hundredths(0),
-                multiplier: ScrollSpeedMultiplier::new(1),
-            }],
-            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(-1),
-            lanes: vec![Lane {
-                objects: vec![Object::LongNote {
-                    start: MapTimestamp::from_milli_hundredths(-1),
-                    end: MapTimestamp::from_milli_hundredths(0),
-                }],
-            }],
-        };
-
-        let state = GameState::new(map).unwrap();
-        assert_eq!(state.min_position(), Some(Position(0)));
+        assert_eq!(
+            state.min_regular(),
+            Some(RegularObjectCache {
+                position: Position(0)
+            })
+        );
     }
 
     proptest! {
@@ -1882,6 +1940,86 @@ mod tests {
         }
 
         #[test]
+        fn min_regular(map in any_with::<Map>(Valid(true))) {
+            let state = GameState::new(map).unwrap();
+
+            let result = state.min_regular();
+            let correct = state
+                .immutable
+                .lane_caches
+                .iter()
+                .flat_map(|lane| lane.object_caches.iter())
+                .filter(|object| matches!(object, ObjectCache::Regular(_)))
+                .min_by_key(|object| object.start_position().min(object.end_position()))
+                .map(|object| if let ObjectCache::Regular(cache) = object {
+                    *cache
+                } else {
+                    unreachable!()
+                });
+            prop_assert_eq!(result, correct);
+        }
+
+        #[test]
+        fn max_regular(map in any_with::<Map>(Valid(true))) {
+            let state = GameState::new(map).unwrap();
+
+            let result = state.max_regular();
+            let correct = state
+                .immutable
+                .lane_caches
+                .iter()
+                .flat_map(|lane| lane.object_caches.iter())
+                .filter(|object| matches!(object, ObjectCache::Regular(_)))
+                .max_by_key(|object| object.start_position().max(object.end_position()))
+                .map(|object| if let ObjectCache::Regular(cache) = object {
+                    *cache
+                } else {
+                    unreachable!()
+                });
+            prop_assert_eq!(result, correct);
+        }
+
+        #[test]
+        fn min_long_note(map in any_with::<Map>(Valid(true))) {
+            let state = GameState::new(map).unwrap();
+
+            let result = state.min_long_note();
+            let correct = state
+                .immutable
+                .lane_caches
+                .iter()
+                .flat_map(|lane| lane.object_caches.iter())
+                .filter(|object| matches!(object, ObjectCache::LongNote(_)))
+                .min_by_key(|object| object.start_position().min(object.end_position()))
+                .map(|object| if let ObjectCache::LongNote(cache) = object {
+                    *cache
+                } else {
+                    unreachable!()
+                });
+            prop_assert_eq!(result, correct);
+        }
+
+        #[test]
+        fn max_long_note(map in any_with::<Map>(Valid(true))) {
+            let state = GameState::new(map).unwrap();
+
+            let result = state.max_long_note();
+            let correct = state
+                .immutable
+                .lane_caches
+                .iter()
+                .flat_map(|lane| lane.object_caches.iter())
+                .filter(|object| matches!(object, ObjectCache::LongNote(_)))
+                .max_by_key(|object| object.start_position().max(object.end_position()))
+                .map(|object| if let ObjectCache::LongNote(cache) = object {
+                    *cache
+                } else {
+                    unreachable!()
+                });
+            prop_assert_eq!(result, correct);
+        }
+
+        #[test]
         fn min_position(map in any_with::<Map>(Valid(true))) {
             let state = GameState::new(map).unwrap();
 
@@ -1893,21 +2031,6 @@ mod tests {
                 .flat_map(|lane| lane.object_caches.iter())
                 .map(|object| object.start_position().min(object.end_position()))
                 .min();
-            prop_assert_eq!(result, correct);
-        }
-
-        #[test]
-        fn max_position(map in any_with::<Map>(Valid(true))) {
-            let state = GameState::new(map).unwrap();
-
-            let result = state.max_position();
-            let correct = state
-                .immutable
-                .lane_caches
-                .iter()
-                .flat_map(|lane| lane.object_caches.iter())
-                .map(|object| object.start_position().max(object.end_position()))
-                .max();
             prop_assert_eq!(result, correct);
         }
     }
