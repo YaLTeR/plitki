@@ -425,6 +425,12 @@ mod imp {
             ]
             .map(load_texture);
 
+            let make_picture = |texture: &gdk::Texture| {
+                let picture = gtk::Picture::for_paintable(Some(texture));
+                picture.add_css_class("upside-down");
+                picture
+            };
+
             for ((((lane, texture), head), tail), body) in state
                 .game
                 .immutable
@@ -439,25 +445,15 @@ mod imp {
 
                 for object in &lane.object_caches {
                     let widget: gtk::Widget = match object {
-                        ObjectCache::Regular { .. } => gtk::Picture::builder()
-                            .paintable(&texture)
-                            .css_classes(vec!["upside-down".to_string()])
-                            .build()
-                            .upcast(),
+                        ObjectCache::Regular { .. } => make_picture(&texture).upcast(),
                         ObjectCache::LongNote { .. } => LongNote::new(
-                            &gtk::Picture::builder()
-                                .paintable(&head)
-                                .css_classes(vec!["upside-down".to_string()])
-                                .build(),
-                            &gtk::Picture::builder()
-                                .paintable(&tail)
-                                .css_classes(vec!["upside-down".to_string()])
-                                .build(),
-                            &gtk::Picture::builder()
-                                .paintable(&body)
-                                .keep_aspect_ratio(false)
-                                .css_classes(vec!["upside-down".to_string()])
-                                .build(),
+                            &make_picture(&head),
+                            &make_picture(&tail),
+                            &{
+                                let picture = make_picture(&body);
+                                picture.set_keep_aspect_ratio(false);
+                                picture
+                            },
                             map.lanes.len().try_into().unwrap(),
                             (object.end_position() - object.start_position()) * state.scroll_speed,
                         )
