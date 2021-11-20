@@ -162,10 +162,13 @@ mod imp {
 
         fn rebuild(&self) {
             let mut long_note_field = self.long_note.borrow_mut();
-            if let Some(long_note) = &*long_note_field {
+            let length = if let Some(long_note) = &*long_note_field {
                 self.box_long_note.remove(long_note);
                 self.view.get().unwrap().rebuild();
-            }
+                long_note.property("length").unwrap().get::<i64>().unwrap()
+            } else {
+                0
+            };
 
             let long_note = LongNote::new(
                 &gtk::Picture::builder()
@@ -182,7 +185,7 @@ mod imp {
                     .css_classes(vec!["upside-down".to_string()])
                     .build(),
                 1,
-                ScreenPositionDifference::default(),
+                ScreenPositionDifference(length),
             );
 
             long_note.set_halign(gtk::Align::Center);
