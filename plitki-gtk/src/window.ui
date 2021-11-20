@@ -23,6 +23,28 @@
             <property name="title">plitki-gtk</property>
           </object>
         </child>
+        <child type="end">
+          <object class="GtkBox">
+            <child>
+              <object class="GtkToggleButton" id="button_arrows">
+                <property name="icon-name">folder-download-symbolic</property>
+                <property name="active">true</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkToggleButton" id="button_bars">
+                <property name="icon-name">value-decrease-symbolic</property>
+                <property name="group">button_arrows</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkToggleButton" id="button_circles">
+                <property name="icon-name">media-record-symbolic</property>
+                <property name="group">button_arrows</property>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
     </child>
     <child>

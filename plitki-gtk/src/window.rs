@@ -12,7 +12,7 @@ mod imp {
 
     use super::*;
     use crate::long_note::LongNote;
-    use crate::skin::load_texture;
+    use crate::skin::{load_texture, Skin, SKIN};
     use crate::view::View;
 
     #[derive(Debug, Default, CompositeTemplate)]
@@ -20,6 +20,13 @@ mod imp {
     pub struct ApplicationWindow {
         #[template_child]
         button_open: TemplateChild<gtk::Button>,
+
+        #[template_child]
+        button_arrows: TemplateChild<gtk::ToggleButton>,
+        #[template_child]
+        button_bars: TemplateChild<gtk::ToggleButton>,
+        #[template_child]
+        button_circles: TemplateChild<gtk::ToggleButton>,
 
         #[template_child]
         viewport_playfield: TemplateChild<gtk::Viewport>,
@@ -99,6 +106,45 @@ mod imp {
                         let file = file_chooser.file().unwrap();
                         obj.open(file);
                     });
+                }
+            });
+
+            self.button_arrows.connect_toggled({
+                let obj = obj.downgrade();
+                move |button| {
+                    let obj = obj.upgrade().unwrap();
+                    let self_ = Self::from_instance(&obj);
+
+                    if button.is_active() {
+                        *SKIN.write().unwrap() = Skin::Arrows;
+                        self_.rebuild();
+                    }
+                }
+            });
+
+            self.button_bars.connect_toggled({
+                let obj = obj.downgrade();
+                move |button| {
+                    let obj = obj.upgrade().unwrap();
+                    let self_ = Self::from_instance(&obj);
+
+                    if button.is_active() {
+                        *SKIN.write().unwrap() = Skin::Bars;
+                        self_.rebuild();
+                    }
+                }
+            });
+
+            self.button_circles.connect_toggled({
+                let obj = obj.downgrade();
+                move |button| {
+                    let obj = obj.upgrade().unwrap();
+                    let self_ = Self::from_instance(&obj);
+
+                    if button.is_active() {
+                        *SKIN.write().unwrap() = Skin::Circles;
+                        self_.rebuild();
+                    }
                 }
             });
         }
