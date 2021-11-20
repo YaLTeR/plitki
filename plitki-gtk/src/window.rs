@@ -5,7 +5,9 @@ use gtk::{gio, glib};
 mod imp {
     use std::cell::RefCell;
 
+    use anyhow::Context;
     use gtk::{CompositeTemplate, ResponseType};
+    use log::info;
     use once_cell::unsync::OnceCell;
     use plitki_core::map::Map;
     use plitki_core::scroll::ScreenPositionDifference;
@@ -38,7 +40,8 @@ mod imp {
         #[template_child]
         scale_length: TemplateChild<gtk::Scale>,
 
-        view: OnceCell<View>,
+        view: OnceCell<RefCell<View>>,
+        scroll_speed_binding: OnceCell<RefCell<glib::Binding>>,
         long_note: RefCell<Option<LongNote>>,
     }
 
@@ -70,18 +73,22 @@ mod imp {
 
             view.add_css_class("upside-down");
 
-            view.bind_property(
-                "scroll-speed",
-                &self.scale_scroll_speed.adjustment(),
-                "value",
-            )
-            .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-            .build()
-            .unwrap();
+            let binding = view
+                .bind_property(
+                    "scroll-speed",
+                    &self.scale_scroll_speed.adjustment(),
+                    "value",
+                )
+                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                .build()
+                .unwrap();
+            self.scroll_speed_binding
+                .set(RefCell::new(binding))
+                .unwrap();
 
             self.viewport_playfield.set_child(Some(&view));
 
-            self.view.set(view).unwrap();
+            self.view.set(RefCell::new(view)).unwrap();
 
             self.rebuild();
 
@@ -104,7 +111,9 @@ mod imp {
                         }
 
                         let file = file_chooser.file().unwrap();
-                        obj.open(file);
+                        if let Err(err) = obj.open(file).with_context(|| "couldn't load the map") {
+                            info!("{:?}", err);
+                        }
                     });
                 }
             });
@@ -156,15 +165,46 @@ mod imp {
     impl ApplicationWindowImpl for ApplicationWindow {}
 
     impl ApplicationWindow {
-        pub fn open(&self, file: gio::File) {
-            // TODO
+        pub fn open(&self, file: gio::File) -> anyhow::Result<()> {
+            let bytes = file
+                .load_contents(None::<&gio::Cancellable>)
+                .with_context(|| "couldn't read the file")?
+                .0;
+
+            let qua = plitki_map_qua::from_reader(&bytes[..])
+                .with_context(|| "couldn't parse the file as a .qua map")?;
+            let map: Map = qua
+                .try_into()
+                .with_context(|| "couldn't convert the map to plitki's format")?;
+            let view = View::new(map);
+
+            self.viewport_playfield.set_child(Some(&view));
+
+            view.add_css_class("upside-down");
+
+            self.scroll_speed_binding.get().unwrap().borrow().unbind();
+
+            let binding = view
+                .bind_property(
+                    "scroll-speed",
+                    &self.scale_scroll_speed.adjustment(),
+                    "value",
+                )
+                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                .build()
+                .unwrap();
+
+            *self.view.get().unwrap().borrow_mut() = view;
+            *self.scroll_speed_binding.get().unwrap().borrow_mut() = binding;
+
+            Ok(())
         }
 
         fn rebuild(&self) {
             let mut long_note_field = self.long_note.borrow_mut();
             let length = if let Some(long_note) = &*long_note_field {
                 self.box_long_note.remove(long_note);
-                self.view.get().unwrap().rebuild();
+                self.view.get().unwrap().borrow().rebuild();
                 long_note.property("length").unwrap().get::<i64>().unwrap()
             } else {
                 0
@@ -217,7 +257,7 @@ impl ApplicationWindow {
         glib::Object::new(&[("application", app)]).unwrap()
     }
 
-    fn open(&self, file: gio::File) {
+    fn open(&self, file: gio::File) -> anyhow::Result<()> {
         imp::ApplicationWindow::from_instance(self).open(file)
     }
 }
