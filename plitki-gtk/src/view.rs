@@ -10,7 +10,7 @@ pub(crate) struct BoxedMap(Map);
 mod imp {
     use std::cell::RefCell;
 
-    use gtk::{gdk, gio};
+    use gtk::gdk;
     use log::{debug, trace};
     use once_cell::sync::Lazy;
     use once_cell::unsync::OnceCell;
@@ -19,6 +19,7 @@ mod imp {
 
     use super::*;
     use crate::long_note::LongNote;
+    use crate::skin::load_texture;
     use crate::utils::to_pixels;
 
     #[derive(Debug)]
@@ -36,11 +37,6 @@ mod imp {
                 scroll_speed: ScrollSpeed(32),
             }
         }
-    }
-
-    fn load_texture(filename: &str) -> gdk::Texture {
-        const SKIN_DIR: &str = "skin/bars";
-        gdk::Texture::from_file(&gio::File::for_path(format!("{}/{}", SKIN_DIR, filename))).unwrap()
     }
 
     #[derive(Debug, Default)]

@@ -3,12 +3,13 @@ use gtk::subclass::prelude::*;
 use gtk::{gio, glib};
 
 mod imp {
-    use gtk::{gdk, gdk_pixbuf, CompositeTemplate, ResponseType};
+    use gtk::{CompositeTemplate, ResponseType};
     use plitki_core::map::Map;
     use plitki_core::scroll::ScreenPositionDifference;
 
     use super::*;
     use crate::long_note::LongNote;
+    use crate::skin::load_texture;
     use crate::view::View;
 
     #[derive(Debug, Default, CompositeTemplate)]
@@ -43,10 +44,6 @@ mod imp {
         }
     }
 
-    fn load_texture(bytes: &'static [u8]) -> gdk::Texture {
-        gdk::Texture::for_pixbuf(&gdk_pixbuf::Pixbuf::from_read(bytes).unwrap())
-    }
-
     impl ObjectImpl for ApplicationWindow {
         fn constructed(&self, self_: &Self::Type) {
             self.parent_constructed(self_);
@@ -73,21 +70,15 @@ mod imp {
 
             let long_note = LongNote::new(
                 &gtk::Picture::builder()
-                    .paintable(&load_texture(include_bytes!(
-                        "../skin/arrows/note-holdhitobject-1.png"
-                    )))
+                    .paintable(&load_texture("note-holdhitobject-1.png"))
                     .css_classes(vec!["upside-down".to_string()])
                     .build(),
                 &gtk::Picture::builder()
-                    .paintable(&load_texture(include_bytes!(
-                        "../skin/arrows/note-holdend-1.png"
-                    )))
+                    .paintable(&load_texture("note-holdend-1.png"))
                     .css_classes(vec!["upside-down".to_string()])
                     .build(),
                 &gtk::Picture::builder()
-                    .paintable(&load_texture(include_bytes!(
-                        "../skin/arrows/note-holdbody-1.png"
-                    )))
+                    .paintable(&load_texture("note-holdbody-1.png"))
                     .keep_aspect_ratio(false)
                     .css_classes(vec!["upside-down".to_string()])
                     .build(),
