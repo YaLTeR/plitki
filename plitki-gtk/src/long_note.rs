@@ -1,6 +1,7 @@
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
+use plitki_core::scroll::ScreenPositionDifference;
 
 mod imp {
     use std::cell::Cell;
@@ -384,7 +385,20 @@ glib::wrapper! {
 }
 
 impl LongNote {
-    pub(crate) fn new(head: &gtk::Picture, tail: &gtk::Picture, body: &gtk::Picture) -> Self {
-        glib::Object::new(&[("head", head), ("tail", tail), ("body", body)]).unwrap()
+    pub(crate) fn new(
+        head: &gtk::Picture,
+        tail: &gtk::Picture,
+        body: &gtk::Picture,
+        lane_count: u8,
+        length: ScreenPositionDifference,
+    ) -> Self {
+        glib::Object::new(&[
+            ("head", head),
+            ("tail", tail),
+            ("body", body),
+            ("lane-count", &lane_count),
+            ("length", &length.0),
+        ])
+        .unwrap()
     }
 }
