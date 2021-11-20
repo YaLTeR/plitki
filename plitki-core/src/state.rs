@@ -59,6 +59,9 @@ pub struct ImmutableGameState {
 
     /// Minimum position across all objects.
     pub min_position: Option<Position>,
+
+    /// Timing line with the maximum position.
+    pub max_timing_line: Option<TimingLine>,
 }
 
 /// States of a regular object.
@@ -334,6 +337,7 @@ impl GameState {
             max_regular: None,
             max_long_note: None,
             min_position: None,
+            max_timing_line: None,
         };
 
         let mut min_regular_position = None;
@@ -445,10 +449,19 @@ impl GameState {
             while timestamp < end {
                 {
                     let timestamp = MapTimestamp::from_milli_hundredths(timestamp);
-                    timing_lines.push(TimingLine {
+                    let line = TimingLine {
                         timestamp,
                         position: immutable.position_at_time(timestamp),
-                    });
+                    };
+                    timing_lines.push(line);
+
+                    if let Some(ref mut max_timing_line) = immutable.max_timing_line {
+                        if max_timing_line.position < line.position {
+                            *max_timing_line = line;
+                        }
+                    } else {
+                        immutable.max_timing_line = Some(line);
+                    }
                 }
 
                 if step == 0 {
@@ -510,6 +523,12 @@ impl GameState {
     #[inline]
     pub fn max_long_note(&self) -> Option<LongNoteCache> {
         self.immutable.max_long_note
+    }
+
+    /// Returns the timing line with the maximum position.
+    #[inline]
+    pub fn max_timing_line(&self) -> Option<TimingLine> {
+        self.immutable.max_timing_line
     }
 
     /// Returns the minimum position across all objects.
@@ -2031,6 +2050,20 @@ mod tests {
                 .flat_map(|lane| lane.object_caches.iter())
                 .map(|object| object.start_position().min(object.end_position()))
                 .min();
+            prop_assert_eq!(result, correct);
+        }
+
+        #[test]
+        fn max_timing_line(map in any_with::<Map>(Valid(true))) {
+            let state = GameState::new(map).unwrap();
+
+            let result = state.max_timing_line();
+            let correct = state
+                .immutable
+                .timing_lines
+                .iter()
+                .max_by_key(|line| line.position)
+                .copied();
             prop_assert_eq!(result, correct);
         }
     }
