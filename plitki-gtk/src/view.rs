@@ -315,17 +315,22 @@ mod imp {
 
                         let (timing_line_y, nat_timing_line) =
                             if let Some(line) = state.game.max_timing_line() {
-                                // All timing lines are the same so just take the first one.
-                                let widget = &state.timing_lines[0];
-                                let nat_timing_line =
-                                    widget.measure(gtk::Orientation::Vertical, width).1;
-                                let timing_line_y = to_pixels(
-                                    (line.position - min_position) * state.scroll_speed,
-                                    lane_width,
-                                    lane_count,
-                                );
+                                if width == 0 {
+                                    // Separators do have a minimum width.
+                                    (0, 0)
+                                } else {
+                                    // All timing lines are the same so just take the first one.
+                                    let widget = &state.timing_lines[0];
+                                    let nat_timing_line =
+                                        widget.measure(gtk::Orientation::Vertical, width).1;
+                                    let timing_line_y = to_pixels(
+                                        (line.position - min_position) * state.scroll_speed,
+                                        lane_width,
+                                        lane_count,
+                                    );
 
-                                (nat_timing_line, timing_line_y)
+                                    (nat_timing_line, timing_line_y)
+                                }
                             } else {
                                 (0, 0)
                             };
@@ -374,6 +379,13 @@ mod imp {
                     widget.set_child_visible(false);
                     continue;
                 }
+
+                if width == 0 {
+                    // Separators do have a minimum width.
+                    widget.set_child_visible(false);
+                    continue;
+                }
+                widget.set_child_visible(true);
 
                 let difference = line.position - first_position;
                 let y = to_pixels(difference * state.scroll_speed, lane_width, lane_count);
