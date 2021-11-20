@@ -51,8 +51,8 @@ mod imp {
     }
 
     impl ObjectImpl for ApplicationWindow {
-        fn constructed(&self, self_: &Self::Type) {
-            self.parent_constructed(self_);
+        fn constructed(&self, obj: &Self::Type) {
+            self.parent_constructed(obj);
 
             let qua = plitki_map_qua::from_reader(
                 &include_bytes!("../../plitki-map-qua/tests/data/actual_map.qua")[..],
@@ -79,15 +79,15 @@ mod imp {
             self.rebuild();
 
             self.button_open.connect_clicked({
-                let self_ = self_.downgrade();
+                let obj = obj.downgrade();
                 move |_| {
-                    let self_ = self_.upgrade().unwrap();
+                    let obj = obj.upgrade().unwrap();
 
                     let file_chooser = gtk::FileChooserNativeBuilder::new()
-                        .transient_for(&self_)
+                        .transient_for(&obj)
                         .action(gtk::FileChooserAction::Open)
                         .title("Open a .qua map")
-                        .transient_for(&self_)
+                        .transient_for(&obj)
                         .modal(true)
                         .build();
 
@@ -97,7 +97,7 @@ mod imp {
                         }
 
                         let file = file_chooser.file().unwrap();
-                        self_.open(file);
+                        obj.open(file);
                     });
                 }
             });
