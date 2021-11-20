@@ -12,6 +12,8 @@ mod imp {
     use once_cell::unsync::OnceCell;
     use plitki_core::scroll::ScreenPositionDifference;
 
+    use crate::utils::to_pixels;
+
     use super::*;
 
     #[derive(Debug)]
@@ -159,19 +161,6 @@ mod imp {
                 _ => unimplemented!(),
             }
         }
-    }
-
-    fn to_pixels(length: ScreenPositionDifference, lane_width: i32, lane_count: u8) -> i32 {
-        let lane_count: i32 = lane_count.into();
-        let playfield_width = lane_width * lane_count;
-        let pixels = length
-            .0
-            .checked_mul(playfield_width.into())
-            .unwrap()
-            .checked_add(2_000_000_000 - 1)
-            .unwrap()
-            / 2_000_000_000;
-        pixels.try_into().unwrap()
     }
 
     impl WidgetImpl for LongNote {

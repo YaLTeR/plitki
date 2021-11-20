@@ -14,11 +14,12 @@ mod imp {
     use log::{debug, trace};
     use once_cell::sync::Lazy;
     use once_cell::unsync::OnceCell;
-    use plitki_core::scroll::{ScreenPositionDifference, ScrollSpeed};
+    use plitki_core::scroll::ScrollSpeed;
     use plitki_core::state::{GameState, ObjectCache};
 
     use super::*;
     use crate::long_note::LongNote;
+    use crate::utils::to_pixels;
 
     #[derive(Debug)]
     struct State {
@@ -238,19 +239,6 @@ mod imp {
                 _ => unimplemented!(),
             }
         }
-    }
-
-    fn to_pixels(length: ScreenPositionDifference, lane_width: i32, lane_count: u8) -> i32 {
-        let lane_count: i32 = lane_count.into();
-        let playfield_width = lane_width * lane_count;
-        let pixels = length
-            .0
-            .checked_mul(playfield_width.into())
-            .unwrap()
-            .checked_add(2_000_000_000 - 1)
-            .unwrap()
-            / 2_000_000_000;
-        pixels.try_into().unwrap()
     }
 
     impl WidgetImpl for View {

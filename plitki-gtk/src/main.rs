@@ -4,6 +4,7 @@ use gtk::gdk;
 use log::info;
 
 mod long_note;
+mod utils;
 mod view;
 mod window;
 
