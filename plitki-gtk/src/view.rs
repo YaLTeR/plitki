@@ -26,6 +26,7 @@ mod imp {
     struct State {
         game: GameState,
         objects: Vec<Vec<gtk::Widget>>,
+        timing_lines: Vec<gtk::Separator>,
         scroll_speed: ScrollSpeed,
     }
 
@@ -34,6 +35,7 @@ mod imp {
             Self {
                 game,
                 objects: vec![],
+                timing_lines: vec![],
                 scroll_speed: ScrollSpeed(32),
             }
         }
@@ -245,6 +247,7 @@ mod imp {
                         let state = self.state().borrow();
                         let lane_count = state.objects.len() as i32;
                         let lane_width = for_size / lane_count;
+                        let width = lane_width * lane_count;
                         let lane_count: u8 = lane_count.try_into().unwrap();
 
                         let min_position = state.game.min_position().unwrap();
@@ -310,7 +313,26 @@ mod imp {
                                 (0, 0)
                             };
 
-                        let nat = (regular_y + nat_regular).max(long_note_y + nat_long_note);
+                        let (timing_line_y, nat_timing_line) =
+                            if let Some(line) = state.game.max_timing_line() {
+                                // All timing lines are the same so just take the first one.
+                                let widget = &state.timing_lines[0];
+                                let nat_timing_line =
+                                    widget.measure(gtk::Orientation::Vertical, width).1;
+                                let timing_line_y = to_pixels(
+                                    (line.position - min_position) * state.scroll_speed,
+                                    lane_width,
+                                    lane_count,
+                                );
+
+                                (nat_timing_line, timing_line_y)
+                            } else {
+                                (0, 0)
+                            };
+
+                        let nat = (regular_y + nat_regular)
+                            .max(long_note_y + nat_long_note)
+                            .max(timing_line_y + nat_timing_line);
                         trace!("returning for height = {}: nat width = {}", for_size, nat);
                         (0, nat, -1, -1)
                     }
@@ -336,9 +358,36 @@ mod imp {
             let state = self.state().borrow();
             let lane_count: i32 = state.objects.len().try_into().unwrap();
             let lane_width = width / lane_count;
+            let width = lane_width * lane_count;
             let lane_count: u8 = lane_count.try_into().unwrap();
 
             let first_position = state.game.min_position().unwrap();
+
+            for (line, widget) in state
+                .game
+                .immutable
+                .timing_lines
+                .iter()
+                .zip(&state.timing_lines)
+            {
+                if line.position < first_position {
+                    widget.set_child_visible(false);
+                    continue;
+                }
+
+                let difference = line.position - first_position;
+                let y = to_pixels(difference * state.scroll_speed, lane_width, lane_count);
+                let height = widget.measure(gtk::Orientation::Vertical, width).1;
+                widget.size_allocate(
+                    &gdk::Rectangle {
+                        x: 0,
+                        y,
+                        width,
+                        height,
+                    },
+                    -1,
+                );
+            }
 
             for (l, (cache, widgets)) in state
                 .game
@@ -394,6 +443,13 @@ mod imp {
             );
 
             state.objects.clear();
+            state.timing_lines.clear();
+
+            for _ in &state.game.immutable.timing_lines {
+                let widget = gtk::Separator::new(gtk::Orientation::Horizontal);
+                widget.set_parent(obj);
+                state.timing_lines.push(widget);
+            }
 
             let textures = [
                 "note-hitobject-1.png",
