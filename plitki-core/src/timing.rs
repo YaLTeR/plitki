@@ -42,14 +42,17 @@ pub struct MapTimestampDifference(pub TimestampDifference);
 
 /// A point in time, measured in game time.
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct GameTimestamp(pub Timestamp);
 
 /// A difference between [`GameTimestamp`]s.
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct GameTimestampDifference(pub TimestampDifference);
 
 /// Contains data necessary to convert between game and map timestamps.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct TimestampConverter {
     /// Global offset.
     ///
@@ -489,6 +492,23 @@ mod tests {
         assert_eq!(timestamp, Err(TryFromDurationError(())));
     }
 
+    #[test]
+    fn map_to_game_and_back_matches() {
+        for global in -10..10 {
+            for local in -10..10 {
+                for timestamp in -10..10 {
+                    let converter = TimestampConverter {
+                        global_offset: GameTimestampDifference::from_milli_hundredths(global),
+                        local_offset: MapTimestampDifference::from_milli_hundredths(local),
+                    };
+                    let timestamp = MapTimestamp::from_milli_hundredths(timestamp);
+                    let result = timestamp.to_game(&converter).to_map(&converter);
+                    assert_eq!(result, timestamp);
+                }
+            }
+        }
+    }
+
     proptest! {
         #[allow(clippy::inconsistent_digit_grouping)]
         #[test]
@@ -504,8 +524,23 @@ mod tests {
         }
 
         #[test]
+        fn saturating_from_milli_hundredths_doesnt_panic(value: i32) {
+            let _ = Timestamp::saturating_from_milli_hundredths(value);
+        }
+
+        #[test]
         fn subtracting_timestamps_doesnt_panic(a: Timestamp, b: Timestamp) {
             let _ = a - b;
+        }
+
+        #[test]
+        fn converting_map_to_game_doesnt_panic(timestamp: MapTimestamp, converter: TimestampConverter) {
+            let _ = timestamp.to_game(&converter);
+        }
+
+        #[test]
+        fn converting_game_to_map_doesnt_panic(timestamp: GameTimestamp, converter: TimestampConverter) {
+            let _ = timestamp.to_map(&converter);
         }
     }
 }
