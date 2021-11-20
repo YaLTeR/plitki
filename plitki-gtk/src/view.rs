@@ -59,95 +59,7 @@ mod imp {
         fn constructed(&self, obj: &Self::Type) {
             self.parent_constructed(obj);
 
-            let mut state = self.state().borrow_mut();
-            let state = &mut *state;
-            let map = &state.game.immutable.map;
-
-            debug!(
-                "{} - {} [{}]",
-                map.song_artist.as_ref().unwrap(),
-                map.song_title.as_ref().unwrap(),
-                map.difficulty_name.as_ref().unwrap()
-            );
-
-            let textures = [
-                "note-hitobject-1.png",
-                "note-hitobject-2.png",
-                "note-hitobject-3.png",
-                "note-hitobject-4.png",
-            ]
-            .map(load_texture);
-
-            let heads = [
-                "note-holdhitobject-1.png",
-                "note-holdhitobject-2.png",
-                "note-holdhitobject-3.png",
-                "note-holdhitobject-4.png",
-            ]
-            .map(load_texture);
-            let tails = [
-                "note-holdend-1.png",
-                "note-holdend-2.png",
-                "note-holdend-3.png",
-                "note-holdend-4.png",
-            ]
-            .map(load_texture);
-            let bodies = [
-                "note-holdbody-1.png",
-                "note-holdbody-2.png",
-                "note-holdbody-3.png",
-                "note-holdbody-4.png",
-            ]
-            .map(load_texture);
-
-            for ((((lane, texture), head), tail), body) in state
-                .game
-                .immutable
-                .lane_caches
-                .iter()
-                .zip(textures)
-                .zip(heads)
-                .zip(tails)
-                .zip(bodies)
-            {
-                let mut widgets = Vec::new();
-
-                for object in &lane.object_caches {
-                    let widget: gtk::Widget = match object {
-                        ObjectCache::Regular { .. } => gtk::Picture::builder()
-                            .paintable(&texture)
-                            .css_classes(vec!["upside-down".to_string()])
-                            .build()
-                            .upcast(),
-                        ObjectCache::LongNote { .. } => LongNote::new(
-                            &gtk::Picture::builder()
-                                .paintable(&head)
-                                .css_classes(vec!["upside-down".to_string()])
-                                .build(),
-                            &gtk::Picture::builder()
-                                .paintable(&tail)
-                                .css_classes(vec!["upside-down".to_string()])
-                                .build(),
-                            &gtk::Picture::builder()
-                                .paintable(&body)
-                                .keep_aspect_ratio(false)
-                                .css_classes(vec!["upside-down".to_string()])
-                                .build(),
-                            map.lanes.len().try_into().unwrap(),
-                            (object.end_position() - object.start_position()) * state.scroll_speed,
-                        )
-                        .upcast(),
-                    };
-                    widgets.push(widget);
-                }
-
-                // Set parent in reverse to get the right draw order.
-                for widget in widgets.iter().rev() {
-                    widget.set_parent(obj);
-                }
-
-                state.objects.push(widgets);
-            }
+            self.rebuild(obj);
         }
 
         fn dispose(&self, obj: &Self::Type) {
@@ -452,6 +364,104 @@ mod imp {
                 .get()
                 .expect("map property was not set during construction")
         }
+
+        pub fn rebuild(&self, obj: &super::View) {
+            while let Some(child) = obj.first_child() {
+                child.unparent();
+            }
+
+            let mut state = self.state().borrow_mut();
+            let state = &mut *state;
+            let map = &state.game.immutable.map;
+
+            debug!(
+                "{} - {} [{}]",
+                map.song_artist.as_ref().unwrap(),
+                map.song_title.as_ref().unwrap(),
+                map.difficulty_name.as_ref().unwrap()
+            );
+
+            state.objects.clear();
+
+            let textures = [
+                "note-hitobject-1.png",
+                "note-hitobject-2.png",
+                "note-hitobject-3.png",
+                "note-hitobject-4.png",
+            ]
+            .map(load_texture);
+
+            let heads = [
+                "note-holdhitobject-1.png",
+                "note-holdhitobject-2.png",
+                "note-holdhitobject-3.png",
+                "note-holdhitobject-4.png",
+            ]
+            .map(load_texture);
+            let tails = [
+                "note-holdend-1.png",
+                "note-holdend-2.png",
+                "note-holdend-3.png",
+                "note-holdend-4.png",
+            ]
+            .map(load_texture);
+            let bodies = [
+                "note-holdbody-1.png",
+                "note-holdbody-2.png",
+                "note-holdbody-3.png",
+                "note-holdbody-4.png",
+            ]
+            .map(load_texture);
+
+            for ((((lane, texture), head), tail), body) in state
+                .game
+                .immutable
+                .lane_caches
+                .iter()
+                .zip(textures)
+                .zip(heads)
+                .zip(tails)
+                .zip(bodies)
+            {
+                let mut widgets = Vec::new();
+
+                for object in &lane.object_caches {
+                    let widget: gtk::Widget = match object {
+                        ObjectCache::Regular { .. } => gtk::Picture::builder()
+                            .paintable(&texture)
+                            .css_classes(vec!["upside-down".to_string()])
+                            .build()
+                            .upcast(),
+                        ObjectCache::LongNote { .. } => LongNote::new(
+                            &gtk::Picture::builder()
+                                .paintable(&head)
+                                .css_classes(vec!["upside-down".to_string()])
+                                .build(),
+                            &gtk::Picture::builder()
+                                .paintable(&tail)
+                                .css_classes(vec!["upside-down".to_string()])
+                                .build(),
+                            &gtk::Picture::builder()
+                                .paintable(&body)
+                                .keep_aspect_ratio(false)
+                                .css_classes(vec!["upside-down".to_string()])
+                                .build(),
+                            map.lanes.len().try_into().unwrap(),
+                            (object.end_position() - object.start_position()) * state.scroll_speed,
+                        )
+                        .upcast(),
+                    };
+                    widgets.push(widget);
+                }
+
+                // Set parent in reverse to get the right draw order.
+                for widget in widgets.iter().rev() {
+                    widget.set_parent(obj);
+                }
+
+                state.objects.push(widgets);
+            }
+        }
     }
 }
 
@@ -463,5 +473,9 @@ glib::wrapper! {
 impl View {
     pub(crate) fn new(map: Map) -> Self {
         glib::Object::new(&[("map", &BoxedMap(map))]).unwrap()
+    }
+
+    pub(crate) fn rebuild(&self) {
+        imp::View::from_instance(self).rebuild(self);
     }
 }

@@ -3,7 +3,10 @@ use gtk::subclass::prelude::*;
 use gtk::{gio, glib};
 
 mod imp {
+    use std::cell::RefCell;
+
     use gtk::{CompositeTemplate, ResponseType};
+    use once_cell::unsync::OnceCell;
     use plitki_core::map::Map;
     use plitki_core::scroll::ScreenPositionDifference;
 
@@ -27,6 +30,9 @@ mod imp {
         box_long_note: TemplateChild<gtk::Box>,
         #[template_child]
         scale_length: TemplateChild<gtk::Scale>,
+
+        view: OnceCell<View>,
+        long_note: RefCell<Option<LongNote>>,
     }
 
     #[glib::object_subclass]
@@ -68,36 +74,9 @@ mod imp {
 
             self.viewport_playfield.set_child(Some(&view));
 
-            let long_note = LongNote::new(
-                &gtk::Picture::builder()
-                    .paintable(&load_texture("note-holdhitobject-1.png"))
-                    .css_classes(vec!["upside-down".to_string()])
-                    .build(),
-                &gtk::Picture::builder()
-                    .paintable(&load_texture("note-holdend-1.png"))
-                    .css_classes(vec!["upside-down".to_string()])
-                    .build(),
-                &gtk::Picture::builder()
-                    .paintable(&load_texture("note-holdbody-1.png"))
-                    .keep_aspect_ratio(false)
-                    .css_classes(vec!["upside-down".to_string()])
-                    .build(),
-                1,
-                ScreenPositionDifference::default(),
-            );
+            self.view.set(view).unwrap();
 
-            long_note.set_halign(gtk::Align::Center);
-            long_note.set_valign(gtk::Align::Center);
-            long_note.set_vexpand(true);
-            long_note.add_css_class("upside-down");
-
-            long_note
-                .bind_property("length", &self.scale_length.adjustment(), "value")
-                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                .build()
-                .unwrap();
-
-            self.box_long_note.prepend(&long_note);
+            self.rebuild();
 
             self.button_open.connect_clicked({
                 let self_ = self_.downgrade();
@@ -133,6 +112,47 @@ mod imp {
     impl ApplicationWindow {
         pub fn open(&self, file: gio::File) {
             // TODO
+        }
+
+        fn rebuild(&self) {
+            let mut long_note_field = self.long_note.borrow_mut();
+            if let Some(long_note) = &*long_note_field {
+                self.box_long_note.remove(long_note);
+                self.view.get().unwrap().rebuild();
+            }
+
+            let long_note = LongNote::new(
+                &gtk::Picture::builder()
+                    .paintable(&load_texture("note-holdhitobject-1.png"))
+                    .css_classes(vec!["upside-down".to_string()])
+                    .build(),
+                &gtk::Picture::builder()
+                    .paintable(&load_texture("note-holdend-1.png"))
+                    .css_classes(vec!["upside-down".to_string()])
+                    .build(),
+                &gtk::Picture::builder()
+                    .paintable(&load_texture("note-holdbody-1.png"))
+                    .keep_aspect_ratio(false)
+                    .css_classes(vec!["upside-down".to_string()])
+                    .build(),
+                1,
+                ScreenPositionDifference::default(),
+            );
+
+            long_note.set_halign(gtk::Align::Center);
+            long_note.set_valign(gtk::Align::Center);
+            long_note.set_vexpand(true);
+            long_note.add_css_class("upside-down");
+
+            long_note
+                .bind_property("length", &self.scale_length.adjustment(), "value")
+                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                .build()
+                .unwrap();
+
+            self.box_long_note.prepend(&long_note);
+
+            *long_note_field = Some(long_note);
         }
     }
 }
