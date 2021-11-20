@@ -115,6 +115,14 @@ impl Timestamp {
         Self(milli_hundredths)
     }
 
+    /// Creates a new `Timestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths of a
+    /// millisecond, saturating at the bounds instead of panicking.
+    #[inline]
+    pub fn saturating_from_milli_hundredths(milli_hundredths: i32) -> Self {
+        let milli_hundredths = milli_hundredths.min(2i32.pow(30) - 1).max(-(2i32.pow(30)));
+        Self::from_milli_hundredths(milli_hundredths)
+    }
+
     /// Returns the timestamp as the number of <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
     #[inline]
     pub fn into_milli_hundredths(self) -> i32 {
@@ -154,6 +162,15 @@ impl MapTimestamp {
     #[inline]
     pub fn from_milli_hundredths(milli_hundredths: i32) -> Self {
         Self(Timestamp::from_milli_hundredths(milli_hundredths))
+    }
+
+    /// Creates a new `MapTimestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths of
+    /// a millisecond, saturating at the bounds instead of panicking.
+    #[inline]
+    pub fn saturating_from_milli_hundredths(milli_hundredths: i32) -> Self {
+        Self(Timestamp::saturating_from_milli_hundredths(
+            milli_hundredths,
+        ))
     }
 
     /// Returns the timestamp as the number of <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
@@ -201,6 +218,15 @@ impl GameTimestamp {
     #[inline]
     pub fn from_milli_hundredths(milli_hundredths: i32) -> Self {
         Self(Timestamp::from_milli_hundredths(milli_hundredths))
+    }
+
+    /// Creates a new `MapTimestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths of
+    /// a millisecond, saturating at the bounds instead of panicking.
+    #[inline]
+    pub fn saturating_from_milli_hundredths(milli_hundredths: i32) -> Self {
+        Self(Timestamp::saturating_from_milli_hundredths(
+            milli_hundredths,
+        ))
     }
 
     /// Returns the timestamp as the number of <sup>1</sup>⁄<sub>100</sub>ths of a millisecond.
