@@ -35,7 +35,52 @@
                 <property name="title">Playfield</property>
                 <property name="icon-name">applications-games-symbolic</property>
                 <property name="child">
-                  <object class="AdwBin" />
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <child>
+                      <object class="GtkScrolledWindow">
+                        <property name="hscrollbar-policy">never</property>
+                        <property name="vexpand">true</property>
+                        <property name="child">
+                          <object class="GtkViewport" id="viewport_playfield">
+                            <property name="vscroll-policy">natural</property>
+                            <property name="halign">center</property>
+                          </object>
+                        </property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkSeparator" />
+                    </child>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="margin-start">12</property>
+                        <property name="margin-end">12</property>
+                        <property name="margin-top">6</property>
+                        <property name="margin-bottom">6</property>
+                        <property name="spacing">6</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">Scroll Speed</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkScale" id="scale_scroll_speed">
+                            <property name="hexpand">true</property>
+                            <property name="adjustment">
+                              <object class="GtkAdjustment">
+                                <property name="upper">255</property>
+                                <property name="lower">0</property>
+                                <property name="value">32</property>
+                                <property name="step-increment">1</property>
+                                <property name="page-increment">10</property>
+                              </object>
+                            </property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
                 </property>
               </object>
             </child>

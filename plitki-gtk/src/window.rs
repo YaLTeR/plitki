@@ -4,15 +4,23 @@ use gtk::{gio, glib};
 
 mod imp {
     use gtk::{gdk, gdk_pixbuf, CompositeTemplate, ResponseType};
+    use plitki_core::map::Map;
+    use plitki_core::scroll::ScreenPositionDifference;
 
     use super::*;
     use crate::long_note::LongNote;
+    use crate::view::View;
 
     #[derive(Debug, Default, CompositeTemplate)]
     #[template(file = "window.ui")]
     pub struct ApplicationWindow {
         #[template_child]
         button_open: TemplateChild<gtk::Button>,
+
+        #[template_child]
+        viewport_playfield: TemplateChild<gtk::Viewport>,
+        #[template_child]
+        scale_scroll_speed: TemplateChild<gtk::Scale>,
 
         #[template_child]
         box_long_note: TemplateChild<gtk::Box>,
@@ -43,6 +51,26 @@ mod imp {
         fn constructed(&self, self_: &Self::Type) {
             self.parent_constructed(self_);
 
+            let qua = plitki_map_qua::from_reader(
+                &include_bytes!("../../plitki-map-qua/tests/data/actual_map.qua")[..],
+            )
+            .unwrap();
+            let map: Map = qua.try_into().unwrap();
+            let view = View::new(map);
+
+            view.add_css_class("upside-down");
+
+            view.bind_property(
+                "scroll-speed",
+                &self.scale_scroll_speed.adjustment(),
+                "value",
+            )
+            .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+            .build()
+            .unwrap();
+
+            self.viewport_playfield.set_child(Some(&view));
+
             let long_note = LongNote::new(
                 &gtk::Picture::builder()
                     .paintable(&load_texture(include_bytes!(
@@ -63,6 +91,8 @@ mod imp {
                     .keep_aspect_ratio(false)
                     .css_classes(vec!["upside-down".to_string()])
                     .build(),
+                1,
+                ScreenPositionDifference::default(),
             );
 
             long_note.set_halign(gtk::Align::Center);

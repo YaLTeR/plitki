@@ -4,7 +4,7 @@ use gtk::gdk;
 use log::info;
 
 mod long_note;
-mod plitki_view;
+mod view;
 mod window;
 
 fn main() {
