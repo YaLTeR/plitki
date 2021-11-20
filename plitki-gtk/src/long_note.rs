@@ -204,14 +204,50 @@ mod imp {
                         let height_to_fit = for_size;
 
                         // Natural width is the biggest width that fits the given height.
-                        // TODO: replace with binary search.
-                        for width in 1.. {
-                            let height = self.measure(widget, gtk::Orientation::Vertical, width).1;
-                            if height > height_to_fit {
-                                // We went over, so take the previous width.
-                                let nat = width - 1;
-                                trace!("returning for height = {}: nat width = {}", for_size, nat);
-                                return (0, nat, -1, -1);
+
+                        // Compute the aspect ratio of the long note, then estimate the starting
+                        // width from there.
+                        let nat_width = self.measure(widget, gtk::Orientation::Horizontal, -1).1;
+                        let nat_height = self
+                            .measure(widget, gtk::Orientation::Vertical, nat_width)
+                            .1;
+                        let starting_width =
+                            (nat_width as f32 / nat_height as f32 * height_to_fit as f32) as i32;
+
+                        // The real width should be somewhere close.
+                        let height = self
+                            .measure(widget, gtk::Orientation::Vertical, starting_width)
+                            .1;
+                        if height <= height_to_fit {
+                            // We're under, search up from here.
+                            for width in starting_width + 1.. {
+                                let height =
+                                    self.measure(widget, gtk::Orientation::Vertical, width).1;
+                                if height > height_to_fit {
+                                    // We went over, so take the previous width.
+                                    let nat = width - 1;
+                                    trace!(
+                                        "returning for height = {}: nat width = {}",
+                                        for_size,
+                                        nat
+                                    );
+                                    return (0, nat, -1, -1);
+                                }
+                            }
+                        } else {
+                            // We're over, search down from here.
+                            for width in (0..starting_width).rev() {
+                                let height =
+                                    self.measure(widget, gtk::Orientation::Vertical, width).1;
+                                if height <= height_to_fit {
+                                    let nat = width;
+                                    trace!(
+                                        "returning for height = {}: nat width = {}",
+                                        for_size,
+                                        nat
+                                    );
+                                    return (0, nat, -1, -1);
+                                }
                             }
                         }
 
