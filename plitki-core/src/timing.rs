@@ -410,18 +410,40 @@ impl TimestampConverter {
     ///
     /// Takes global and local offsets into account. For differences (which do _not_ need to
     /// consider global and local offsets) use [`Self::game_to_map_difference()`].
+    ///
+    /// The conversion uses saturating arithmetic in case the timestamp or the offsets are too
+    /// large.
     #[inline]
     pub fn game_to_map(&self, timestamp: GameTimestamp) -> MapTimestamp {
-        MapTimestamp((timestamp + self.global_offset).0) - self.local_offset
+        // Sacrificing a bit of type safety here for saturating arithmetic.
+        let global = self.global_offset.into_milli_hundredths();
+        let local = self.local_offset.into_milli_hundredths();
+        let timestamp = timestamp.into_milli_hundredths();
+
+        // MapTimestamp((timestamp + global).0) - local
+        MapTimestamp::saturating_from_milli_hundredths(
+            timestamp.saturating_add(global.saturating_sub(local)),
+        )
     }
 
     /// Converts a map timestamp into a game timestamp.
     ///
-    /// Takes global and local offsets into account. For differences (which do _not_ need to consider global
-    /// offset) use [`Self::map_to_game_difference()`].
+    /// Takes global and local offsets into account. For differences (which do _not_ need to
+    /// consider global offset) use [`Self::map_to_game_difference()`].
+    ///
+    /// The conversion uses saturating arithmetic in case the timestamp or the offsets are too
+    /// large.
     #[inline]
     pub fn map_to_game(&self, timestamp: MapTimestamp) -> GameTimestamp {
-        GameTimestamp((timestamp + self.local_offset).0) - self.global_offset
+        // Sacrificing a bit of type safety here for saturating arithmetic.
+        let global = self.global_offset.into_milli_hundredths();
+        let local = self.local_offset.into_milli_hundredths();
+        let timestamp = timestamp.into_milli_hundredths();
+
+        // GameTimestamp((timestamp + local).0) - global
+        GameTimestamp::saturating_from_milli_hundredths(
+            timestamp.saturating_add(local.saturating_sub(global)),
+        )
     }
 
     /// Converts a game difference into a map difference.
