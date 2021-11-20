@@ -67,6 +67,7 @@
                           <object class="GtkViewport" id="viewport_playfield">
                             <property name="vscroll-policy">natural</property>
                             <property name="halign">center</property>
+                            <property name="valign">center</property>
                           </object>
                         </property>
                       </object>
