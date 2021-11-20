@@ -448,8 +448,8 @@ impl TimestampConverter {
 
     /// Converts a game difference into a map difference.
     ///
-    /// Difference conversion does _not_ consider global and local offsets. For timestamps (which need to
-    /// consider global and local offsets) use [`Self::game_to_map()`].
+    /// Difference conversion does _not_ consider global and local offsets. For timestamps (which
+    /// need to consider global and local offsets) use [`Self::game_to_map()`].
     #[inline]
     pub fn game_to_map_difference(
         &self,
@@ -460,8 +460,8 @@ impl TimestampConverter {
 
     /// Converts a map difference into a game difference.
     ///
-    /// Difference conversion does _not_ consider global and local offsets. For timestamps (which need to
-    /// consider global and local offsets) use [`Self::map_to_game()`].
+    /// Difference conversion does _not_ consider global and local offsets. For timestamps (which
+    /// need to consider global and local offsets) use [`Self::map_to_game()`].
     #[inline]
     pub fn map_to_game_difference(
         &self,
