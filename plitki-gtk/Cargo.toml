@@ -13,3 +13,6 @@ gtk = { package = "gtk4", version = "0.3.1" }
 glib = { version = "0.14.8", features = ["log", "log_macros"] }
 adw = { version = "0.1.0-alpha-6", package = "libadwaita" }
 anyhow = "1.0.47"
+
+[dev-dependencies]
+proptest = "1.0.0"
