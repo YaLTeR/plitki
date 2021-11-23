@@ -187,6 +187,12 @@ impl MapTimestamp {
     pub fn no_scroll_speed_change_position(self) -> Position {
         Position::zero() + (self - MapTimestamp::zero()) * ScrollSpeedMultiplier::default()
     }
+
+    /// Converts the `Position` into a timestamp, as if there were no scroll speed changes.
+    #[inline]
+    pub fn from_no_scroll_speed_change_position(position: Position) -> Self {
+        MapTimestamp::zero() + (position - Position::zero()) / ScrollSpeedMultiplier::default()
+    }
 }
 
 impl GameTimestamp {
