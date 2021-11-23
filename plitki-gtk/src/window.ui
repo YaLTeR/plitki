@@ -18,13 +18,6 @@
           </object>
         </child>
         <child type="start">
-          <object class="GtkSeparator">
-            <style>
-              <class name="spacer" />
-            </style>
-          </object>
-        </child>
-        <child type="start">
           <object class="GtkToggleButton" id="button_upscroll">
             <property name="icon-name">go-up-symbolic</property>
             <property name="active">true</property>
