@@ -22,7 +22,7 @@ mod imp {
         tail: OnceCell<gtk::Picture>,
         body: OnceCell<gtk::Picture>,
         length: Cell<ScreenPositionDifference>,
-        lane_count: Cell<u8>,
+        lane_count: Cell<i32>,
     }
 
     impl Default for LongNote {
@@ -100,12 +100,12 @@ mod imp {
                         0,
                         glib::ParamFlags::READWRITE,
                     ),
-                    glib::ParamSpec::new_uchar(
+                    glib::ParamSpec::new_int(
                         "lane-count",
                         "lane-count",
                         "lane-count",
                         1,
-                        u8::MAX,
+                        i32::MAX,
                         1,
                         glib::ParamFlags::READWRITE,
                     ),
@@ -151,7 +151,7 @@ mod imp {
                     }
                 }
                 "lane-count" => {
-                    let lane_count = value.get::<u8>().expect("wrong property type");
+                    let lane_count = value.get::<i32>().expect("wrong property type");
                     assert!(lane_count >= 1);
                     if self.lane_count.get() != lane_count {
                         self.lane_count.set(lane_count);
@@ -378,7 +378,7 @@ impl LongNote {
         head: &gtk::Picture,
         tail: &gtk::Picture,
         body: &gtk::Picture,
-        lane_count: u8,
+        lane_count: i32,
         length: ScreenPositionDifference,
     ) -> Self {
         glib::Object::new(&[

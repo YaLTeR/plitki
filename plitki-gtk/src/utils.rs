@@ -1,7 +1,6 @@
 use plitki_core::scroll::ScreenPositionDifference;
 
-pub(crate) fn to_pixels(length: ScreenPositionDifference, lane_width: i32, lane_count: u8) -> i32 {
-    let lane_count: i32 = lane_count.into();
+pub(crate) fn to_pixels(length: ScreenPositionDifference, lane_width: i32, lane_count: i32) -> i32 {
     let playfield_width = lane_width * lane_count;
     let pixels = length
         .0

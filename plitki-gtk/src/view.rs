@@ -248,7 +248,6 @@ mod imp {
                         let lane_count = state.objects.len() as i32;
                         let lane_width = for_size / lane_count;
                         let width = lane_width * lane_count;
-                        let lane_count: u8 = lane_count.try_into().unwrap();
 
                         let min_position = state.game.min_position().unwrap();
 
@@ -364,7 +363,6 @@ mod imp {
             let lane_count: i32 = state.objects.len().try_into().unwrap();
             let lane_width = width / lane_count;
             let width = lane_width * lane_count;
-            let lane_count: u8 = lane_count.try_into().unwrap();
 
             let first_position = state.game.min_position().unwrap();
 
