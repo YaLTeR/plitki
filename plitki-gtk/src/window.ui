@@ -7,37 +7,33 @@
       <object class="AdwHeaderBar">
         <property name="centering-policy">strict</property>
         <child type="start">
-          <object class="GtkBox">
-            <child>
-              <object class="GtkButton" id="button_open">
-                <property name="child">
-                  <object class="AdwButtonContent">
-                    <property name="icon-name">document-open-symbolic</property>
-                    <property name="label">_Open</property>
-                    <property name="use-underline">True</property>
-                  </object>
-                </property>
+          <object class="GtkButton" id="button_open">
+            <property name="child">
+              <object class="AdwButtonContent">
+                <property name="icon-name">document-open-symbolic</property>
+                <property name="label">_Open</property>
+                <property name="use-underline">True</property>
               </object>
-            </child>
-            <child>
-              <object class="GtkSeparator">
-                <style>
-                  <class name="spacer" />
-                </style>
-              </object>
-            </child>
-            <child>
-              <object class="GtkToggleButton" id="button_upscroll">
-                <property name="icon-name">go-up-symbolic</property>
-                <property name="active">true</property>
-              </object>
-            </child>
-            <child>
-              <object class="GtkToggleButton" id="button_downscroll">
-                <property name="icon-name">go-down-symbolic</property>
-                <property name="group">button_upscroll</property>
-              </object>
-            </child>
+            </property>
+          </object>
+        </child>
+        <child type="start">
+          <object class="GtkSeparator">
+            <style>
+              <class name="spacer" />
+            </style>
+          </object>
+        </child>
+        <child type="start">
+          <object class="GtkToggleButton" id="button_upscroll">
+            <property name="icon-name">go-up-symbolic</property>
+            <property name="active">true</property>
+          </object>
+        </child>
+        <child type="start">
+          <object class="GtkToggleButton" id="button_downscroll">
+            <property name="icon-name">go-down-symbolic</property>
+            <property name="group">button_upscroll</property>
           </object>
         </child>
         <child type="title">
@@ -47,25 +43,21 @@
           </object>
         </child>
         <child type="end">
-          <object class="GtkBox">
-            <child>
-              <object class="GtkToggleButton" id="button_arrows">
-                <property name="icon-name">folder-download-symbolic</property>
-                <property name="active">true</property>
-              </object>
-            </child>
-            <child>
-              <object class="GtkToggleButton" id="button_bars">
-                <property name="icon-name">value-decrease-symbolic</property>
-                <property name="group">button_arrows</property>
-              </object>
-            </child>
-            <child>
-              <object class="GtkToggleButton" id="button_circles">
-                <property name="icon-name">media-record-symbolic</property>
-                <property name="group">button_arrows</property>
-              </object>
-            </child>
+          <object class="GtkToggleButton" id="button_circles">
+            <property name="icon-name">media-record-symbolic</property>
+            <property name="group">button_arrows</property>
+          </object>
+        </child>
+        <child type="end">
+          <object class="GtkToggleButton" id="button_bars">
+            <property name="icon-name">value-decrease-symbolic</property>
+            <property name="group">button_arrows</property>
+          </object>
+        </child>
+        <child type="end">
+          <object class="GtkToggleButton" id="button_arrows">
+            <property name="icon-name">folder-download-symbolic</property>
+            <property name="active">true</property>
           </object>
         </child>
       </object>
