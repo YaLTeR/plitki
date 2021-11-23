@@ -10,17 +10,18 @@ pub(crate) struct BoxedMap(Map);
 mod imp {
     use std::cell::RefCell;
 
-    use gtk::gdk;
+    use gtk::{gdk, graphene, gsk};
     use log::{debug, trace};
     use once_cell::sync::Lazy;
     use once_cell::unsync::OnceCell;
     use plitki_core::scroll::ScrollSpeed;
     use plitki_core::state::{GameState, ObjectCache};
+    use plitki_core::timing::MapTimestamp;
 
     use super::*;
     use crate::long_note::LongNote;
     use crate::skin::load_texture;
-    use crate::utils::to_pixels;
+    use crate::utils::{from_pixels_f64, to_pixels, to_pixels_f64};
 
     #[derive(Debug)]
     struct State {
@@ -28,6 +29,8 @@ mod imp {
         objects: Vec<Vec<gtk::Widget>>,
         timing_lines: Vec<gtk::Separator>,
         scroll_speed: ScrollSpeed,
+        map_timestamp: MapTimestamp,
+        downscroll: bool,
     }
 
     impl State {
@@ -37,13 +40,31 @@ mod imp {
                 objects: vec![],
                 timing_lines: vec![],
                 scroll_speed: ScrollSpeed(32),
+                map_timestamp: MapTimestamp::zero(),
+                downscroll: false,
             }
         }
     }
 
-    #[derive(Debug, Default)]
+    #[derive(Debug)]
     pub struct View {
         state: OnceCell<RefCell<State>>,
+        hadjustment: RefCell<Option<gtk::Adjustment>>,
+        vadjustment: RefCell<Option<gtk::Adjustment>>,
+        hadjustment_signal_handler: RefCell<Option<glib::SignalHandlerId>>,
+        vadjustment_signal_handler: RefCell<Option<glib::SignalHandlerId>>,
+    }
+
+    impl Default for View {
+        fn default() -> Self {
+            Self {
+                state: Default::default(),
+                hadjustment: Default::default(),
+                vadjustment: Default::default(),
+                hadjustment_signal_handler: Default::default(),
+                vadjustment_signal_handler: Default::default(),
+            }
+        }
     }
 
     #[glib::object_subclass]
@@ -51,6 +72,7 @@ mod imp {
         const NAME: &'static str = "PlitkiView";
         type Type = super::View;
         type ParentType = gtk::Widget;
+        type Interfaces = (gtk::Scrollable,);
 
         fn class_init(klass: &mut Self::Class) {
             klass.set_css_name("plitki-view");
@@ -60,6 +82,8 @@ mod imp {
     impl ObjectImpl for View {
         fn constructed(&self, obj: &Self::Type) {
             self.parent_constructed(obj);
+
+            obj.set_overflow(gtk::Overflow::Hidden);
 
             self.rebuild(obj);
         }
@@ -88,6 +112,46 @@ mod imp {
                         255,
                         32,
                         glib::ParamFlags::READABLE | glib::ParamFlags::WRITABLE,
+                    ),
+                    glib::ParamSpec::new_int(
+                        "map-timestamp",
+                        "map-timestamp",
+                        "map-timestamp",
+                        -(2i32.pow(30)),
+                        2i32.pow(30) - 1,
+                        0,
+                        glib::ParamFlags::READWRITE,
+                    ),
+                    glib::ParamSpec::new_boolean(
+                        "downscroll",
+                        "downscroll",
+                        "downscroll",
+                        false,
+                        glib::ParamFlags::READWRITE,
+                    ),
+                    glib::ParamSpec::new_override(
+                        "hadjustment",
+                        &glib::Interface::<gtk::Scrollable>::default()
+                            .find_property("hadjustment")
+                            .unwrap(),
+                    ),
+                    glib::ParamSpec::new_override(
+                        "vadjustment",
+                        &glib::Interface::<gtk::Scrollable>::default()
+                            .find_property("vadjustment")
+                            .unwrap(),
+                    ),
+                    glib::ParamSpec::new_override(
+                        "hscroll-policy",
+                        &glib::Interface::<gtk::Scrollable>::default()
+                            .find_property("hscroll-policy")
+                            .unwrap(),
+                    ),
+                    glib::ParamSpec::new_override(
+                        "vscroll-policy",
+                        &glib::Interface::<gtk::Scrollable>::default()
+                            .find_property("vscroll-policy")
+                            .unwrap(),
                     ),
                 ]
             });
@@ -135,6 +199,35 @@ mod imp {
                         obj.queue_resize();
                     }
                 }
+                "map-timestamp" => {
+                    let timestamp = value.get::<i32>().expect("wrong property type");
+                    let timestamp = MapTimestamp::from_milli_hundredths(timestamp);
+                    let mut state = self.state.get().expect("map needs to be set").borrow_mut();
+
+                    if state.map_timestamp != timestamp {
+                        state.map_timestamp = timestamp;
+                        obj.queue_allocate();
+                    }
+                }
+                "hadjustment" => {
+                    let value = value.get::<Option<gtk::Adjustment>>().unwrap();
+                    self.set_hadjustment(obj, value);
+                }
+                "vadjustment" => {
+                    let value = value.get::<Option<gtk::Adjustment>>().unwrap();
+                    self.set_vadjustment(obj, value);
+                }
+                "downscroll" => {
+                    let downscroll = value.get::<bool>().unwrap();
+                    let mut state = self.state.get().expect("map needs to be set").borrow_mut();
+
+                    if state.downscroll != downscroll {
+                        state.downscroll = downscroll;
+                        obj.queue_allocate();
+                    }
+                }
+                "hscroll-policy" => {}
+                "vscroll-policy" => {}
                 _ => unimplemented!(),
             }
         }
@@ -146,6 +239,19 @@ mod imp {
                     let speed: u32 = state.scroll_speed.0.into();
                     speed.to_value()
                 }
+                "map-timestamp" => {
+                    let state = self.state.get().expect("map needs to be set").borrow();
+                    let timestamp = state.map_timestamp.into_milli_hundredths();
+                    timestamp.to_value()
+                }
+                "downscroll" => {
+                    let state = self.state.get().expect("map needs to be set").borrow();
+                    state.downscroll.to_value()
+                }
+                "hadjustment" => self.hadjustment.borrow().to_value(),
+                "vadjustment" => self.vadjustment.borrow().to_value(),
+                "hscroll-policy" => gtk::ScrollablePolicy::Natural.to_value(),
+                "vscroll-policy" => gtk::ScrollablePolicy::Natural.to_value(),
                 _ => unimplemented!(),
             }
         }
@@ -348,21 +454,21 @@ mod imp {
         fn size_allocate(&self, widget: &Self::Type, width: i32, height: i32, _baseline: i32) {
             trace!("View::size_allocate({}, {})", width, height);
 
-            // Check that the given width would fit into the given height.
-            let nat_height = self.measure(widget, gtk::Orientation::Vertical, width).1;
-            let width = if nat_height <= height {
-                width
-            } else {
-                // If it wouldn't, compute a smaller width that would fit and use that.
-                let nat_width = self.measure(widget, gtk::Orientation::Horizontal, height).1;
-                assert!(nat_width < width);
-                nat_width
-            };
+            let _ = self.hadjustment.borrow().as_ref().unwrap().freeze_notify();
+            let _ = self.vadjustment.borrow().as_ref().unwrap().freeze_notify();
+
+            self.configure_adjustments(widget);
 
             let state = self.state().borrow();
             let lane_count: i32 = state.objects.len().try_into().unwrap();
             let lane_width = width / lane_count;
             let width = lane_width * lane_count;
+
+            let full_height = widget.measure(gtk::Orientation::Vertical, width).1;
+
+            let vadjustment = self.vadjustment.borrow();
+            let vadjustment = vadjustment.as_ref().unwrap();
+            let base_y = vadjustment.value() as i32;
 
             let first_position = state.game.min_position().unwrap();
 
@@ -386,17 +492,25 @@ mod imp {
                 widget.set_child_visible(true);
 
                 let difference = line.position - first_position;
-                let y = to_pixels(difference * state.scroll_speed, lane_width, lane_count);
+                let mut y = to_pixels(difference * state.scroll_speed, lane_width, lane_count);
                 let height = widget.measure(gtk::Orientation::Vertical, width).1;
-                widget.size_allocate(
-                    &gdk::Rectangle {
-                        x: 0,
-                        y,
-                        width,
-                        height,
-                    },
-                    -1,
-                );
+                if state.downscroll {
+                    y = full_height - y - height;
+                }
+                y -= base_y;
+
+                let mut transform = gsk::Transform::new()
+                    .translate(&graphene::Point::new(0., y as f32))
+                    .unwrap();
+                if state.downscroll {
+                    transform = transform
+                        .translate(&graphene::Point::new(0., height as f32))
+                        .unwrap_or_default()
+                        .scale(1., -1.)
+                        .unwrap();
+                }
+
+                widget.allocate(width, height, -1, Some(&transform));
             }
 
             for (l, (cache, widgets)) in state
@@ -413,21 +527,31 @@ mod imp {
                 for (cache, widget) in cache.object_caches.iter().zip(widgets) {
                     let position = cache.start_position();
                     let difference = position - first_position;
-                    let y = to_pixels(difference * state.scroll_speed, lane_width, lane_count);
+                    let mut y = to_pixels(difference * state.scroll_speed, lane_width, lane_count);
                     let height = widget.measure(gtk::Orientation::Vertical, lane_width).1;
-                    widget.size_allocate(
-                        &gdk::Rectangle {
-                            x,
-                            y,
-                            width: lane_width,
-                            height,
-                        },
-                        -1,
-                    );
+                    if state.downscroll {
+                        y = full_height - y - height;
+                    }
+                    y -= base_y;
+
+                    let mut transform = gsk::Transform::new()
+                        .translate(&graphene::Point::new(x as f32, y as f32))
+                        .unwrap();
+                    if state.downscroll {
+                        transform = transform
+                            .translate(&graphene::Point::new(0., height as f32))
+                            .unwrap_or_default()
+                            .scale(1., -1.)
+                            .unwrap();
+                    }
+
+                    widget.allocate(lane_width, height, -1, Some(&transform));
                 }
             }
         }
     }
+
+    impl ScrollableImpl for View {}
 
     impl View {
         fn state(&self) -> &RefCell<State> {
@@ -536,12 +660,133 @@ mod imp {
                 state.objects.push(widgets);
             }
         }
+
+        fn configure_adjustments(&self, widget: &super::View) {
+            if let Some(hadjustment) = self.hadjustment.borrow().as_ref() {
+                // We never actually scroll horizontally.
+                let view_width: f64 = widget.width().into();
+                hadjustment.configure(
+                    hadjustment.value(),
+                    0.,
+                    view_width,
+                    view_width * 0.1,
+                    view_width * 0.9,
+                    view_width,
+                );
+            }
+
+            if let Some(vadjustment) = self.vadjustment.borrow().as_ref() {
+                let state = self.state.get().unwrap().borrow();
+
+                let view_width = widget.width();
+                let lane_count: i32 = state.objects.len().try_into().unwrap();
+                let lane_width = view_width / lane_count;
+
+                let position = state.map_timestamp.no_scroll_speed_change_position();
+                let first_position = state.game.min_position().unwrap();
+
+                let mut position = to_pixels_f64(
+                    (position - first_position) * state.scroll_speed,
+                    lane_width,
+                    lane_count,
+                );
+
+                let nat_height = widget.measure(gtk::Orientation::Vertical, view_width).1;
+                let view_height: f64 = widget.height().into();
+                if state.downscroll {
+                    position = nat_height as f64 - view_height - position;
+                }
+
+                // vadjustment.configure() can emit value-changed which needs mutable access to
+                // state.
+                drop(state);
+
+                vadjustment.configure(
+                    position,
+                    0.,
+                    nat_height.into(),
+                    view_height * 0.1,
+                    view_height * 0.9,
+                    view_height,
+                );
+            };
+        }
+
+        fn set_hadjustment(&self, obj: &super::View, adjustment: Option<gtk::Adjustment>) {
+            if let Some(current) = self.hadjustment.take() {
+                let handler = self.hadjustment_signal_handler.take().unwrap();
+                current.disconnect(handler);
+            }
+
+            self.hadjustment.replace(adjustment.clone());
+
+            if let Some(adjustment) = adjustment {
+                self.configure_adjustments(obj);
+
+                let handler = adjustment.connect_value_changed({
+                    let obj = obj.downgrade();
+                    move |_| {
+                        let obj = obj.upgrade().unwrap();
+                        obj.queue_allocate();
+                    }
+                });
+                self.hadjustment_signal_handler.replace(Some(handler));
+            }
+        }
+
+        fn set_vadjustment(&self, obj: &super::View, adjustment: Option<gtk::Adjustment>) {
+            if let Some(current) = self.vadjustment.take() {
+                let handler = self.vadjustment_signal_handler.take().unwrap();
+                current.disconnect(handler);
+            }
+
+            self.vadjustment.replace(adjustment.clone());
+
+            if let Some(adjustment) = adjustment {
+                self.configure_adjustments(obj);
+
+                let handler = adjustment.connect_value_changed({
+                    let obj = obj.downgrade();
+                    move |adjustment| {
+                        let obj = obj.upgrade().unwrap();
+                        let self_ = Self::from_instance(&obj);
+                        let mut state = self_.state.get().unwrap().borrow_mut();
+
+                        // Convert the new value into map-timestamp.
+                        let view_width = obj.width();
+                        let lane_count: i32 = state.objects.len().try_into().unwrap();
+                        let lane_width = view_width / lane_count;
+                        let mut pixels = adjustment.value();
+                        if state.downscroll {
+                            pixels = adjustment.upper() - adjustment.page_size() - pixels;
+                        }
+                        let length = from_pixels_f64(pixels, lane_width, lane_count);
+                        let first_position = state.game.min_position().unwrap();
+                        let position = if state.scroll_speed.0 > 0 {
+                            let difference = length / state.scroll_speed;
+                            first_position + difference
+                        } else {
+                            first_position
+                        };
+                        let timestamp =
+                            MapTimestamp::from_no_scroll_speed_change_position(position);
+                        state.map_timestamp = timestamp;
+                        drop(state);
+
+                        obj.notify("map-timestamp");
+                        obj.queue_allocate();
+                    }
+                });
+                self.vadjustment_signal_handler.replace(Some(handler));
+            }
+        }
     }
 }
 
 glib::wrapper! {
     pub struct View(ObjectSubclass<imp::View>)
-        @extends gtk::Widget;
+        @extends gtk::Widget,
+        @implements gtk::Scrollable;
 }
 
 impl View {

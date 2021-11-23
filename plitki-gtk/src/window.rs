@@ -24,6 +24,11 @@ mod imp {
         button_open: TemplateChild<gtk::Button>,
 
         #[template_child]
+        button_upscroll: TemplateChild<gtk::ToggleButton>,
+        #[template_child]
+        button_downscroll: TemplateChild<gtk::ToggleButton>,
+
+        #[template_child]
         button_arrows: TemplateChild<gtk::ToggleButton>,
         #[template_child]
         button_bars: TemplateChild<gtk::ToggleButton>,
@@ -31,7 +36,7 @@ mod imp {
         button_circles: TemplateChild<gtk::ToggleButton>,
 
         #[template_child]
-        viewport_playfield: TemplateChild<gtk::Viewport>,
+        scrolled_window_playfield: TemplateChild<gtk::ScrolledWindow>,
         #[template_child]
         scale_scroll_speed: TemplateChild<gtk::Scale>,
 
@@ -71,7 +76,9 @@ mod imp {
             let map: Map = qua.try_into().unwrap();
             let view = View::new(map);
 
-            view.add_css_class("upside-down");
+            view.set_halign(gtk::Align::Center);
+            view.set_valign(gtk::Align::Center);
+            view.set_vexpand(true);
 
             let binding = view
                 .bind_property(
@@ -86,7 +93,7 @@ mod imp {
                 .set(RefCell::new(binding))
                 .unwrap();
 
-            self.viewport_playfield.set_child(Some(&view));
+            self.scrolled_window_playfield.set_child(Some(&view));
 
             self.view.set(RefCell::new(view)).unwrap();
 
@@ -115,6 +122,54 @@ mod imp {
                             info!("{:?}", err);
                         }
                     });
+                }
+            });
+
+            self.button_upscroll.connect_toggled({
+                let obj = obj.downgrade();
+                move |button| {
+                    let obj = obj.upgrade().unwrap();
+                    let self_ = Self::from_instance(&obj);
+
+                    if button.is_active() {
+                        self_
+                            .view
+                            .get()
+                            .unwrap()
+                            .borrow()
+                            .set_property("downscroll", false)
+                            .unwrap();
+                        self_
+                            .long_note
+                            .borrow()
+                            .as_ref()
+                            .unwrap()
+                            .remove_css_class("upside-down");
+                    }
+                }
+            });
+
+            self.button_downscroll.connect_toggled({
+                let obj = obj.downgrade();
+                move |button| {
+                    let obj = obj.upgrade().unwrap();
+                    let self_ = Self::from_instance(&obj);
+
+                    if button.is_active() {
+                        self_
+                            .view
+                            .get()
+                            .unwrap()
+                            .borrow()
+                            .set_property("downscroll", true)
+                            .unwrap();
+                        self_
+                            .long_note
+                            .borrow()
+                            .as_ref()
+                            .unwrap()
+                            .add_css_class("upside-down");
+                    }
                 }
             });
 
@@ -178,9 +233,15 @@ mod imp {
                 .with_context(|| "couldn't convert the map to plitki's format")?;
             let view = View::new(map);
 
-            self.viewport_playfield.set_child(Some(&view));
+            view.set_halign(gtk::Align::Center);
+            view.set_valign(gtk::Align::Center);
+            view.set_vexpand(true);
 
-            view.add_css_class("upside-down");
+            if self.button_downscroll.is_active() {
+                view.set_property("downscroll", true).unwrap();
+            }
+
+            self.scrolled_window_playfield.set_child(Some(&view));
 
             self.scroll_speed_binding.get().unwrap().borrow().unbind();
 
@@ -231,7 +292,10 @@ mod imp {
             long_note.set_halign(gtk::Align::Center);
             long_note.set_valign(gtk::Align::Center);
             long_note.set_vexpand(true);
-            long_note.add_css_class("upside-down");
+
+            if self.button_downscroll.is_active() {
+                long_note.add_css_class("upside-down");
+            }
 
             long_note
                 .bind_property("length", &self.scale_length.adjustment(), "value")

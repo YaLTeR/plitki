@@ -7,14 +7,37 @@
       <object class="AdwHeaderBar">
         <property name="centering-policy">strict</property>
         <child type="start">
-          <object class="GtkButton" id="button_open">
-            <property name="child">
-              <object class="AdwButtonContent">
-                <property name="icon-name">document-open-symbolic</property>
-                <property name="label">_Open</property>
-                <property name="use-underline">True</property>
+          <object class="GtkBox">
+            <child>
+              <object class="GtkButton" id="button_open">
+                <property name="child">
+                  <object class="AdwButtonContent">
+                    <property name="icon-name">document-open-symbolic</property>
+                    <property name="label">_Open</property>
+                    <property name="use-underline">True</property>
+                  </object>
+                </property>
               </object>
-            </property>
+            </child>
+            <child>
+              <object class="GtkSeparator">
+                <style>
+                  <class name="spacer" />
+                </style>
+              </object>
+            </child>
+            <child>
+              <object class="GtkToggleButton" id="button_upscroll">
+                <property name="icon-name">go-up-symbolic</property>
+                <property name="active">true</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkToggleButton" id="button_downscroll">
+                <property name="icon-name">go-down-symbolic</property>
+                <property name="group">button_upscroll</property>
+              </object>
+            </child>
           </object>
         </child>
         <child type="title">
@@ -60,16 +83,9 @@
                   <object class="GtkBox">
                     <property name="orientation">vertical</property>
                     <child>
-                      <object class="GtkScrolledWindow">
+                      <object class="GtkScrolledWindow" id="scrolled_window_playfield">
                         <property name="hscrollbar-policy">never</property>
                         <property name="vexpand">true</property>
-                        <property name="child">
-                          <object class="GtkViewport" id="viewport_playfield">
-                            <property name="vscroll-policy">natural</property>
-                            <property name="halign">center</property>
-                            <property name="valign">center</property>
-                          </object>
-                        </property>
                       </object>
                     </child>
                     <child>
