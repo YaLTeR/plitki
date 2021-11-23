@@ -59,6 +59,8 @@ pub struct ImmutableGameState {
 
     /// Minimum position across all objects.
     pub min_position: Option<Position>,
+    /// Maximum position across all objects.
+    pub max_position: Option<Position>,
 
     /// Timing line with the maximum position.
     pub max_timing_line: Option<TimingLine>,
@@ -337,6 +339,7 @@ impl GameState {
             max_regular: None,
             max_long_note: None,
             min_position: None,
+            max_position: None,
             max_timing_line: None,
         };
 
@@ -419,6 +422,11 @@ impl GameState {
                             immutable.max_long_note = Some(cache);
                         }
                     }
+                }
+                if let Some(ref mut max_position) = immutable.max_position {
+                    *max_position = (*max_position).max(max);
+                } else {
+                    immutable.max_position = Some(max);
                 }
 
                 object_caches.push(cache);
@@ -535,6 +543,12 @@ impl GameState {
     #[inline]
     pub fn min_position(&self) -> Option<Position> {
         self.immutable.min_position
+    }
+
+    /// Returns the maximum position across all objects.
+    #[inline]
+    pub fn max_position(&self) -> Option<Position> {
+        self.immutable.max_position
     }
 
     /// Updates the state to match the `latest` state.
@@ -2050,6 +2064,21 @@ mod tests {
                 .flat_map(|lane| lane.object_caches.iter())
                 .map(|object| object.start_position().min(object.end_position()))
                 .min();
+            prop_assert_eq!(result, correct);
+        }
+
+        #[test]
+        fn max_position(map in any_with::<Map>(Valid(true))) {
+            let state = GameState::new(map).unwrap();
+
+            let result = state.max_position();
+            let correct = state
+                .immutable
+                .lane_caches
+                .iter()
+                .flat_map(|lane| lane.object_caches.iter())
+                .map(|object| object.start_position().max(object.end_position()))
+                .max();
             prop_assert_eq!(result, correct);
         }
 
