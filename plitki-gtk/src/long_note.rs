@@ -1,6 +1,6 @@
-use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
+use gtk::{gdk, glib};
 use plitki_core::scroll::ScreenPositionDifference;
 
 mod imp {
@@ -375,16 +375,20 @@ glib::wrapper! {
 
 impl LongNote {
     pub(crate) fn new(
-        head: &gtk::Picture,
-        tail: &gtk::Picture,
-        body: &gtk::Picture,
+        head: &gdk::Texture,
+        tail: &gdk::Texture,
+        body: &gdk::Texture,
         lane_count: i32,
         length: ScreenPositionDifference,
     ) -> Self {
         glib::Object::new(&[
-            ("head", head),
-            ("tail", tail),
-            ("body", body),
+            ("head", &gtk::Picture::for_paintable(Some(head))),
+            ("tail", &gtk::Picture::for_paintable(Some(tail))),
+            ("body", &{
+                let picture = gtk::Picture::for_paintable(Some(body));
+                picture.set_keep_aspect_ratio(false);
+                picture
+            }),
             ("lane-count", &lane_count),
             ("length", &length.0),
         ])

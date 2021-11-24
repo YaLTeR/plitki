@@ -1,3 +1,4 @@
+use crate::skin::Skin;
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -10,7 +11,7 @@ pub(crate) struct BoxedMap(Map);
 mod imp {
     use std::cell::RefCell;
 
-    use gtk::{gdk, graphene, gsk};
+    use gtk::{graphene, gsk};
     use log::{debug, trace};
     use once_cell::sync::Lazy;
     use once_cell::unsync::OnceCell;
@@ -19,7 +20,6 @@ mod imp {
 
     use super::*;
     use crate::long_note::LongNote;
-    use crate::skin::load_texture;
     use crate::utils::{from_pixels_f64, to_pixels, to_pixels_f64};
 
     #[derive(Debug)]
@@ -48,6 +48,7 @@ mod imp {
     #[derive(Debug, Default)]
     pub struct View {
         state: OnceCell<RefCell<State>>,
+        skin: OnceCell<RefCell<Skin>>,
         hadjustment: RefCell<Option<gtk::Adjustment>>,
         vadjustment: RefCell<Option<gtk::Adjustment>>,
         hadjustment_signal_handler: RefCell<Option<glib::SignalHandlerId>>,
@@ -115,6 +116,13 @@ mod imp {
                         "downscroll",
                         false,
                         glib::ParamFlags::READWRITE,
+                    ),
+                    glib::ParamSpec::new_boxed(
+                        "skin",
+                        "skin",
+                        "skin",
+                        Skin::static_type(),
+                        glib::ParamFlags::READWRITE | glib::ParamFlags::CONSTRUCT,
                     ),
                     glib::ParamSpec::new_override(
                         "hadjustment",
@@ -213,6 +221,16 @@ mod imp {
                         obj.queue_allocate();
                     }
                 }
+                "skin" => {
+                    let value = value.get::<Skin>().unwrap();
+                    match self.skin.get() {
+                        Some(skin) => {
+                            *skin.borrow_mut() = value;
+                            self.rebuild(obj);
+                        }
+                        None => self.skin.set(RefCell::new(value)).unwrap(),
+                    }
+                }
                 "hscroll-policy" => {}
                 "vscroll-policy" => {}
                 _ => unimplemented!(),
@@ -235,6 +253,7 @@ mod imp {
                     let state = self.state.get().expect("map needs to be set").borrow();
                     state.downscroll.to_value()
                 }
+                "skin" => self.skin.get().unwrap().borrow().to_value(),
                 "hadjustment" => self.hadjustment.borrow().to_value(),
                 "vadjustment" => self.vadjustment.borrow().to_value(),
                 "hscroll-policy" => gtk::ScrollablePolicy::Natural.to_value(),
@@ -572,65 +591,23 @@ mod imp {
                 state.timing_lines.push(widget);
             }
 
-            let textures = [
-                "note-hitobject-1.png",
-                "note-hitobject-2.png",
-                "note-hitobject-3.png",
-                "note-hitobject-4.png",
-            ]
-            .map(load_texture);
+            let lane_count = state.game.immutable.map.lanes.len();
 
-            let heads = [
-                "note-holdhitobject-1.png",
-                "note-holdhitobject-2.png",
-                "note-holdhitobject-3.png",
-                "note-holdhitobject-4.png",
-            ]
-            .map(load_texture);
-            let tails = [
-                "note-holdend-1.png",
-                "note-holdend-2.png",
-                "note-holdend-3.png",
-                "note-holdend-4.png",
-            ]
-            .map(load_texture);
-            let bodies = [
-                "note-holdbody-1.png",
-                "note-holdbody-2.png",
-                "note-holdbody-3.png",
-                "note-holdbody-4.png",
-            ]
-            .map(load_texture);
+            for (l, lane) in state.game.immutable.lane_caches.iter().enumerate() {
+                let skin = self.skin.get().unwrap().borrow();
+                let lane_skin = skin.store().get(lane_count, l);
 
-            let make_picture = |texture: &gdk::Texture| {
-                let picture = gtk::Picture::for_paintable(Some(texture));
-                picture.add_css_class("upside-down");
-                picture
-            };
-
-            for ((((lane, texture), head), tail), body) in state
-                .game
-                .immutable
-                .lane_caches
-                .iter()
-                .zip(textures)
-                .zip(heads)
-                .zip(tails)
-                .zip(bodies)
-            {
                 let mut widgets = Vec::new();
 
                 for object in &lane.object_caches {
                     let widget: gtk::Widget = match object {
-                        ObjectCache::Regular { .. } => make_picture(&texture).upcast(),
+                        ObjectCache::Regular { .. } => {
+                            gtk::Picture::for_paintable(Some(&lane_skin.object)).upcast()
+                        }
                         ObjectCache::LongNote { .. } => LongNote::new(
-                            &make_picture(&head),
-                            &make_picture(&tail),
-                            &{
-                                let picture = make_picture(&body);
-                                picture.set_keep_aspect_ratio(false);
-                                picture
-                            },
+                            &lane_skin.ln_head,
+                            &lane_skin.ln_tail,
+                            &lane_skin.ln_body,
                             map.lanes.len().try_into().unwrap(),
                             (object.end_position() - object.start_position()) * state.scroll_speed,
                         )
@@ -774,11 +751,7 @@ glib::wrapper! {
 }
 
 impl View {
-    pub(crate) fn new(map: Map) -> Self {
-        glib::Object::new(&[("map", &BoxedMap(map))]).unwrap()
-    }
-
-    pub(crate) fn rebuild(&self) {
-        imp::View::from_instance(self).rebuild(self);
+    pub(crate) fn new(map: Map, skin: &Skin) -> Self {
+        glib::Object::new(&[("map", &BoxedMap(map)), ("skin", skin)]).unwrap()
     }
 }

@@ -1,29 +1,64 @@
-use std::sync::RwLock;
+use std::collections::HashMap;
 
 use gtk::gdk;
-use once_cell::sync::Lazy;
 
-pub(crate) static SKIN: Lazy<RwLock<Skin>> = Lazy::new(|| RwLock::new(Skin::Arrows));
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Skin {
-    Arrows,
-    Bars,
-    Circles,
+#[derive(Debug, Clone)]
+pub struct LaneSkin {
+    pub object: gdk::Texture,
+    pub ln_head: gdk::Texture,
+    pub ln_body: gdk::Texture,
+    pub ln_tail: gdk::Texture,
 }
 
-impl Skin {
-    pub(crate) fn load_texture(self, filename: &str) -> gdk::Texture {
-        let folder = match self {
-            Skin::Arrows => "arrows",
-            Skin::Bars => "bars",
-            Skin::Circles => "circles",
-        };
+#[derive(Debug, Clone)]
+pub struct Store {
+    elements: HashMap<usize, Vec<LaneSkin>>,
+}
 
-        gdk::Texture::from_resource(&format!("/plitki-gtk/skin/{}/{}", folder, filename))
+impl Store {
+    pub fn new() -> Self {
+        Self {
+            elements: HashMap::new(),
+        }
+    }
+
+    pub fn insert(&mut self, lane_count: usize, element: Vec<LaneSkin>) {
+        assert!(lane_count > 0);
+        assert!(element.len() == lane_count);
+
+        self.elements.insert(lane_count, element);
+    }
+
+    pub fn get(&self, lane_count: usize, lane: usize) -> &LaneSkin {
+        assert!(lane_count > 0);
+        assert!(lane < lane_count);
+
+        if let Some(element) = self.elements.get(&lane_count) {
+            return &element[lane];
+        }
+
+        todo!()
     }
 }
 
-pub(crate) fn load_texture(filename: &str) -> gdk::Texture {
-    SKIN.read().unwrap().load_texture(filename)
+impl Default for Store {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Debug, Clone, glib::GBoxed)]
+#[gboxed(type_name = "PlitkiSkin")]
+pub struct Skin {
+    store: Store,
+}
+
+impl Skin {
+    pub fn new(store: Store) -> Self {
+        Self { store }
+    }
+
+    pub fn store(&self) -> &Store {
+        &self.store
+    }
 }

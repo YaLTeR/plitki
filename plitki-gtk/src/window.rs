@@ -6,7 +6,7 @@ mod imp {
     use std::cell::RefCell;
 
     use anyhow::Context;
-    use gtk::{CompositeTemplate, ResponseType};
+    use gtk::{gdk, gdk_pixbuf, CompositeTemplate, ResponseType};
     use log::info;
     use once_cell::unsync::OnceCell;
     use plitki_core::map::Map;
@@ -14,8 +14,51 @@ mod imp {
 
     use super::*;
     use crate::long_note::LongNote;
-    use crate::skin::{load_texture, Skin, SKIN};
+    use crate::skin::{LaneSkin, Skin, Store};
     use crate::view::View;
+
+    fn create_skin(path: &str) -> Skin {
+        let load_texture = |path: &str| {
+            // We're loading Quaver textures which are flipped with regards to what our widgets
+            // expect.
+            gdk::Texture::for_pixbuf(
+                &gdk_pixbuf::Pixbuf::from_resource(path)
+                    .unwrap()
+                    .flip(false)
+                    .unwrap(),
+            )
+        };
+
+        let mut store = Store::new();
+
+        let mut element = Vec::new();
+        for lane in 0..4 {
+            let lane_skin = LaneSkin {
+                object: load_texture(&format!("{}/4k/note-hitobject-{}.png", path, lane + 1)),
+                ln_head: load_texture(&format!("{}/4k/note-holdhitobject-{}.png", path, lane + 1)),
+                ln_body: load_texture(&format!("{}/4k/note-holdbody-{}.png", path, lane + 1)),
+                ln_tail: load_texture(&format!("{}/4k/note-holdend-{}.png", path, lane + 1)),
+            };
+
+            element.push(lane_skin);
+        }
+        store.insert(4, element);
+
+        let mut element = Vec::new();
+        for lane in 0..7 {
+            let lane_skin = LaneSkin {
+                object: load_texture(&format!("{}/7k/note-hitobject-{}.png", path, lane + 1)),
+                ln_head: load_texture(&format!("{}/7k/note-holdhitobject-{}.png", path, lane + 1)),
+                ln_body: load_texture(&format!("{}/7k/note-holdbody-{}.png", path, lane + 1)),
+                ln_tail: load_texture(&format!("{}/7k/note-holdend-{}.png", path, lane + 1)),
+            };
+
+            element.push(lane_skin);
+        }
+        store.insert(7, element);
+
+        Skin::new(store)
+    }
 
     #[derive(Debug, Default, CompositeTemplate)]
     #[template(resource = "/plitki-gtk/window.ui")]
@@ -48,6 +91,11 @@ mod imp {
         view: OnceCell<RefCell<View>>,
         scroll_speed_binding: OnceCell<RefCell<glib::Binding>>,
         long_note: RefCell<Option<LongNote>>,
+
+        skin_arrows: OnceCell<Skin>,
+        skin_bars: OnceCell<Skin>,
+        skin_circles: OnceCell<Skin>,
+        skin_current: OnceCell<RefCell<Skin>>,
     }
 
     #[glib::object_subclass]
@@ -69,12 +117,25 @@ mod imp {
         fn constructed(&self, obj: &Self::Type) {
             self.parent_constructed(obj);
 
+            self.skin_arrows
+                .set(create_skin("/plitki-gtk/skin/arrows"))
+                .unwrap();
+            self.skin_bars
+                .set(create_skin("/plitki-gtk/skin/bars"))
+                .unwrap();
+            self.skin_circles
+                .set(create_skin("/plitki-gtk/skin/circles"))
+                .unwrap();
+            self.skin_current
+                .set(RefCell::new(self.skin_arrows.get().unwrap().clone()))
+                .unwrap();
+
             let qua = plitki_map_qua::from_reader(
                 &include_bytes!("../../plitki-map-qua/tests/data/actual_map.qua")[..],
             )
             .unwrap();
             let map: Map = qua.try_into().unwrap();
-            let view = View::new(map);
+            let view = View::new(map, &*self.skin_current.get().unwrap().borrow());
 
             view.set_halign(gtk::Align::Center);
             view.set_valign(gtk::Align::Center);
@@ -97,7 +158,7 @@ mod imp {
 
             self.view.set(RefCell::new(view)).unwrap();
 
-            self.rebuild();
+            self.set_skin(self.skin_arrows.get().unwrap());
 
             self.button_open.connect_clicked({
                 let obj = obj.downgrade();
@@ -180,8 +241,7 @@ mod imp {
                     let self_ = Self::from_instance(&obj);
 
                     if button.is_active() {
-                        *SKIN.write().unwrap() = Skin::Arrows;
-                        self_.rebuild();
+                        self_.set_skin(self_.skin_arrows.get().unwrap());
                     }
                 }
             });
@@ -193,8 +253,7 @@ mod imp {
                     let self_ = Self::from_instance(&obj);
 
                     if button.is_active() {
-                        *SKIN.write().unwrap() = Skin::Bars;
-                        self_.rebuild();
+                        self_.set_skin(self_.skin_bars.get().unwrap());
                     }
                 }
             });
@@ -206,8 +265,7 @@ mod imp {
                     let self_ = Self::from_instance(&obj);
 
                     if button.is_active() {
-                        *SKIN.write().unwrap() = Skin::Circles;
-                        self_.rebuild();
+                        self_.set_skin(self_.skin_circles.get().unwrap());
                     }
                 }
             });
@@ -231,7 +289,7 @@ mod imp {
             let map: Map = qua
                 .try_into()
                 .with_context(|| "couldn't convert the map to plitki's format")?;
-            let view = View::new(map);
+            let view = View::new(map, &*self.skin_current.get().unwrap().borrow());
 
             view.set_halign(gtk::Align::Center);
             view.set_valign(gtk::Align::Center);
@@ -261,30 +319,28 @@ mod imp {
             Ok(())
         }
 
-        fn rebuild(&self) {
+        fn set_skin(&self, skin: &Skin) {
+            *self.skin_current.get().unwrap().borrow_mut() = skin.clone();
+
             let mut long_note_field = self.long_note.borrow_mut();
             let length = if let Some(long_note) = &*long_note_field {
                 self.box_long_note.remove(long_note);
-                self.view.get().unwrap().borrow().rebuild();
+                self.view
+                    .get()
+                    .unwrap()
+                    .borrow()
+                    .set_property("skin", skin)
+                    .unwrap();
                 long_note.property("length").unwrap().get::<i64>().unwrap()
             } else {
                 0
             };
 
+            let lane_skin = skin.store().get(4, 0);
             let long_note = LongNote::new(
-                &gtk::Picture::builder()
-                    .paintable(&load_texture("note-holdhitobject-1.png"))
-                    .css_classes(vec!["upside-down".to_string()])
-                    .build(),
-                &gtk::Picture::builder()
-                    .paintable(&load_texture("note-holdend-1.png"))
-                    .css_classes(vec!["upside-down".to_string()])
-                    .build(),
-                &gtk::Picture::builder()
-                    .paintable(&load_texture("note-holdbody-1.png"))
-                    .keep_aspect_ratio(false)
-                    .css_classes(vec!["upside-down".to_string()])
-                    .build(),
+                &lane_skin.ln_head,
+                &lane_skin.ln_tail,
+                &lane_skin.ln_body,
                 1,
                 ScreenPositionDifference(length),
             );
