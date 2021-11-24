@@ -14,9 +14,8 @@ mod imp {
     use log::{debug, trace};
     use once_cell::sync::Lazy;
     use once_cell::unsync::OnceCell;
-    use plitki_core::scroll::ScrollSpeed;
+    use plitki_core::scroll::{Position, ScrollSpeed};
     use plitki_core::state::{GameState, ObjectCache};
-    use plitki_core::timing::MapTimestamp;
 
     use super::*;
     use crate::long_note::LongNote;
@@ -29,7 +28,7 @@ mod imp {
         objects: Vec<Vec<gtk::Widget>>,
         timing_lines: Vec<gtk::Separator>,
         scroll_speed: ScrollSpeed,
-        map_timestamp: MapTimestamp,
+        map_position: Position,
         downscroll: bool,
     }
 
@@ -40,7 +39,7 @@ mod imp {
                 objects: vec![],
                 timing_lines: vec![],
                 scroll_speed: ScrollSpeed(32),
-                map_timestamp: MapTimestamp::zero(),
+                map_position: Position::zero(),
                 downscroll: false,
             }
         }
@@ -113,12 +112,12 @@ mod imp {
                         32,
                         glib::ParamFlags::READABLE | glib::ParamFlags::WRITABLE,
                     ),
-                    glib::ParamSpec::new_int(
-                        "map-timestamp",
-                        "map-timestamp",
-                        "map-timestamp",
-                        -(2i32.pow(30)),
-                        2i32.pow(30) - 1,
+                    glib::ParamSpec::new_int64(
+                        "map-position",
+                        "map-position",
+                        "map-position",
+                        -(2i64.pow(32 + 24)),
+                        2i64.pow(32 + 24) - 1,
                         0,
                         glib::ParamFlags::READWRITE,
                     ),
@@ -199,13 +198,13 @@ mod imp {
                         obj.queue_resize();
                     }
                 }
-                "map-timestamp" => {
-                    let timestamp = value.get::<i32>().expect("wrong property type");
-                    let timestamp = MapTimestamp::from_milli_hundredths(timestamp);
+                "map-position" => {
+                    let position = value.get::<i64>().expect("wrong property type");
+                    let position = Position::new(position);
                     let mut state = self.state.get().expect("map needs to be set").borrow_mut();
 
-                    if state.map_timestamp != timestamp {
-                        state.map_timestamp = timestamp;
+                    if state.map_position != position {
+                        state.map_position = position;
                         obj.queue_allocate();
                     }
                 }
@@ -239,10 +238,10 @@ mod imp {
                     let speed: u32 = state.scroll_speed.0.into();
                     speed.to_value()
                 }
-                "map-timestamp" => {
+                "map-position" => {
                     let state = self.state.get().expect("map needs to be set").borrow();
-                    let timestamp = state.map_timestamp.into_milli_hundredths();
-                    timestamp.to_value()
+                    let position: i64 = state.map_position.into();
+                    position.to_value()
                 }
                 "downscroll" => {
                     let state = self.state.get().expect("map needs to be set").borrow();
@@ -682,11 +681,10 @@ mod imp {
                 let lane_count: i32 = state.objects.len().try_into().unwrap();
                 let lane_width = view_width / lane_count;
 
-                let position = state.map_timestamp.no_scroll_speed_change_position();
                 let first_position = state.game.min_position().unwrap();
 
                 let mut position = to_pixels_f64(
-                    (position - first_position) * state.scroll_speed,
+                    (state.map_position - first_position) * state.scroll_speed,
                     lane_width,
                     lane_count,
                 );
@@ -752,7 +750,7 @@ mod imp {
                         let self_ = Self::from_instance(&obj);
                         let mut state = self_.state.get().unwrap().borrow_mut();
 
-                        // Convert the new value into map-timestamp.
+                        // Convert the new value into map-position.
                         let view_width = obj.width();
                         let lane_count: i32 = state.objects.len().try_into().unwrap();
                         let lane_width = view_width / lane_count;
@@ -768,12 +766,10 @@ mod imp {
                         } else {
                             first_position
                         };
-                        let timestamp =
-                            MapTimestamp::from_no_scroll_speed_change_position(position);
-                        state.map_timestamp = timestamp;
+                        state.map_position = position;
                         drop(state);
 
-                        obj.notify("map-timestamp");
+                        obj.notify("map-position");
                         obj.queue_allocate();
                     }
                 });
