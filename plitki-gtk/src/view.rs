@@ -45,25 +45,13 @@ mod imp {
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Default)]
     pub struct View {
         state: OnceCell<RefCell<State>>,
         hadjustment: RefCell<Option<gtk::Adjustment>>,
         vadjustment: RefCell<Option<gtk::Adjustment>>,
         hadjustment_signal_handler: RefCell<Option<glib::SignalHandlerId>>,
         vadjustment_signal_handler: RefCell<Option<glib::SignalHandlerId>>,
-    }
-
-    impl Default for View {
-        fn default() -> Self {
-            Self {
-                state: Default::default(),
-                hadjustment: Default::default(),
-                vadjustment: Default::default(),
-                hadjustment_signal_handler: Default::default(),
-                vadjustment_signal_handler: Default::default(),
-            }
-        }
     }
 
     #[glib::object_subclass]
