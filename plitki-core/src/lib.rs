@@ -3,6 +3,7 @@
 
 #![cfg_attr(not(test), no_std)]
 #![warn(missing_docs)]
+#![deny(unsafe_code)]
 
 extern crate alloc;
 
