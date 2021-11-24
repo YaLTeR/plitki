@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+    <gresource prefix="/plitki-gtk">
+        <file>style.css</file>
+        <file>window.ui</file>
+
+        <file>skin/arrows/note-hitobject-1.png</file>
+        <file>skin/arrows/note-hitobject-2.png</file>
+        <file>skin/arrows/note-hitobject-3.png</file>
+        <file>skin/arrows/note-hitobject-4.png</file>
+        <file>skin/arrows/note-holdbody-1.png</file>
+        <file>skin/arrows/note-holdbody-2.png</file>
+        <file>skin/arrows/note-holdbody-3.png</file>
+        <file>skin/arrows/note-holdbody-4.png</file>
+        <file>skin/arrows/note-holdend-1.png</file>
+        <file>skin/arrows/note-holdend-2.png</file>
+        <file>skin/arrows/note-holdend-3.png</file>
+        <file>skin/arrows/note-holdend-4.png</file>
+        <file>skin/arrows/note-holdhitobject-1.png</file>
+        <file>skin/arrows/note-holdhitobject-2.png</file>
+        <file>skin/arrows/note-holdhitobject-3.png</file>
+        <file>skin/arrows/note-holdhitobject-4.png</file>
+        <file>skin/bars/note-hitobject-1.png</file>
+        <file>skin/bars/note-hitobject-2.png</file>
+        <file>skin/bars/note-hitobject-3.png</file>
+        <file>skin/bars/note-hitobject-4.png</file>
+        <file>skin/bars/note-holdbody-1.png</file>
+        <file>skin/bars/note-holdbody-2.png</file>
+        <file>skin/bars/note-holdbody-3.png</file>
+        <file>skin/bars/note-holdbody-4.png</file>
+        <file>skin/bars/note-holdend-1.png</file>
+        <file>skin/bars/note-holdend-2.png</file>
+        <file>skin/bars/note-holdend-3.png</file>
+        <file>skin/bars/note-holdend-4.png</file>
+        <file>skin/bars/note-holdhitobject-1.png</file>
+        <file>skin/bars/note-holdhitobject-2.png</file>
+        <file>skin/bars/note-holdhitobject-3.png</file>
+        <file>skin/bars/note-holdhitobject-4.png</file>
+        <file>skin/circles/note-hitobject-1.png</file>
+        <file>skin/circles/note-hitobject-2.png</file>
+        <file>skin/circles/note-hitobject-3.png</file>
+        <file>skin/circles/note-hitobject-4.png</file>
+        <file>skin/circles/note-holdbody-1.png</file>
+        <file>skin/circles/note-holdbody-2.png</file>
+        <file>skin/circles/note-holdbody-3.png</file>
+        <file>skin/circles/note-holdbody-4.png</file>
+        <file>skin/circles/note-holdend-1.png</file>
+        <file>skin/circles/note-holdend-2.png</file>
+        <file>skin/circles/note-holdend-3.png</file>
+        <file>skin/circles/note-holdend-4.png</file>
+        <file>skin/circles/note-holdhitobject-1.png</file>
+        <file>skin/circles/note-holdhitobject-2.png</file>
+        <file>skin/circles/note-holdhitobject-3.png</file>
+        <file>skin/circles/note-holdhitobject-4.png</file>
+    </gresource>
+</gresources>

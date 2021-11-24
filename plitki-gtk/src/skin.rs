@@ -1,6 +1,6 @@
 use std::sync::RwLock;
 
-use gtk::{gdk, gio};
+use gtk::gdk;
 use once_cell::sync::Lazy;
 
 pub(crate) static SKIN: Lazy<RwLock<Skin>> = Lazy::new(|| RwLock::new(Skin::Arrows));
@@ -20,11 +20,7 @@ impl Skin {
             Skin::Circles => "circles",
         };
 
-        gdk::Texture::from_file(&gio::File::for_path(format!(
-            "skin/{}/{}",
-            folder, filename
-        )))
-        .unwrap()
+        gdk::Texture::from_resource(&format!("/plitki-gtk/skin/{}/{}", folder, filename))
     }
 }
 

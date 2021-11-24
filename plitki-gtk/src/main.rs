@@ -1,6 +1,6 @@
 use adw::prelude::*;
 use glib::{GlibLogger, GlibLoggerDomain, GlibLoggerFormat};
-use gtk::gdk;
+use gtk::{gdk, gio};
 use log::info;
 
 mod long_note;
@@ -21,6 +21,8 @@ fn main() {
         env!("CARGO_PKG_VERSION"),
     );
 
+    gio::resources_register_include!("compiled.gresource").unwrap();
+
     let app = adw::Application::builder().build();
     app.connect_startup(on_startup);
     app.connect_activate(on_activate);
@@ -30,7 +32,7 @@ fn main() {
 fn on_startup(app: &adw::Application) {
     // Load our CSS.
     let provider = gtk::CssProvider::new();
-    provider.load_from_data(include_bytes!("style.css"));
+    provider.load_from_resource("/plitki-gtk/style.css");
     if let Some(display) = gdk::Display::default() {
         gtk::StyleContext::add_provider_for_display(
             &display,

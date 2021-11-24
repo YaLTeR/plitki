@@ -16,3 +16,6 @@ anyhow = "1.0.47"
 
 [dev-dependencies]
 proptest = "1.0.0"
+
+[build-dependencies]
+gio = "0.14.8"

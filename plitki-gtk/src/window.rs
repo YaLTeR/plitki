@@ -18,7 +18,7 @@ mod imp {
     use crate::view::View;
 
     #[derive(Debug, Default, CompositeTemplate)]
-    #[template(file = "window.ui")]
+    #[template(resource = "/plitki-gtk/window.ui")]
     pub struct ApplicationWindow {
         #[template_child]
         button_open: TemplateChild<gtk::Button>,
