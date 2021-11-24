@@ -13,8 +13,10 @@ use crate::{impl_ops, timing::MapTimestampDifference};
 ///
 /// Note that `Position` does _not_ take into account the actual scroll speed;
 /// [`ScreenPositionDifference`] does.
+/// 
+/// `Position` ranges from -2<sup>56</sup> to 2<sup>56</sup>-1.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Position(pub(crate) i64);
+pub struct Position(i64);
 
 /// Difference between positions.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -85,6 +87,26 @@ impl Position {
     #[inline]
     pub fn zero() -> Self {
         Self(0)
+    }
+
+    /// Creates a new `Position` with bounds checking.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `value` is outside of the valid `Position` range.
+    #[inline]
+    pub fn new(value: i64) -> Self {
+        assert!(value < 2i64.pow(56));
+        assert!(value >= -(2i64.pow(56)));
+
+        Self(value)
+    }
+}
+
+impl From<Position> for i64 {
+    #[inline]
+    fn from(value: Position) -> Self {
+        value.0
     }
 }
 

@@ -1484,31 +1484,31 @@ mod tests {
             &[
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(-2),
-                    position: Position(-900)
+                    position: Position::new(-900)
                 },
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(-1),
-                    position: Position(-500)
+                    position: Position::new(-500)
                 },
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(0),
-                    position: Position(0)
+                    position: Position::new(0)
                 },
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(1),
-                    position: Position(100)
+                    position: Position::new(100)
                 },
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(3),
-                    position: Position(700)
+                    position: Position::new(700)
                 },
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(4),
-                    position: Position(1200)
+                    position: Position::new(1200)
                 },
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(5),
-                    position: Position(1900)
+                    position: Position::new(1900)
                 },
             ][..]
         );
@@ -1544,11 +1544,11 @@ mod tests {
             &[
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(-1),
-                    position: Position(-500)
+                    position: Position::new(-500)
                 },
                 CachedPosition {
                     timestamp: MapTimestamp::from_millis(1),
-                    position: Position(500)
+                    position: Position::new(500)
                 },
             ][..]
         );
@@ -1601,23 +1601,23 @@ mod tests {
 
         assert_eq!(
             state.position_at_time(MapTimestamp::from_milli_hundredths(-250)),
-            Position(-950)
+            Position::new(-950)
         );
         assert_eq!(
             state.position_at_time(MapTimestamp::from_milli_hundredths(-50)),
-            Position(-250)
+            Position::new(-250)
         );
         assert_eq!(
             state.position_at_time(MapTimestamp::from_milli_hundredths(300)),
-            Position(700)
+            Position::new(700)
         );
         assert_eq!(
             state.position_at_time(MapTimestamp::from_milli_hundredths(350)),
-            Position(950)
+            Position::new(950)
         );
         assert_eq!(
             state.position_at_time(MapTimestamp::from_milli_hundredths(600)),
-            Position(2700)
+            Position::new(2700)
         );
     }
 
@@ -1687,21 +1687,21 @@ mod tests {
         assert_eq!(
             state.immutable.lane_caches[0].object_caches[0],
             ObjectCache::Regular(RegularObjectCache {
-                position: Position(-950)
+                position: Position::new(-950)
             })
         );
         assert_eq!(
             state.immutable.lane_caches[0].object_caches[1],
             ObjectCache::LongNote(LongNoteCache {
-                start_position: Position(700),
-                end_position: Position(2700)
+                start_position: Position::new(700),
+                end_position: Position::new(2700)
             })
         );
         assert_eq!(
             state.immutable.lane_caches[1].object_caches[0],
             ObjectCache::LongNote(LongNoteCache {
-                start_position: Position(-250),
-                end_position: Position(950)
+                start_position: Position::new(-250),
+                end_position: Position::new(950)
             })
         );
     }
@@ -1777,43 +1777,43 @@ mod tests {
             &[
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(0),
-                    position: Position(0),
+                    position: Position::new(0),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(40),
-                    position: Position(40_00),
+                    position: Position::new(40_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(80),
-                    position: Position(80_00),
+                    position: Position::new(80_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(120),
-                    position: Position(120_00),
+                    position: Position::new(120_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(160),
-                    position: Position(160_00),
+                    position: Position::new(160_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(200),
-                    position: Position(200_00),
+                    position: Position::new(200_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(215),
-                    position: Position(215_00),
+                    position: Position::new(215_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(220),
-                    position: Position(220_00),
+                    position: Position::new(220_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(240),
-                    position: Position(240_00),
+                    position: Position::new(240_00),
                 },
                 TimingLine {
                     timestamp: MapTimestamp::from_millis(260),
-                    position: Position(260_00),
+                    position: Position::new(260_00),
                 },
             ][..],
         );
@@ -1886,17 +1886,17 @@ mod tests {
     #[test]
     fn object_cache_methods() {
         let regular = ObjectCache::Regular(RegularObjectCache {
-            position: Position(10),
+            position: Position::new(10),
         });
-        assert_eq!(regular.start_position(), Position(10));
-        assert_eq!(regular.end_position(), Position(10));
+        assert_eq!(regular.start_position(), Position::new(10));
+        assert_eq!(regular.end_position(), Position::new(10));
 
         let ln = ObjectCache::LongNote(LongNoteCache {
-            start_position: Position(20),
-            end_position: Position(30),
+            start_position: Position::new(20),
+            end_position: Position::new(30),
         });
-        assert_eq!(ln.start_position(), Position(20));
-        assert_eq!(ln.end_position(), Position(30));
+        assert_eq!(ln.start_position(), Position::new(20));
+        assert_eq!(ln.end_position(), Position::new(30));
     }
 
     #[test]
@@ -1956,7 +1956,7 @@ mod tests {
         assert_eq!(
             state.min_regular(),
             Some(RegularObjectCache {
-                position: Position(0)
+                position: Position::new(0)
             })
         );
     }
