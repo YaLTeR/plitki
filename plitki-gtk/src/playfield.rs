@@ -20,6 +20,7 @@ mod imp {
     use once_cell::unsync::OnceCell;
     use plitki_core::scroll::{Position, ScrollSpeed};
     use plitki_core::state::ObjectCache;
+    use plitki_core::timing::MapTimestamp;
 
     use super::*;
     use crate::long_note::LongNote;
@@ -31,6 +32,7 @@ mod imp {
         objects: Vec<Vec<gtk::Widget>>,
         timing_lines: Vec<gtk::Separator>,
         scroll_speed: ScrollSpeed,
+        map_timestamp: MapTimestamp,
         map_position: Position,
         downscroll: bool,
     }
@@ -42,6 +44,7 @@ mod imp {
                 objects: vec![],
                 timing_lines: vec![],
                 scroll_speed: ScrollSpeed(32),
+                map_timestamp: MapTimestamp::zero(),
                 map_position: Position::zero(),
                 downscroll: false,
             }
@@ -102,6 +105,15 @@ mod imp {
                         0,
                         255,
                         32,
+                        glib::ParamFlags::READWRITE,
+                    ),
+                    glib::ParamSpec::new_int(
+                        "map-timestamp",
+                        "map-timestamp",
+                        "map-timestamp",
+                        -(2i32.pow(30)),
+                        2i32.pow(30) - 1,
+                        0,
                         glib::ParamFlags::READWRITE,
                     ),
                     glib::ParamSpec::new_int64(
@@ -197,6 +209,20 @@ mod imp {
                         obj.queue_resize();
                     }
                 }
+                "map-timestamp" => {
+                    let timestamp = value.get::<i32>().expect("wrong property type");
+                    let timestamp = MapTimestamp::from_milli_hundredths(timestamp);
+                    let mut state = self.state.get().expect("map needs to be set").borrow_mut();
+                    state.map_timestamp = timestamp;
+
+                    let position = state.game.position_at_time(timestamp);
+                    if state.map_position != position {
+                        state.map_position = position;
+                        drop(state);
+                        obj.notify("map-position");
+                        obj.queue_allocate();
+                    }
+                }
                 "map-position" => {
                     let position = value.get::<i64>().expect("wrong property type");
                     let position = Position::new(position);
@@ -246,6 +272,10 @@ mod imp {
                     let state = self.state.get().expect("map needs to be set").borrow();
                     let speed: u32 = state.scroll_speed.0.into();
                     speed.to_value()
+                }
+                "map-timestamp" => {
+                    let state = self.state.get().expect("map needs to be set").borrow();
+                    state.map_timestamp.into_milli_hundredths().to_value()
                 }
                 "map-position" => {
                     let state = self.state.get().expect("map needs to be set").borrow();
