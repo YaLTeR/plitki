@@ -1,8 +1,11 @@
+use std::cell::Ref;
+
 use crate::skin::Skin;
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use plitki_core::map::Map;
+use plitki_core::state::GameState;
 
 #[derive(Debug, Clone, glib::GBoxed)]
 #[gboxed(type_name = "BoxedMap")]
@@ -16,7 +19,7 @@ mod imp {
     use once_cell::sync::Lazy;
     use once_cell::unsync::OnceCell;
     use plitki_core::scroll::{Position, ScrollSpeed};
-    use plitki_core::state::{GameState, ObjectCache};
+    use plitki_core::state::ObjectCache;
 
     use super::*;
     use crate::long_note::LongNote;
@@ -566,6 +569,10 @@ mod imp {
                 .expect("map property was not set during construction")
         }
 
+        pub fn game_state(&self) -> Ref<GameState> {
+            Ref::map(self.state().borrow(), |state| &state.game)
+        }
+
         pub fn rebuild(&self, obj: &super::Playfield) {
             while let Some(child) = obj.first_child() {
                 child.unparent();
@@ -753,5 +760,9 @@ glib::wrapper! {
 impl Playfield {
     pub(crate) fn new(map: Map, skin: &Skin) -> Self {
         glib::Object::new(&[("map", &BoxedMap(map)), ("skin", skin)]).unwrap()
+    }
+
+    pub(crate) fn state(&self) -> Ref<GameState> {
+        imp::Playfield::from_instance(self).game_state()
     }
 }
