@@ -99,7 +99,7 @@ mod imp {
                         0,
                         255,
                         32,
-                        glib::ParamFlags::READABLE | glib::ParamFlags::WRITABLE,
+                        glib::ParamFlags::READWRITE,
                     ),
                     glib::ParamSpec::new_int64(
                         "map-position",
