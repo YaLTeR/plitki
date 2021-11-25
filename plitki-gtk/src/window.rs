@@ -3,14 +3,16 @@ use gtk::subclass::prelude::*;
 use gtk::{gio, glib};
 
 mod imp {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
+    use std::time::Duration;
 
     use anyhow::Context;
-    use gtk::{gdk, gdk_pixbuf, CompositeTemplate, ResponseType};
+    use gtk::{gdk, gdk_pixbuf, CompositeTemplate, ResponseType, TickCallbackId};
     use log::info;
     use once_cell::unsync::OnceCell;
     use plitki_core::map::Map;
     use plitki_core::scroll::ScreenPositionDifference;
+    use plitki_core::timing::Timestamp;
 
     use super::*;
     use crate::long_note::LongNote;
@@ -82,6 +84,10 @@ mod imp {
         scrolled_window_playfield: TemplateChild<gtk::ScrolledWindow>,
         #[template_child]
         scale_scroll_speed: TemplateChild<gtk::Scale>,
+        #[template_child]
+        button_play_pause: TemplateChild<gtk::Button>,
+        #[template_child]
+        adjustment_timestamp: TemplateChild<gtk::Adjustment>,
 
         #[template_child]
         box_long_note: TemplateChild<gtk::Box>,
@@ -90,6 +96,8 @@ mod imp {
 
         playfield: OnceCell<RefCell<Playfield>>,
         scroll_speed_binding: OnceCell<RefCell<glib::Binding>>,
+        timestamp_binding: OnceCell<RefCell<glib::Binding>>,
+        tick_callback: RefCell<Option<TickCallbackId>>,
         long_note: RefCell<Option<LongNote>>,
 
         skin_arrows: OnceCell<Skin>,
@@ -153,6 +161,35 @@ mod imp {
             self.scroll_speed_binding
                 .set(RefCell::new(binding))
                 .unwrap();
+
+            {
+                let state = playfield.state();
+                self.adjustment_timestamp.configure(
+                    0.,
+                    state
+                        .first_timestamp()
+                        .unwrap()
+                        .into_milli_hundredths()
+                        .min(0)
+                        .into(),
+                    state
+                        .last_timestamp()
+                        .unwrap()
+                        .into_milli_hundredths()
+                        .max(0)
+                        .into(),
+                    1.,
+                    10.,
+                    10.,
+                );
+            }
+
+            let binding = playfield
+                .bind_property("map-timestamp", &*self.adjustment_timestamp, "value")
+                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                .build()
+                .unwrap();
+            self.timestamp_binding.set(RefCell::new(binding)).unwrap();
 
             self.scrolled_window_playfield.set_child(Some(&playfield));
 
@@ -269,6 +306,53 @@ mod imp {
                     }
                 }
             });
+
+            self.button_play_pause.connect_clicked({
+                let obj = obj.downgrade();
+                move |button| {
+                    let obj = obj.upgrade().unwrap();
+                    let self_ = Self::from_instance(&obj);
+
+                    let mut callback = self_.tick_callback.borrow_mut();
+                    match callback.take() {
+                        Some(callback) => {
+                            callback.remove();
+                            button.set_icon_name("media-playback-start-symbolic");
+                        }
+                        None => {
+                            button.set_icon_name("media-playback-pause-symbolic");
+
+                            let last_frame_time =
+                                Cell::new(obj.frame_clock().unwrap().frame_time());
+                            let button = button.clone();
+                            *callback = Some(obj.add_tick_callback(move |obj, clock| {
+                                let self_ = Self::from_instance(obj);
+
+                                let frame_time = clock.frame_time();
+                                let time_passed = Duration::from_micros(
+                                    (frame_time - last_frame_time.get()).try_into().unwrap(),
+                                );
+                                let time_passed = Timestamp::try_from(time_passed)
+                                    .unwrap()
+                                    .into_milli_hundredths();
+                                last_frame_time.set(frame_time);
+
+                                let adjustment = &*self_.adjustment_timestamp;
+                                let new_time = adjustment.value() + f64::from(time_passed);
+                                if new_time >= adjustment.upper() {
+                                    adjustment.set_value(adjustment.upper());
+                                    self_.tick_callback.borrow_mut().take();
+                                    button.set_icon_name("media-playback-start-symbolic");
+                                    glib::Continue(false)
+                                } else {
+                                    adjustment.set_value(new_time);
+                                    glib::Continue(true)
+                                }
+                            }));
+                        }
+                    }
+                }
+            });
         }
     }
 
@@ -302,8 +386,9 @@ mod imp {
             self.scrolled_window_playfield.set_child(Some(&playfield));
 
             self.scroll_speed_binding.get().unwrap().borrow().unbind();
+            self.timestamp_binding.get().unwrap().borrow().unbind();
 
-            let binding = playfield
+            let scroll_speed_binding = playfield
                 .bind_property(
                     "scroll-speed",
                     &self.scale_scroll_speed.adjustment(),
@@ -313,8 +398,37 @@ mod imp {
                 .build()
                 .unwrap();
 
+            {
+                let state = playfield.state();
+                self.adjustment_timestamp.configure(
+                    0.,
+                    state
+                        .first_timestamp()
+                        .unwrap()
+                        .into_milli_hundredths()
+                        .min(0)
+                        .into(),
+                    state
+                        .last_timestamp()
+                        .unwrap()
+                        .into_milli_hundredths()
+                        .max(0)
+                        .into(),
+                    1.,
+                    10.,
+                    10.,
+                );
+            }
+
+            let timestamp_binding = playfield
+                .bind_property("map-timestamp", &*self.adjustment_timestamp, "value")
+                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                .build()
+                .unwrap();
+
             *self.playfield.get().unwrap().borrow_mut() = playfield;
-            *self.scroll_speed_binding.get().unwrap().borrow_mut() = binding;
+            *self.scroll_speed_binding.get().unwrap().borrow_mut() = scroll_speed_binding;
+            *self.timestamp_binding.get().unwrap().borrow_mut() = timestamp_binding;
 
             Ok(())
         }

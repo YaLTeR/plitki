@@ -104,6 +104,27 @@
                         </child>
                       </object>
                     </child>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="margin-start">12</property>
+                        <property name="margin-end">12</property>
+                        <property name="margin-bottom">6</property>
+                        <property name="spacing">6</property>
+                        <child>
+                          <object class="GtkButton" id="button_play_pause">
+                            <property name="icon-name">media-playback-start-symbolic</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkScale">
+                            <property name="hexpand">true</property>
+                            <property name="adjustment">
+                              <object class="GtkAdjustment" id="adjustment_timestamp" />
+                            </property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
                   </object>
                 </property>
               </object>
