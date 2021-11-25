@@ -46,7 +46,7 @@ mod imp {
     }
 
     #[derive(Debug, Default)]
-    pub struct View {
+    pub struct Playfield {
         state: OnceCell<RefCell<State>>,
         skin: OnceCell<RefCell<Skin>>,
         hadjustment: RefCell<Option<gtk::Adjustment>>,
@@ -56,18 +56,18 @@ mod imp {
     }
 
     #[glib::object_subclass]
-    impl ObjectSubclass for View {
-        const NAME: &'static str = "PlitkiView";
-        type Type = super::View;
+    impl ObjectSubclass for Playfield {
+        const NAME: &'static str = "PlitkiPlayfield";
+        type Type = super::Playfield;
         type ParentType = gtk::Widget;
         type Interfaces = (gtk::Scrollable,);
 
         fn class_init(klass: &mut Self::Class) {
-            klass.set_css_name("plitki-view");
+            klass.set_css_name("plitki-playfield");
         }
     }
 
-    impl ObjectImpl for View {
+    impl ObjectImpl for Playfield {
         fn constructed(&self, obj: &Self::Type) {
             self.parent_constructed(obj);
 
@@ -263,7 +263,7 @@ mod imp {
         }
     }
 
-    impl WidgetImpl for View {
+    impl WidgetImpl for Playfield {
         fn request_mode(&self, _widget: &Self::Type) -> gtk::SizeRequestMode {
             gtk::SizeRequestMode::HeightForWidth
         }
@@ -274,7 +274,7 @@ mod imp {
             orientation: gtk::Orientation,
             for_size: i32,
         ) -> (i32, i32, i32, i32) {
-            trace!("View::measure({}, {})", orientation, for_size);
+            trace!("Playfield::measure({}, {})", orientation, for_size);
 
             // We only support can-shrink paintables which can always go down to zero, so our min
             // size is always zero.
@@ -458,7 +458,7 @@ mod imp {
         }
 
         fn size_allocate(&self, widget: &Self::Type, width: i32, height: i32, _baseline: i32) {
-            trace!("View::size_allocate({}, {})", width, height);
+            trace!("Playfield::size_allocate({}, {})", width, height);
 
             let _ = self.hadjustment.borrow().as_ref().unwrap().freeze_notify();
             let _ = self.vadjustment.borrow().as_ref().unwrap().freeze_notify();
@@ -557,16 +557,16 @@ mod imp {
         }
     }
 
-    impl ScrollableImpl for View {}
+    impl ScrollableImpl for Playfield {}
 
-    impl View {
+    impl Playfield {
         fn state(&self) -> &RefCell<State> {
             self.state
                 .get()
                 .expect("map property was not set during construction")
         }
 
-        pub fn rebuild(&self, obj: &super::View) {
+        pub fn rebuild(&self, obj: &super::Playfield) {
             while let Some(child) = obj.first_child() {
                 child.unparent();
             }
@@ -625,7 +625,7 @@ mod imp {
             }
         }
 
-        fn configure_adjustments(&self, widget: &super::View) {
+        fn configure_adjustments(&self, widget: &super::Playfield) {
             if let Some(hadjustment) = self.hadjustment.borrow().as_ref() {
                 // We never actually scroll horizontally.
                 let view_width: f64 = widget.width().into();
@@ -675,7 +675,7 @@ mod imp {
             };
         }
 
-        fn set_hadjustment(&self, obj: &super::View, adjustment: Option<gtk::Adjustment>) {
+        fn set_hadjustment(&self, obj: &super::Playfield, adjustment: Option<gtk::Adjustment>) {
             if let Some(current) = self.hadjustment.take() {
                 let handler = self.hadjustment_signal_handler.take().unwrap();
                 current.disconnect(handler);
@@ -697,7 +697,7 @@ mod imp {
             }
         }
 
-        fn set_vadjustment(&self, obj: &super::View, adjustment: Option<gtk::Adjustment>) {
+        fn set_vadjustment(&self, obj: &super::Playfield, adjustment: Option<gtk::Adjustment>) {
             if let Some(current) = self.vadjustment.take() {
                 let handler = self.vadjustment_signal_handler.take().unwrap();
                 current.disconnect(handler);
@@ -745,12 +745,12 @@ mod imp {
 }
 
 glib::wrapper! {
-    pub struct View(ObjectSubclass<imp::View>)
+    pub struct Playfield(ObjectSubclass<imp::Playfield>)
         @extends gtk::Widget,
         @implements gtk::Scrollable;
 }
 
-impl View {
+impl Playfield {
     pub(crate) fn new(map: Map, skin: &Skin) -> Self {
         glib::Object::new(&[("map", &BoxedMap(map)), ("skin", skin)]).unwrap()
     }

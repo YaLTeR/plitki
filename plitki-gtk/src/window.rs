@@ -14,8 +14,8 @@ mod imp {
 
     use super::*;
     use crate::long_note::LongNote;
+    use crate::playfield::Playfield;
     use crate::skin::{LaneSkin, Skin, Store};
-    use crate::view::View;
 
     fn create_skin(path: &str) -> Skin {
         let load_texture = |path: &str| {
@@ -88,7 +88,7 @@ mod imp {
         #[template_child]
         scale_length: TemplateChild<gtk::Scale>,
 
-        view: OnceCell<RefCell<View>>,
+        playfield: OnceCell<RefCell<Playfield>>,
         scroll_speed_binding: OnceCell<RefCell<glib::Binding>>,
         long_note: RefCell<Option<LongNote>>,
 
@@ -135,13 +135,13 @@ mod imp {
             )
             .unwrap();
             let map: Map = qua.try_into().unwrap();
-            let view = View::new(map, &*self.skin_current.get().unwrap().borrow());
+            let playfield = Playfield::new(map, &*self.skin_current.get().unwrap().borrow());
 
-            view.set_halign(gtk::Align::Center);
-            view.set_valign(gtk::Align::Center);
-            view.set_vexpand(true);
+            playfield.set_halign(gtk::Align::Center);
+            playfield.set_valign(gtk::Align::Center);
+            playfield.set_vexpand(true);
 
-            let binding = view
+            let binding = playfield
                 .bind_property(
                     "scroll-speed",
                     &self.scale_scroll_speed.adjustment(),
@@ -154,9 +154,9 @@ mod imp {
                 .set(RefCell::new(binding))
                 .unwrap();
 
-            self.scrolled_window_playfield.set_child(Some(&view));
+            self.scrolled_window_playfield.set_child(Some(&playfield));
 
-            self.view.set(RefCell::new(view)).unwrap();
+            self.playfield.set(RefCell::new(playfield)).unwrap();
 
             self.set_skin(self.skin_arrows.get().unwrap());
 
@@ -194,7 +194,7 @@ mod imp {
 
                     if button.is_active() {
                         self_
-                            .view
+                            .playfield
                             .get()
                             .unwrap()
                             .borrow()
@@ -218,7 +218,7 @@ mod imp {
 
                     if button.is_active() {
                         self_
-                            .view
+                            .playfield
                             .get()
                             .unwrap()
                             .borrow()
@@ -289,21 +289,21 @@ mod imp {
             let map: Map = qua
                 .try_into()
                 .with_context(|| "couldn't convert the map to plitki's format")?;
-            let view = View::new(map, &*self.skin_current.get().unwrap().borrow());
+            let playfield = Playfield::new(map, &*self.skin_current.get().unwrap().borrow());
 
-            view.set_halign(gtk::Align::Center);
-            view.set_valign(gtk::Align::Center);
-            view.set_vexpand(true);
+            playfield.set_halign(gtk::Align::Center);
+            playfield.set_valign(gtk::Align::Center);
+            playfield.set_vexpand(true);
 
             if self.button_downscroll.is_active() {
-                view.set_property("downscroll", true).unwrap();
+                playfield.set_property("downscroll", true).unwrap();
             }
 
-            self.scrolled_window_playfield.set_child(Some(&view));
+            self.scrolled_window_playfield.set_child(Some(&playfield));
 
             self.scroll_speed_binding.get().unwrap().borrow().unbind();
 
-            let binding = view
+            let binding = playfield
                 .bind_property(
                     "scroll-speed",
                     &self.scale_scroll_speed.adjustment(),
@@ -313,7 +313,7 @@ mod imp {
                 .build()
                 .unwrap();
 
-            *self.view.get().unwrap().borrow_mut() = view;
+            *self.playfield.get().unwrap().borrow_mut() = playfield;
             *self.scroll_speed_binding.get().unwrap().borrow_mut() = binding;
 
             Ok(())
@@ -325,7 +325,7 @@ mod imp {
             let mut long_note_field = self.long_note.borrow_mut();
             let length = if let Some(long_note) = &*long_note_field {
                 self.box_long_note.remove(long_note);
-                self.view
+                self.playfield
                     .get()
                     .unwrap()
                     .borrow()

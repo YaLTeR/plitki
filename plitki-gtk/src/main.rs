@@ -4,9 +4,9 @@ use gtk::{gdk, gio};
 use log::info;
 
 mod long_note;
+mod playfield;
 mod skin;
 mod utils;
-mod view;
 mod window;
 
 fn main() {
