@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use gtk::gdk;
 
@@ -47,18 +48,16 @@ impl Default for Store {
     }
 }
 
-#[derive(Debug, Clone, glib::GBoxed)]
-#[gboxed(type_name = "PlitkiSkin")]
-pub struct Skin {
-    store: Store,
-}
+#[derive(Debug, Clone, glib::GSharedBoxed)]
+#[gshared_boxed(type_name = "PlitkiSkin")]
+pub struct Skin(Rc<Store>);
 
 impl Skin {
     pub fn new(store: Store) -> Self {
-        Self { store }
+        Self(Rc::new(store))
     }
 
     pub fn store(&self) -> &Store {
-        &self.store
+        &self.0
     }
 }
