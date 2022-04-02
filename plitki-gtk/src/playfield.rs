@@ -768,11 +768,11 @@ glib::wrapper! {
 }
 
 impl Playfield {
-    pub(crate) fn new(map: Map, skin: &Skin) -> Self {
+    pub fn new(map: Map, skin: &Skin) -> Self {
         glib::Object::new(&[("map", &BoxedMap(map)), ("skin", skin)]).unwrap()
     }
 
-    pub(crate) fn state(&self) -> Ref<GameState> {
+    pub fn state(&self) -> Ref<GameState> {
         imp::Playfield::from_instance(self).game_state()
     }
 }
