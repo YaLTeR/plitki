@@ -222,13 +222,8 @@ mod imp {
                     self.set_vadjustment(obj, value);
                 }
                 "downscroll" => {
-                    let downscroll = value.get::<bool>().unwrap();
-                    let mut state = self.state.get().expect("map needs to be set").borrow_mut();
-
-                    if state.downscroll != downscroll {
-                        state.downscroll = downscroll;
-                        obj.queue_allocate();
-                    }
+                    let value = value.get::<bool>().unwrap();
+                    self.set_downscroll(value);
                 }
                 "skin" => {
                     let value = value.get::<Skin>().unwrap();
@@ -573,6 +568,15 @@ mod imp {
     impl ScrollableImpl for Playfield {}
 
     impl Playfield {
+        pub fn set_downscroll(&self, value: bool) {
+            let mut state = self.state.get().expect("map needs to be set").borrow_mut();
+
+            if state.downscroll != value {
+                state.downscroll = value;
+                self.instance().queue_allocate();
+            }
+        }
+
         fn state(&self) -> &RefCell<State> {
             self.state
                 .get()
@@ -770,6 +774,10 @@ glib::wrapper! {
 impl Playfield {
     pub fn new(map: Map, skin: &Skin) -> Self {
         glib::Object::new(&[("map", &BoxedMap(map)), ("skin", skin)]).unwrap()
+    }
+
+    pub fn set_downscroll(&self, value: bool) {
+        self.imp().set_downscroll(value);
     }
 
     pub fn state(&self) -> Ref<GameState> {
