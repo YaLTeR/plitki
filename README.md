@@ -44,4 +44,11 @@ This crate contains GTK 4 widgets for drawing a VSRG playfield using `plitki-cor
 
 ![Screenshot of the demo app.](plitki-gtk/screenshot.png)
 
+### `plitki-gnome`
+
+A test application using widgets from `plitki-gtk`.
+
+Building `plitki-gnome` requires [Blueprint].
+
 [Quaver]: https://quavergame.com/
+[Blueprint]: https://gitlab.gnome.org/jwestman/blueprint-compiler

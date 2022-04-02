@@ -4,5 +4,6 @@ members = [
     "plitki-map-qua",
     "plitki-ui-wayland",
     "plitki-gtk",
+    "plitki-gnome",
     "tools",
 ]

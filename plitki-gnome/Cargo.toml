@@ -1,0 +1,22 @@
+[package]
+name = "plitki-gnome"
+version = "0.1.0"
+authors = ["Ivan Molodetskikh <yalterz@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+plitki-core = { path = "../plitki-core" }
+plitki-map-qua = { path = "../plitki-map-qua" }
+plitki-gtk = { path = "../plitki-gtk" }
+log = "0.4.16"
+once_cell = "1.10.0"
+gtk = { package = "gtk4", version = "0.4.7" }
+glib = { version = "0.15.10", features = ["log", "log_macros"] }
+adw = { version = "0.1.1", package = "libadwaita" }
+anyhow = "1.0.56"
+
+[dev-dependencies]
+proptest = "1.0.0"
+
+[build-dependencies]
+gio = "0.15.10"
