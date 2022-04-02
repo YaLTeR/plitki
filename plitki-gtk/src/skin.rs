@@ -48,8 +48,8 @@ impl Default for Store {
     }
 }
 
-#[derive(Debug, Clone, glib::GSharedBoxed)]
-#[gshared_boxed(type_name = "PlitkiSkin")]
+#[derive(Debug, Clone, glib::SharedBoxed)]
+#[shared_boxed_type(name = "PlitkiSkin")]
 pub struct Skin(Rc<Store>);
 
 impl Skin {

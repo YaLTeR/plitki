@@ -7,8 +7,8 @@ use gtk::subclass::prelude::*;
 use plitki_core::map::Map;
 use plitki_core::state::GameState;
 
-#[derive(Debug, Clone, glib::GBoxed)]
-#[gboxed(type_name = "BoxedMap")]
+#[derive(Debug, Clone, glib::Boxed)]
+#[boxed_type(name = "BoxedMap")]
 pub(crate) struct BoxedMap(Map);
 
 mod imp {
@@ -91,14 +91,14 @@ mod imp {
         fn properties() -> &'static [glib::ParamSpec] {
             static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
                 vec![
-                    glib::ParamSpec::new_boxed(
+                    glib::ParamSpecBoxed::new(
                         "map",
                         "map",
                         "map",
                         BoxedMap::static_type(),
                         glib::ParamFlags::WRITABLE | glib::ParamFlags::CONSTRUCT_ONLY,
                     ),
-                    glib::ParamSpec::new_uint(
+                    glib::ParamSpecUInt::new(
                         "scroll-speed",
                         "scroll-speed",
                         "scroll-speed",
@@ -107,7 +107,7 @@ mod imp {
                         32,
                         glib::ParamFlags::READWRITE,
                     ),
-                    glib::ParamSpec::new_int(
+                    glib::ParamSpecInt::new(
                         "map-timestamp",
                         "map-timestamp",
                         "map-timestamp",
@@ -116,7 +116,7 @@ mod imp {
                         0,
                         glib::ParamFlags::READWRITE,
                     ),
-                    glib::ParamSpec::new_int64(
+                    glib::ParamSpecInt64::new(
                         "map-position",
                         "map-position",
                         "map-position",
@@ -125,44 +125,24 @@ mod imp {
                         0,
                         glib::ParamFlags::READWRITE,
                     ),
-                    glib::ParamSpec::new_boolean(
+                    glib::ParamSpecBoolean::new(
                         "downscroll",
                         "downscroll",
                         "downscroll",
                         false,
                         glib::ParamFlags::READWRITE,
                     ),
-                    glib::ParamSpec::new_boxed(
+                    glib::ParamSpecBoxed::new(
                         "skin",
                         "skin",
                         "skin",
                         Skin::static_type(),
                         glib::ParamFlags::READWRITE | glib::ParamFlags::CONSTRUCT,
                     ),
-                    glib::ParamSpec::new_override(
-                        "hadjustment",
-                        &glib::Interface::<gtk::Scrollable>::default()
-                            .find_property("hadjustment")
-                            .unwrap(),
-                    ),
-                    glib::ParamSpec::new_override(
-                        "vadjustment",
-                        &glib::Interface::<gtk::Scrollable>::default()
-                            .find_property("vadjustment")
-                            .unwrap(),
-                    ),
-                    glib::ParamSpec::new_override(
-                        "hscroll-policy",
-                        &glib::Interface::<gtk::Scrollable>::default()
-                            .find_property("hscroll-policy")
-                            .unwrap(),
-                    ),
-                    glib::ParamSpec::new_override(
-                        "vscroll-policy",
-                        &glib::Interface::<gtk::Scrollable>::default()
-                            .find_property("vscroll-policy")
-                            .unwrap(),
-                    ),
+                    glib::ParamSpecOverride::for_interface::<gtk::Scrollable>("hadjustment"),
+                    glib::ParamSpecOverride::for_interface::<gtk::Scrollable>("vadjustment"),
+                    glib::ParamSpecOverride::for_interface::<gtk::Scrollable>("hscroll-policy"),
+                    glib::ParamSpecOverride::for_interface::<gtk::Scrollable>("vscroll-policy"),
                 ]
             });
             PROPERTIES.as_ref()
@@ -202,7 +182,7 @@ mod imp {
                             if let ObjectCache::LongNote(cache) = cache {
                                 let length = (cache.end_position - cache.start_position)
                                     * state.scroll_speed;
-                                widget.set_property("length", length.0).unwrap();
+                                widget.set_property("length", length.0);
                             }
                         }
 
@@ -639,7 +619,7 @@ mod imp {
                 for object in &lane.object_caches {
                     let widget: gtk::Widget = match object {
                         ObjectCache::Regular { .. } => {
-                            gtk::Picture::for_paintable(Some(&lane_skin.object)).upcast()
+                            gtk::Picture::for_paintable(&lane_skin.object).upcast()
                         }
                         ObjectCache::LongNote { .. } => LongNote::new(
                             &lane_skin.ln_head,

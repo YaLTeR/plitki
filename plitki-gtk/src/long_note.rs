@@ -70,28 +70,28 @@ mod imp {
         fn properties() -> &'static [glib::ParamSpec] {
             static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
                 vec![
-                    glib::ParamSpec::new_object(
+                    glib::ParamSpecObject::new(
                         "head",
                         "head",
                         "head",
                         gtk::Picture::static_type(),
                         glib::ParamFlags::WRITABLE | glib::ParamFlags::CONSTRUCT_ONLY,
                     ),
-                    glib::ParamSpec::new_object(
+                    glib::ParamSpecObject::new(
                         "tail",
                         "tail",
                         "tail",
                         gtk::Picture::static_type(),
                         glib::ParamFlags::WRITABLE | glib::ParamFlags::CONSTRUCT_ONLY,
                     ),
-                    glib::ParamSpec::new_object(
+                    glib::ParamSpecObject::new(
                         "body",
                         "body",
                         "body",
                         gtk::Picture::static_type(),
                         glib::ParamFlags::WRITABLE | glib::ParamFlags::CONSTRUCT_ONLY,
                     ),
-                    glib::ParamSpec::new_int64(
+                    glib::ParamSpecInt64::new(
                         "length",
                         "length",
                         "length",
@@ -100,7 +100,7 @@ mod imp {
                         0,
                         glib::ParamFlags::READWRITE,
                     ),
-                    glib::ParamSpec::new_int(
+                    glib::ParamSpecInt::new(
                         "lane-count",
                         "lane-count",
                         "lane-count",
@@ -288,29 +288,15 @@ mod imp {
             };
 
             let nat_head = self.head().measure(gtk::Orientation::Vertical, width).1;
-            self.head().size_allocate(
-                &gdk::Rectangle {
-                    x: 0,
-                    y: 0,
-                    width,
-                    height: nat_head,
-                },
-                -1,
-            );
+            self.head()
+                .size_allocate(&gdk::Rectangle::new(0, 0, width, nat_head), -1);
 
             let length = to_pixels(self.length.get(), width, self.lane_count.get());
             let tail_start = length;
 
             let nat_tail = self.tail().measure(gtk::Orientation::Vertical, width).1;
-            self.tail().size_allocate(
-                &gdk::Rectangle {
-                    x: 0,
-                    y: tail_start,
-                    width,
-                    height: nat_tail,
-                },
-                -1,
-            );
+            self.tail()
+                .size_allocate(&gdk::Rectangle::new(0, tail_start, width, nat_tail), -1);
 
             // Silence warning from GTK.
             let _ = self.body().measure(gtk::Orientation::Vertical, width);
@@ -319,15 +305,8 @@ mod imp {
             let body_end = (length + nat_tail / 2).max(body_start);
             let body_height = body_end - body_start;
 
-            self.body().size_allocate(
-                &gdk::Rectangle {
-                    x: 0,
-                    y: body_start,
-                    width,
-                    height: body_height,
-                },
-                -1,
-            );
+            self.body()
+                .size_allocate(&gdk::Rectangle::new(0, body_start, width, body_height), -1);
         }
 
         fn snapshot(&self, widget: &Self::Type, snapshot: &gtk::Snapshot) {
@@ -382,10 +361,10 @@ impl LongNote {
         length: ScreenPositionDifference,
     ) -> Self {
         glib::Object::new(&[
-            ("head", &gtk::Picture::for_paintable(Some(head))),
-            ("tail", &gtk::Picture::for_paintable(Some(tail))),
+            ("head", &gtk::Picture::for_paintable(head)),
+            ("tail", &gtk::Picture::for_paintable(tail)),
             ("body", &{
-                let picture = gtk::Picture::for_paintable(Some(body));
+                let picture = gtk::Picture::for_paintable(body);
                 picture.set_keep_aspect_ratio(false);
                 picture
             }),

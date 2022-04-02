@@ -156,8 +156,7 @@ mod imp {
                     "value",
                 )
                 .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                .build()
-                .unwrap();
+                .build();
             self.scroll_speed_binding
                 .set(RefCell::new(binding))
                 .unwrap();
@@ -187,8 +186,7 @@ mod imp {
             let binding = playfield
                 .bind_property("map-timestamp", &*self.adjustment_timestamp, "value")
                 .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                .build()
-                .unwrap();
+                .build();
             self.timestamp_binding.set(RefCell::new(binding)).unwrap();
 
             self.scrolled_window_playfield.set_child(Some(&playfield));
@@ -202,7 +200,7 @@ mod imp {
                 move |_| {
                     let obj = obj.upgrade().unwrap();
 
-                    let file_chooser = gtk::FileChooserNativeBuilder::new()
+                    let file_chooser = gtk::FileChooserNative::builder()
                         .transient_for(&obj)
                         .action(gtk::FileChooserAction::Open)
                         .title("Open a .qua map")
@@ -235,8 +233,7 @@ mod imp {
                             .get()
                             .unwrap()
                             .borrow()
-                            .set_property("downscroll", false)
-                            .unwrap();
+                            .set_property("downscroll", false);
                         self_
                             .long_note
                             .borrow()
@@ -259,8 +256,7 @@ mod imp {
                             .get()
                             .unwrap()
                             .borrow()
-                            .set_property("downscroll", true)
-                            .unwrap();
+                            .set_property("downscroll", true);
                         self_
                             .long_note
                             .borrow()
@@ -380,7 +376,7 @@ mod imp {
             playfield.set_vexpand(true);
 
             if self.button_downscroll.is_active() {
-                playfield.set_property("downscroll", true).unwrap();
+                playfield.set_property("downscroll", true);
             }
 
             self.scrolled_window_playfield.set_child(Some(&playfield));
@@ -395,8 +391,7 @@ mod imp {
                     "value",
                 )
                 .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                .build()
-                .unwrap();
+                .build();
 
             {
                 let state = playfield.state();
@@ -423,8 +418,7 @@ mod imp {
             let timestamp_binding = playfield
                 .bind_property("map-timestamp", &*self.adjustment_timestamp, "value")
                 .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                .build()
-                .unwrap();
+                .build();
 
             *self.playfield.get().unwrap().borrow_mut() = playfield;
             *self.scroll_speed_binding.get().unwrap().borrow_mut() = scroll_speed_binding;
@@ -443,9 +437,8 @@ mod imp {
                     .get()
                     .unwrap()
                     .borrow()
-                    .set_property("skin", skin)
-                    .unwrap();
-                long_note.property("length").unwrap().get::<i64>().unwrap()
+                    .set_property("skin", skin);
+                long_note.property("length")
             } else {
                 0
             };
@@ -470,8 +463,7 @@ mod imp {
             long_note
                 .bind_property("length", &self.scale_length.adjustment(), "value")
                 .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                .build()
-                .unwrap();
+                .build();
 
             self.box_long_note.prepend(&long_note);
 
