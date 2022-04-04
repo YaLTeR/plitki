@@ -23,7 +23,7 @@ mod imp {
     use once_cell::unsync::OnceCell;
     use plitki_core::map::Map;
     use plitki_core::scroll::ScrollSpeed;
-    use plitki_core::timing::{MapTimestamp, Timestamp};
+    use plitki_core::timing::{GameTimestamp, Timestamp};
     use plitki_gtk::playfield::Playfield;
     use plitki_gtk::skin::{LaneSkin, Skin};
 
@@ -194,11 +194,11 @@ mod imp {
 
         fn on_tick_callback(&self) {
             let audio_time_passed = self.audio.get().unwrap().track_time();
-            let map_timestamp = MapTimestamp(Timestamp::try_from(audio_time_passed).unwrap());
+            let game_timestamp = GameTimestamp(Timestamp::try_from(audio_time_passed).unwrap());
 
             let playfield = self.playfield.borrow();
             if let Some(playfield) = &*playfield {
-                playfield.set_map_timestamp(map_timestamp);
+                playfield.set_game_timestamp(game_timestamp);
             }
         }
     }
