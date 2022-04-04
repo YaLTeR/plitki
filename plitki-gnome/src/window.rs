@@ -76,6 +76,18 @@ mod imp {
             );
             self.stack.add_controller(&drop_target);
 
+            // Set up key bindings.
+            let controller = gtk::EventControllerKey::new();
+            controller.connect_key_pressed(clone!(
+                @weak obj => @default-return gtk::Inhibit(false), move |_, key, _, _| {
+                    obj.imp().on_key_pressed(key)
+                }
+            ));
+            controller.connect_key_released(clone!(@weak obj => move |_, key, _, _| {
+                obj.imp().on_key_released(key);
+            }));
+            obj.add_controller(&controller);
+
             // Set up playfield scrolling.
             obj.add_tick_callback(move |obj, _clock| {
                 obj.imp().on_tick_callback();
@@ -209,6 +221,67 @@ mod imp {
         fn game_timestamp(&self) -> GameTimestamp {
             let audio_time_passed = self.audio.get().unwrap().track_time();
             GameTimestamp(Timestamp::try_from(audio_time_passed).unwrap())
+        }
+
+        fn lane_for_key(&self, key: gdk::Key) -> Option<usize> {
+            let playfield = self.playfield.borrow();
+            let playfield = playfield.as_ref()?;
+
+            let lane = match playfield.state().immutable.lane_caches.len() {
+                4 => match key {
+                    gdk::Key::s => 0,
+                    gdk::Key::d => 1,
+                    gdk::Key::l => 2,
+                    gdk::Key::semicolon => 3,
+                    _ => return None,
+                },
+                7 => match key {
+                    gdk::Key::a => 0,
+                    gdk::Key::s => 1,
+                    gdk::Key::d => 2,
+                    gdk::Key::space => 3,
+                    gdk::Key::l => 4,
+                    gdk::Key::semicolon => 5,
+                    gdk::Key::apostrophe => 6,
+                    _ => return None,
+                },
+                _ => return None,
+            };
+            Some(lane)
+        }
+
+        fn on_key_pressed(&self, key: gdk::Key) -> gtk::Inhibit {
+            let lane = match self.lane_for_key(key) {
+                Some(x) => x,
+                None => return gtk::Inhibit(false),
+            };
+
+            let playfield = self.playfield.borrow();
+            let playfield = match &*playfield {
+                Some(x) => x,
+                _ => return gtk::Inhibit(false),
+            };
+
+            playfield.state_mut().key_press(lane, self.game_timestamp());
+
+            gtk::Inhibit(true)
+        }
+
+        fn on_key_released(&self, key: gdk::Key) {
+            let lane = match self.lane_for_key(key) {
+                Some(x) => x,
+                None => return,
+            };
+
+            let playfield = self.playfield.borrow();
+            let playfield = match &*playfield {
+                Some(x) => x,
+                _ => return,
+            };
+
+            playfield
+                .state_mut()
+                .key_release(lane, self.game_timestamp());
         }
     }
 
