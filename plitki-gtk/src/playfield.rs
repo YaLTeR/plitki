@@ -7,7 +7,7 @@ use gtk::subclass::prelude::*;
 use plitki_core::map::Map;
 use plitki_core::scroll::ScrollSpeed;
 use plitki_core::state::GameState;
-use plitki_core::timing::MapTimestamp;
+use plitki_core::timing::{GameTimestamp, MapTimestamp};
 
 #[derive(Debug, Clone, glib::Boxed)]
 #[boxed_type(name = "BoxedMap")]
@@ -586,6 +586,13 @@ mod imp {
             }
         }
 
+        pub fn set_game_timestamp(&self, timestamp: GameTimestamp) {
+            let state = self.state.get().expect("map needs to be set").borrow();
+            let map_timestamp = state.game.timestamp_converter.game_to_map(timestamp);
+            drop(state);
+            self.set_map_timestamp(map_timestamp);
+        }
+
         fn state(&self) -> &RefCell<State> {
             self.state
                 .get()
@@ -795,6 +802,10 @@ impl Playfield {
 
     pub fn set_map_timestamp(&self, timestamp: MapTimestamp) {
         self.imp().set_map_timestamp(timestamp);
+    }
+
+    pub fn set_game_timestamp(&self, timestamp: GameTimestamp) {
+        self.imp().set_game_timestamp(timestamp);
     }
 
     pub fn state(&self) -> Ref<GameState> {
