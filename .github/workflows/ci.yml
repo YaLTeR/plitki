@@ -48,13 +48,13 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: ${{ matrix.release-flag }} --workspace --exclude plitki-gtk
+          args: ${{ matrix.release-flag }} --workspace --exclude plitki-gtk --exclude plitki-gnome
 
       - name: Test
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: ${{ matrix.release-flag }} --workspace --exclude plitki-gtk
+          args: ${{ matrix.release-flag }} --workspace --exclude plitki-gtk --exclude plitki-gnome
 
   clippy:
     strategy:
@@ -85,7 +85,7 @@ jobs:
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --workspace --exclude plitki-gtk
+          args: --workspace --exclude plitki-gtk --exclude plitki-gnome
 
   rustfmt:
     runs-on: ubuntu-20.04
