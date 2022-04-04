@@ -261,7 +261,7 @@ impl Window {
         .unwrap()
     }
 
-    fn open_file(&self, file: gio::File) {
+    pub fn open_file(&self, file: gio::File) {
         glib::MainContext::default().spawn_local(
             clone!(@strong self as obj => async move { obj.imp().open_file(&file).await; }),
         );

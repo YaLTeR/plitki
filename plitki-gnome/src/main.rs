@@ -25,10 +25,25 @@ fn main() {
 
     gio::resources_register_include!("compiled.gresource").unwrap();
 
-    let app = adw::Application::builder().build();
+    let app = adw::Application::builder()
+        .flags(gio::ApplicationFlags::HANDLES_OPEN)
+        .build();
     app.connect_startup(on_startup);
     app.connect_activate(on_activate);
+    app.connect_open(on_open);
     app.run();
+}
+
+fn on_open(app: &adw::Application, files: &[gio::File], _hint: &str) {
+    let audio = Rc::new(AudioEngine::new());
+
+    let window = Window::new(app, audio);
+
+    if let Some(file) = files.get(0) {
+        window.open_file(file.clone());
+    }
+
+    window.present();
 }
 
 fn on_startup(app: &adw::Application) {
