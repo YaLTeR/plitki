@@ -799,6 +799,6 @@ impl Playfield {
     }
 
     pub fn state(&self) -> Ref<GameState> {
-        imp::Playfield::from_instance(self).game_state()
+        self.imp().game_state()
     }
 }
