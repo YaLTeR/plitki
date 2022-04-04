@@ -22,7 +22,6 @@ mod imp {
     use once_cell::unsync::OnceCell;
     use plitki_core::scroll::{Position, ScrollSpeed};
     use plitki_core::state::ObjectCache;
-    use plitki_core::timing::MapTimestamp;
 
     use super::*;
     use crate::long_note::LongNote;
