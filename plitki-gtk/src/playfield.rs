@@ -5,6 +5,7 @@ use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use plitki_core::map::Map;
+use plitki_core::scroll::ScrollSpeed;
 use plitki_core::state::GameState;
 
 #[derive(Debug, Clone, glib::Boxed)]
@@ -166,28 +167,7 @@ mod imp {
                 "scroll-speed" => {
                     let speed = value.get::<u32>().expect("wrong property type");
                     let speed: u8 = speed.try_into().expect("value outside u8 range");
-                    let mut state = self.state.get().expect("map needs to be set").borrow_mut();
-
-                    if state.scroll_speed.0 != speed {
-                        state.scroll_speed = ScrollSpeed(speed);
-
-                        for (widget, cache) in state
-                            .objects
-                            .iter()
-                            .zip(&state.game.immutable.lane_caches)
-                            .flat_map(|(widget_lane, lane)| {
-                                widget_lane.iter().zip(&lane.object_caches)
-                            })
-                        {
-                            if let ObjectCache::LongNote(cache) = cache {
-                                let length = (cache.end_position - cache.start_position)
-                                    * state.scroll_speed;
-                                widget.set_property("length", length.0);
-                            }
-                        }
-
-                        obj.queue_resize();
-                    }
+                    self.set_scroll_speed(ScrollSpeed(speed));
                 }
                 "map-timestamp" => {
                     let timestamp = value.get::<i32>().expect("wrong property type");
@@ -577,6 +557,29 @@ mod imp {
             }
         }
 
+        pub fn set_scroll_speed(&self, value: ScrollSpeed) {
+            let mut state = self.state.get().expect("map needs to be set").borrow_mut();
+
+            if state.scroll_speed != value {
+                state.scroll_speed = value;
+
+                for (widget, cache) in state
+                    .objects
+                    .iter()
+                    .zip(&state.game.immutable.lane_caches)
+                    .flat_map(|(widget_lane, lane)| widget_lane.iter().zip(&lane.object_caches))
+                {
+                    if let ObjectCache::LongNote(cache) = cache {
+                        let length =
+                            (cache.end_position - cache.start_position) * state.scroll_speed;
+                        widget.set_property("length", length.0);
+                    }
+                }
+
+                self.instance().queue_resize();
+            }
+        }
+
         fn state(&self) -> &RefCell<State> {
             self.state
                 .get()
@@ -778,6 +781,10 @@ impl Playfield {
 
     pub fn set_downscroll(&self, value: bool) {
         self.imp().set_downscroll(value);
+    }
+
+    pub fn set_scroll_speed(&self, value: ScrollSpeed) {
+        self.imp().set_scroll_speed(value);
     }
 
     pub fn state(&self) -> Ref<GameState> {
