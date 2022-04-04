@@ -78,15 +78,7 @@ mod imp {
 
             // Set up playfield scrolling.
             obj.add_tick_callback(move |obj, _clock| {
-                let audio_time_passed = obj.imp().audio.get().unwrap().track_time();
-
-                let map_timestamp = MapTimestamp(Timestamp::try_from(audio_time_passed).unwrap());
-
-                let playfield = obj.imp().playfield.borrow();
-                if let Some(playfield) = &*playfield {
-                    playfield.set_map_timestamp(map_timestamp);
-                }
-
+                obj.imp().on_tick_callback();
                 glib::Continue(true)
             });
         }
@@ -197,6 +189,16 @@ mod imp {
                 engine.play_track(track);
             } else {
                 engine.play_track(rodio::source::Zero::<f32>::new(2, 44100));
+            }
+        }
+
+        fn on_tick_callback(&self) {
+            let audio_time_passed = self.audio.get().unwrap().track_time();
+            let map_timestamp = MapTimestamp(Timestamp::try_from(audio_time_passed).unwrap());
+
+            let playfield = self.playfield.borrow();
+            if let Some(playfield) = &*playfield {
+                playfield.set_map_timestamp(map_timestamp);
             }
         }
     }
