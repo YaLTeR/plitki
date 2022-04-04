@@ -198,6 +198,11 @@ mod imp {
             let playfield = self.playfield.borrow();
             if let Some(playfield) = &*playfield {
                 playfield.set_game_timestamp(game_timestamp);
+
+                let mut state = playfield.state_mut();
+                for lane in 0..state.lane_states.len() {
+                    state.update(lane, game_timestamp);
+                }
             }
         }
 
