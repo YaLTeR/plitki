@@ -1,11 +1,13 @@
 use std::cell::RefCell;
 
+use glib::clone;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gio, glib};
 use log::warn;
 
 mod imp {
+    use std::io::Cursor;
     use adw::subclass::prelude::*;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
@@ -44,19 +46,6 @@ mod imp {
     impl ObjectImpl for Window {
         fn constructed(&self, obj: &Self::Type) {
             self.parent_constructed(obj);
-
-            let qua = plitki_map_qua::from_reader(
-                &include_bytes!("../../plitki-map-qua/tests/data/actual_map.qua")[..],
-            )
-            .unwrap();
-            let map: Map = qua.try_into().unwrap();
-            let playfield = Playfield::new(map, &create_skin("/plitki-gnome/skin/arrows"));
-
-            playfield.set_halign(gtk::Align::Center);
-            playfield.set_valign(gtk::Align::End);
-            playfield.set_downscroll(true);
-
-            self.scrolled_window.set_child(Some(&playfield));
         }
     }
 
@@ -66,7 +55,37 @@ mod imp {
     impl AdwApplicationWindowImpl for Window {}
 
     impl Window {
-        pub fn open_file(&self, _file: &gio::File) {}
+        pub async fn open_file(&self, file: &gio::File) {
+            // Load the .qua.
+            let (contents, _) = match file.load_contents_future().await {
+                Ok(x) => x,
+                Err(err) => {
+                    warn!("error reading map file: {err:?}");
+                    return;
+                }
+            };
+
+            let qua = match plitki_map_qua::from_reader(&contents[..]) {
+                Ok(x) => x,
+                Err(err) => {
+                    warn!("could not open file as .qua: {err:?}");
+                    return;
+                }
+            };
+
+            let map: Map = qua.try_into().unwrap();
+
+            // Create the playfield.
+            let playfield = Playfield::new(map, &create_skin("/plitki-gnome/skin/arrows"));
+
+            playfield.set_halign(gtk::Align::Center);
+            playfield.set_valign(gtk::Align::End);
+            playfield.set_downscroll(true);
+
+            self.scrolled_window.set_child(Some(&playfield));
+
+            self.stack.set_visible_child_name("content");
+        }
     }
 
     fn create_skin(path: &str) -> Skin {
@@ -125,6 +144,12 @@ impl Window {
         glib::Object::new(&[("application", app)]).unwrap()
     }
 
+    fn open_file(&self, file: gio::File) {
+        glib::MainContext::default().spawn_local(
+            clone!(@strong self as obj => async move { obj.imp().open_file(&file).await; }),
+        );
+    }
+
     #[template_callback]
     fn on_open_clicked(&self) {
         let file_chooser = gtk::FileChooserNative::builder()
@@ -145,7 +170,7 @@ impl Window {
                                 let file: gio::File = file
                                     .downcast()
                                     .expect("unexpected type returned from file chooser");
-                                obj.imp().open_file(&file);
+                                obj.open_file(file);
                             }
                         }
                     } else {

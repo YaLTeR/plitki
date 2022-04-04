@@ -32,6 +32,40 @@
                   </object>
                 </child>
                 <child>
+                  <object class="AdwStatusPage">
+                    <property name="vexpand">true</property>
+                    <property name="description">Select a .qua map by clicking the Open button.</property>
+                  </object>
+                </child>
+              </object>
+            </property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkStackPage">
+            <property name="name">content</property>
+            <property name="child">
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <child>
+                  <object class="AdwHeaderBar">
+                    <child type="start">
+                      <object class="GtkButton">
+                        <property name="label">Open</property>
+                        <style>
+                          <class name="suggested-action"/>
+                        </style>
+                        <signal name="clicked" handler="on_open_clicked" swapped="true"/>
+                      </object>
+                    </child>
+                    <property name="title-widget">
+                      <object class="AdwWindowTitle">
+                        <property name="title" bind-source="PlitkiWindow" bind-property="title" bind-flags="sync-create"/>
+                      </object>
+                    </property>
+                  </object>
+                </child>
+                <child>
                   <object class="GtkScrolledWindow" id="scrolled_window">
                     <property name="hscrollbar-policy">never</property>
                     <property name="vexpand">true</property>

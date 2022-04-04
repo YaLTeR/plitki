@@ -29,6 +29,34 @@ template PlitkiWindow : Adw.ApplicationWindow {
           };
         }
 
+        Adw.StatusPage {
+          vexpand: true;
+          description: "Select a .qua map by clicking the Open button.";
+        }
+      };
+    }
+
+    StackPage {
+      name: "content";
+
+      child: Box {
+        orientation: vertical;
+
+        Adw.HeaderBar {
+          [start]
+          Button {
+            label: "Open";
+            
+            styles ["suggested-action"]
+
+            clicked => on_open_clicked() swapped;
+          }
+
+          title-widget: Adw.WindowTitle {
+              title: bind PlitkiWindow.title;
+          };
+        }
+
         ScrolledWindow scrolled_window {
           hscrollbar-policy: never;
           vexpand: true;
