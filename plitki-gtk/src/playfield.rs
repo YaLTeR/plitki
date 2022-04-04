@@ -498,18 +498,30 @@ mod imp {
                 widget.allocate(width, height, -1, Some(&transform));
             }
 
-            for (l, (cache, widgets)) in state
+            for (l, ((cache, lane_state), widgets)) in state
                 .game
                 .immutable
                 .lane_caches
                 .iter()
+                .zip(&state.game.lane_states)
                 .zip(&state.objects)
                 .enumerate()
             {
                 let l: i32 = l.try_into().unwrap();
                 let x = l * lane_width;
 
-                for (cache, widget) in cache.object_caches.iter().zip(widgets) {
+                for ((cache, obj_state), widget) in cache
+                    .object_caches
+                    .iter()
+                    .zip(&lane_state.object_states)
+                    .zip(widgets)
+                {
+                    if obj_state.is_hit() {
+                        widget.set_child_visible(false);
+                        continue;
+                    }
+                    widget.set_child_visible(true);
+
                     let position = cache.start_position();
                     let difference = position - first_position;
                     let mut y = to_pixels(difference * state.scroll_speed, lane_width, lane_count);
