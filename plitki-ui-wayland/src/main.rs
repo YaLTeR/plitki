@@ -156,10 +156,12 @@ fn main() {
                         .unwrap()
                         .amplify(0.6);
 
-                    let audio_device = rodio::default_output_device().unwrap();
-                    let sink_ = Sink::new(&audio_device);
+                    let (stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
+                    let sink_ = Sink::try_new(&stream_handle).unwrap();
                     sink_.append(source);
                     *sink.borrow_mut() = Some(sink_);
+
+                    Box::leak(Box::new(stream));
                 } else {
                     warn!("error opening audio file"; "path" => path.to_string_lossy().as_ref());
                 }
