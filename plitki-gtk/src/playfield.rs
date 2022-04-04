@@ -244,193 +244,61 @@ mod imp {
 
     impl WidgetImpl for Playfield {
         fn request_mode(&self, _widget: &Self::Type) -> gtk::SizeRequestMode {
-            gtk::SizeRequestMode::HeightForWidth
+            gtk::SizeRequestMode::ConstantSize
         }
 
         fn measure(
             &self,
-            widget: &Self::Type,
+            _widget: &Self::Type,
             orientation: gtk::Orientation,
             for_size: i32,
         ) -> (i32, i32, i32, i32) {
             trace!("Playfield::measure({}, {})", orientation, for_size);
 
-            // We only support can-shrink paintables which can always go down to zero, so our min
-            // size is always zero.
+            // TODO: the height does not depend on width EXCEPT for the height of the last object...
+            // Handling that would introduce back all the ugliness. Figure out if it's that
+            // necessary? The majority of cases should be covered by constant time "padding" on
+            // either end, and the size can end up too small only with degenerately tall object
+            // textures...
+
             match orientation {
                 gtk::Orientation::Horizontal => {
-                    if for_size == -1 {
-                        let state = self.state().borrow();
-                        let lane_count = state.objects.len() as i32;
+                    // TODO: actually compute and set min size?
 
-                        // All lanes must have the same width, so let's base the natural size on the
-                        // first object width we can find.
-                        let object = state
-                            .objects
-                            .iter()
-                            .flat_map(|lane| lane.iter())
-                            .next()
-                            .unwrap();
-                        let object_nat = object.measure(gtk::Orientation::Horizontal, -1).1;
+                    // We only support can-shrink paintables which can always go down to zero, so
+                    // our min size is always zero. The height is fixed and does not depend on the
+                    // width, so we ignore for_size.
+                    let state = self.state().borrow();
 
-                        let nat = object_nat * lane_count;
-                        trace!("returning for height = {}: nat width = {}", for_size, nat);
-                        (0, nat, -1, -1)
-                    } else {
-                        let height_to_fit = for_size;
+                    // The natural size is the sum of lanes' natural sizes.
+                    let nat = state
+                        .objects
+                        .iter()
+                        .map(|lane| {
+                            lane.get(0)
+                                .map(|object| object.measure(gtk::Orientation::Horizontal, -1).1)
+                                // TODO: handle empty lanes properly.
+                                .unwrap_or(0)
+                        })
+                        .sum();
 
-                        // Natural width is the biggest width that fits the given height.
-
-                        // Compute the aspect ratio of the long note, then estimate the starting
-                        // width from there.
-                        let nat_width = self.measure(widget, gtk::Orientation::Horizontal, -1).1;
-                        let nat_height = self
-                            .measure(widget, gtk::Orientation::Vertical, nat_width)
-                            .1;
-                        let starting_width =
-                            (nat_width as f32 / nat_height as f32 * height_to_fit as f32) as i32;
-
-                        // The real width should be somewhere close.
-                        let height = self
-                            .measure(widget, gtk::Orientation::Vertical, starting_width)
-                            .1;
-                        if height <= height_to_fit {
-                            // We're under, search up from here.
-                            for width in starting_width + 1.. {
-                                let height =
-                                    self.measure(widget, gtk::Orientation::Vertical, width).1;
-                                if height > height_to_fit {
-                                    // We went over, so take the previous width.
-                                    let nat = width - 1;
-                                    trace!(
-                                        "returning for height = {}: nat width = {}",
-                                        for_size,
-                                        nat
-                                    );
-                                    return (0, nat, -1, -1);
-                                }
-                            }
-                        } else {
-                            // We're over, search down from here.
-                            for width in (0..starting_width).rev() {
-                                let height =
-                                    self.measure(widget, gtk::Orientation::Vertical, width).1;
-                                if height <= height_to_fit {
-                                    let nat = width;
-                                    trace!(
-                                        "returning for height = {}: nat width = {}",
-                                        for_size,
-                                        nat
-                                    );
-                                    return (0, nat, -1, -1);
-                                }
-                            }
-                        }
-
-                        unreachable!()
-                    }
+                    trace!("returning for height = {}: nat width = {}", for_size, nat);
+                    (0, nat, -1, -1)
                 }
                 gtk::Orientation::Vertical => {
-                    if for_size == -1 {
-                        let width = self.measure(widget, gtk::Orientation::Horizontal, -1).1;
-                        self.measure(widget, gtk::Orientation::Vertical, width)
-                    } else {
-                        let state = self.state().borrow();
-                        let lane_count = state.objects.len() as i32;
-                        let lane_width = for_size / lane_count;
-                        let width = lane_width * lane_count;
+                    // The height is fixed and does not depend on the width, so we ignore for_size.
+                    let state = self.state().borrow();
 
-                        let min_position = state.game.min_position().unwrap();
+                    let min_position = state.game.min_position().unwrap();
+                    let max_position = state.game.max_position().unwrap();
 
-                        let (regular_y, nat_regular) =
-                            if let Some(max_regular) = state.game.max_regular() {
-                                // All regular notes are the same so just take the first one.
-                                let regular_widget = state
-                                    .objects
-                                    .iter()
-                                    .flat_map(|lane| lane.iter())
-                                    .find(|widget| widget.is::<gtk::Picture>())
-                                    .unwrap();
-                                let nat_regular = regular_widget
-                                    .measure(gtk::Orientation::Vertical, lane_width)
-                                    .1;
-                                let regular_y = to_pixels(
-                                    (max_regular.position - min_position) * state.scroll_speed,
-                                    lane_width,
-                                    lane_count,
-                                );
-
-                                (nat_regular, regular_y)
-                            } else {
-                                (0, 0)
-                            };
-
-                        let (long_note_y, nat_long_note) =
-                            if let Some(max_long_note) = state.game.max_long_note() {
-                                // We need the right long note though.
-                                let max_long_note_widget = state
-                                    .objects
-                                    .iter()
-                                    .zip(&state.game.immutable.lane_caches)
-                                    .flat_map(|(widget_lane, lane)| {
-                                        widget_lane.iter().zip(&lane.object_caches)
-                                    })
-                                    .find_map(|(widget, cache)| {
-                                        if let ObjectCache::LongNote(cache) = cache {
-                                            if *cache == max_long_note {
-                                                Some(widget)
-                                            } else {
-                                                None
-                                            }
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                    .unwrap();
-                                let nat_long_note = max_long_note_widget
-                                    .measure(gtk::Orientation::Vertical, lane_width)
-                                    .1;
-                                let long_note_y = to_pixels(
-                                    (max_long_note.start_position.min(max_long_note.end_position)
-                                        - min_position)
-                                        * state.scroll_speed,
-                                    lane_width,
-                                    lane_count,
-                                );
-
-                                (long_note_y, nat_long_note)
-                            } else {
-                                (0, 0)
-                            };
-
-                        let (timing_line_y, nat_timing_line) =
-                            if let Some(line) = state.game.max_timing_line() {
-                                if width == 0 {
-                                    // Separators do have a minimum width.
-                                    (0, 0)
-                                } else {
-                                    // All timing lines are the same so just take the first one.
-                                    let widget = &state.timing_lines[0];
-                                    let nat_timing_line =
-                                        widget.measure(gtk::Orientation::Vertical, width).1;
-                                    let timing_line_y = to_pixels(
-                                        (line.position - min_position) * state.scroll_speed,
-                                        lane_width,
-                                        lane_count,
-                                    );
-
-                                    (nat_timing_line, timing_line_y)
-                                }
-                            } else {
-                                (0, 0)
-                            };
-
-                        let nat = (regular_y + nat_regular)
-                            .max(long_note_y + nat_long_note)
-                            .max(timing_line_y + nat_timing_line);
-                        trace!("returning for height = {}: nat width = {}", for_size, nat);
-                        (0, nat, -1, -1)
-                    }
+                    let height = to_pixels((max_position - min_position) * state.scroll_speed);
+                    trace!(
+                        "returning for width = {}: min/nat height = {}",
+                        for_size,
+                        height
+                    );
+                    (height, height, -1, -1)
                 }
                 _ => unimplemented!(),
             }
@@ -445,9 +313,9 @@ mod imp {
             self.configure_adjustments(widget);
 
             let state = self.state().borrow();
-            let lane_count: i32 = state.objects.len().try_into().unwrap();
-            let lane_width = width / lane_count;
-            let width = lane_width * lane_count;
+
+            let nat_width = widget.measure(gtk::Orientation::Horizontal, -1).1;
+            let scale = width as f64 / nat_width as f64;
 
             let full_height = widget.measure(gtk::Orientation::Vertical, width).1;
 
@@ -477,7 +345,7 @@ mod imp {
                 widget.set_child_visible(true);
 
                 let difference = line.position - first_position;
-                let mut y = to_pixels(difference * state.scroll_speed, lane_width, lane_count);
+                let mut y = to_pixels(difference * state.scroll_speed);
                 let height = widget.measure(gtk::Orientation::Vertical, width).1;
                 if state.downscroll {
                     y = full_height - y - height;
@@ -498,17 +366,17 @@ mod imp {
                 widget.allocate(width, height, -1, Some(&transform));
             }
 
-            for (l, ((cache, lane_state), widgets)) in state
+            let mut x = 0;
+            for ((cache, lane_state), widgets) in state
                 .game
                 .immutable
                 .lane_caches
                 .iter()
                 .zip(&state.game.lane_states)
                 .zip(&state.objects)
-                .enumerate()
             {
-                let l: i32 = l.try_into().unwrap();
-                let x = l * lane_width;
+                // TODO: handle empty lanes properly.
+                let mut lane_width = 0;
 
                 for ((cache, obj_state), widget) in cache
                     .object_caches
@@ -516,6 +384,9 @@ mod imp {
                     .zip(&lane_state.object_states)
                     .zip(widgets)
                 {
+                    let nat_widget_width = widget.measure(gtk::Orientation::Horizontal, -1).1;
+                    lane_width = (nat_widget_width as f64 * scale).floor() as i32;
+
                     if obj_state.is_hit() {
                         widget.set_child_visible(false);
                         continue;
@@ -524,7 +395,7 @@ mod imp {
 
                     let position = cache.start_position();
                     let difference = position - first_position;
-                    let mut y = to_pixels(difference * state.scroll_speed, lane_width, lane_count);
+                    let mut y = to_pixels(difference * state.scroll_speed);
                     let height = widget.measure(gtk::Orientation::Vertical, lane_width).1;
                     if state.downscroll {
                         y = full_height - y - height;
@@ -544,6 +415,8 @@ mod imp {
 
                     widget.allocate(lane_width, height, -1, Some(&transform));
                 }
+
+                x += lane_width;
             }
         }
     }
@@ -696,16 +569,11 @@ mod imp {
                 let state = self.state.get().unwrap().borrow();
 
                 let view_width = widget.width();
-                let lane_count: i32 = state.objects.len().try_into().unwrap();
-                let lane_width = view_width / lane_count;
 
                 let first_position = state.game.min_position().unwrap();
 
-                let mut position = to_pixels_f64(
-                    (state.map_position - first_position) * state.scroll_speed,
-                    lane_width,
-                    lane_count,
-                );
+                let mut position =
+                    to_pixels_f64((state.map_position - first_position) * state.scroll_speed);
 
                 let nat_height = widget.measure(gtk::Orientation::Vertical, view_width).1;
                 let view_height: f64 = widget.height().into();
@@ -769,14 +637,11 @@ mod imp {
                         let mut state = self_.state.get().unwrap().borrow_mut();
 
                         // Convert the new value into map-position.
-                        let view_width = obj.width();
-                        let lane_count: i32 = state.objects.len().try_into().unwrap();
-                        let lane_width = view_width / lane_count;
                         let mut pixels = adjustment.value();
                         if state.downscroll {
                             pixels = adjustment.upper() - adjustment.page_size() - pixels;
                         }
-                        let length = from_pixels_f64(pixels, lane_width, lane_count);
+                        let length = from_pixels_f64(pixels);
                         let first_position = state.game.min_position().unwrap();
                         let position = if state.scroll_speed.0 > 0 {
                             let difference = length / state.scroll_speed;

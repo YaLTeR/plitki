@@ -191,7 +191,7 @@ mod imp {
             playfield.set_halign(gtk::Align::Center);
             playfield.set_valign(gtk::Align::End);
             playfield.set_downscroll(true);
-            playfield.set_scroll_speed(ScrollSpeed(60));
+            playfield.set_scroll_speed(ScrollSpeed(45));
 
             self.scrolled_window.set_child(Some(&playfield));
 

@@ -258,7 +258,7 @@ mod imp {
 
                         let nat_head = self.head().measure(gtk::Orientation::Vertical, width).1;
 
-                        let length = to_pixels(self.length.get(), width, self.lane_count.get());
+                        let length = to_pixels(self.length.get());
                         let tail_start = length;
 
                         let nat_tail = self.tail().measure(gtk::Orientation::Vertical, width).1;
@@ -291,7 +291,7 @@ mod imp {
             self.head()
                 .size_allocate(&gdk::Rectangle::new(0, 0, width, nat_head), -1);
 
-            let length = to_pixels(self.length.get(), width, self.lane_count.get());
+            let length = to_pixels(self.length.get());
             let tail_start = length;
 
             let nat_tail = self.tail().measure(gtk::Orientation::Vertical, width).1;
