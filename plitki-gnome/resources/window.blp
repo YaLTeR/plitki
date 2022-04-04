@@ -57,10 +57,18 @@ template PlitkiWindow : Adw.ApplicationWindow {
           };
         }
 
-        ScrolledWindow scrolled_window {
-          hscrollbar-policy: never;
-          vscrollbar-policy: external;
-          vexpand: true;
+        Overlay {
+          child: ScrolledWindow scrolled_window {
+            hscrollbar-policy: never;
+            vscrollbar-policy: external;
+            vexpand: true;
+          };
+
+          [overlay]
+          .PlitkiHitError hit_error {
+            halign: center;
+            valign: center;
+          }
         }
       };
     }

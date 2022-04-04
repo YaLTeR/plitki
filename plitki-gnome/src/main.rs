@@ -9,6 +9,7 @@ use window::Window;
 use crate::audio::AudioEngine;
 
 mod audio;
+mod hit_error;
 mod window;
 
 fn main() {

@@ -27,6 +27,8 @@ mod imp {
     use plitki_gtk::playfield::Playfield;
     use plitki_gtk::skin::{LaneSkin, Skin};
 
+    use crate::hit_error::HitError;
+
     use super::*;
 
     #[derive(Debug, Default, CompositeTemplate)]
@@ -36,6 +38,8 @@ mod imp {
         stack: TemplateChild<gtk::Stack>,
         #[template_child]
         scrolled_window: TemplateChild<gtk::ScrolledWindow>,
+        #[template_child]
+        hit_error: TemplateChild<HitError>,
 
         playfield: RefCell<Option<Playfield>>,
 
@@ -215,6 +219,9 @@ mod imp {
                 for lane in 0..state.lane_states.len() {
                     state.update(lane, game_timestamp);
                 }
+
+                self.hit_error
+                    .update(game_timestamp, state.last_hits.iter().copied().collect());
             }
         }
 
