@@ -193,13 +193,17 @@ mod imp {
         }
 
         fn on_tick_callback(&self) {
-            let audio_time_passed = self.audio.get().unwrap().track_time();
-            let game_timestamp = GameTimestamp(Timestamp::try_from(audio_time_passed).unwrap());
+            let game_timestamp = self.game_timestamp();
 
             let playfield = self.playfield.borrow();
             if let Some(playfield) = &*playfield {
                 playfield.set_game_timestamp(game_timestamp);
             }
+        }
+
+        fn game_timestamp(&self) -> GameTimestamp {
+            let audio_time_passed = self.audio.get().unwrap().track_time();
+            GameTimestamp(Timestamp::try_from(audio_time_passed).unwrap())
         }
     }
 
