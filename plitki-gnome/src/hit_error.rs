@@ -84,8 +84,16 @@ mod imp {
                     - (timestamp - hit.timestamp).into_milli_hundredths() as f32 / 100000.)
                     .clamp(0., 1.);
 
+                // Quaver Standard judgements.
+                let color = match diff.abs() / 100 {
+                    0..=18 => gdk::RGBA::new(0.98, 1., 0.71, alpha),
+                    19..=43 => gdk::RGBA::new(1., 0.91, 0.42, alpha),
+                    44..=76 => gdk::RGBA::new(0.34, 1., 0.43, alpha),
+                    _ => gdk::RGBA::new(1., 1., 1., alpha),
+                };
+
                 snapshot.append_color(
-                    &gdk::RGBA::new(1., 1., 1., alpha),
+                    &color,
                     &graphene::Rect::new(x, (height / 4) as _, 1., (height / 2) as _),
                 );
             }
