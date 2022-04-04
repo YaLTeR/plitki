@@ -62,6 +62,20 @@ mod imp {
         fn constructed(&self, obj: &Self::Type) {
             self.parent_constructed(obj);
 
+            // Set up the drop target.
+            let drop_target = gtk::DropTarget::new(gio::File::static_type(), gdk::DragAction::COPY);
+            drop_target.connect_drop(
+                clone!(@weak obj => @default-return false, move |_, data, _, _| {
+                    if let Ok(file) = data.get::<gio::File>() {
+                        obj.open_file(file);
+                        return true;
+                    }
+
+                    false
+                }),
+            );
+            self.stack.add_controller(&drop_target);
+
             // Set up playfield scrolling.
             obj.add_tick_callback(move |obj, _clock| {
                 let audio_time_passed = obj.imp().audio.get().unwrap().track_time();
