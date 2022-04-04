@@ -62,6 +62,7 @@ mod imp {
         fn constructed(&self, obj: &Self::Type) {
             self.parent_constructed(obj);
 
+            // Set up playfield scrolling.
             obj.add_tick_callback(move |obj, _clock| {
                 let audio_time_passed = obj.imp().audio.get().unwrap().track_time();
 
