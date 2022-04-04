@@ -1,4 +1,4 @@
-use std::cell::Ref;
+use std::cell::{Ref, RefMut};
 
 use crate::skin::Skin;
 use gtk::glib;
@@ -603,6 +603,10 @@ mod imp {
             Ref::map(self.state().borrow(), |state| &state.game)
         }
 
+        pub fn game_state_mut(&self) -> RefMut<GameState> {
+            RefMut::map(self.state().borrow_mut(), |state| &mut state.game)
+        }
+
         pub fn rebuild(&self, obj: &super::Playfield) {
             while let Some(child) = obj.first_child() {
                 child.unparent();
@@ -810,5 +814,9 @@ impl Playfield {
 
     pub fn state(&self) -> Ref<GameState> {
         self.imp().game_state()
+    }
+
+    pub fn state_mut(&self) -> RefMut<GameState> {
+        self.imp().game_state_mut()
     }
 }
