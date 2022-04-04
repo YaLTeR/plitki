@@ -74,7 +74,7 @@ impl AudioEngine {
     }
 
     /// Starts playing the `track`.
-    /// 
+    ///
     /// After calling this method, [`AudioEngine::track_time()`] may return [`Duration::ZERO`] for a
     /// little bit, until the track actually starts playing.
     pub fn play_track(&self, track: impl Source<Item = impl Sample + Send> + Send + 'static) {
@@ -91,7 +91,7 @@ impl AudioEngine {
     }
 
     /// Returns current playback position of the track.
-    /// 
+    ///
     /// The playback position will keep increasing past the end of the track (until another track is
     /// started with [`AudioEngine::play_track()`]).
     pub fn track_time(&self) -> Duration {
