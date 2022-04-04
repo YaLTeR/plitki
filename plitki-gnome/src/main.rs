@@ -1,9 +1,14 @@
+use std::rc::Rc;
+
 use adw::prelude::*;
 use glib::{GlibLogger, GlibLoggerDomain, GlibLoggerFormat};
 use gtk::{gdk, gio};
 use log::info;
 use window::Window;
 
+use crate::audio::AudioEngine;
+
+mod audio;
 mod window;
 
 fn main() {
@@ -44,6 +49,9 @@ fn on_startup(app: &adw::Application) {
 }
 
 fn on_activate(app: &adw::Application) {
-    let window = Window::new(app);
+    let audio = Rc::new(AudioEngine::new());
+
+    let window = Window::new(app, audio);
+
     window.present();
 }

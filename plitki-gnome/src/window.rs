@@ -1,4 +1,6 @@
+use crate::audio::AudioEngine;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use glib::clone;
 use gtk::prelude::*;
@@ -6,13 +8,22 @@ use gtk::subclass::prelude::*;
 use gtk::{gio, glib};
 use log::warn;
 
+#[derive(Debug, Clone, glib::SharedBoxed)]
+#[shared_boxed_type(name = "BoxedAudioEngine")]
+pub(crate) struct BoxedAudioEngine(Rc<AudioEngine>);
+
 mod imp {
     use std::io::Cursor;
+
     use adw::subclass::prelude::*;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
     use gtk::{gdk, gdk_pixbuf, CompositeTemplate};
+    use once_cell::sync::Lazy;
+    use once_cell::unsync::OnceCell;
     use plitki_core::map::Map;
+    use plitki_core::scroll::ScrollSpeed;
+    use plitki_core::timing::{MapTimestamp, Timestamp};
     use plitki_gtk::playfield::Playfield;
     use plitki_gtk::skin::{LaneSkin, Skin};
 
@@ -25,6 +36,10 @@ mod imp {
         stack: TemplateChild<gtk::Stack>,
         #[template_child]
         scrolled_window: TemplateChild<gtk::ScrolledWindow>,
+
+        playfield: RefCell<Option<Playfield>>,
+
+        audio: OnceCell<Rc<AudioEngine>>,
     }
 
     #[glib::object_subclass]
@@ -46,6 +61,49 @@ mod imp {
     impl ObjectImpl for Window {
         fn constructed(&self, obj: &Self::Type) {
             self.parent_constructed(obj);
+
+            obj.add_tick_callback(move |obj, _clock| {
+                let audio_time_passed = obj.imp().audio.get().unwrap().track_time();
+
+                let map_timestamp = MapTimestamp(Timestamp::try_from(audio_time_passed).unwrap());
+
+                let playfield = obj.imp().playfield.borrow();
+                if let Some(playfield) = &*playfield {
+                    playfield.set_map_timestamp(map_timestamp);
+                }
+
+                glib::Continue(true)
+            });
+        }
+
+        fn properties() -> &'static [glib::ParamSpec] {
+            static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
+                vec![glib::ParamSpecBoxed::new(
+                    "audio-engine",
+                    "",
+                    "",
+                    BoxedAudioEngine::static_type(),
+                    glib::ParamFlags::WRITABLE | glib::ParamFlags::CONSTRUCT_ONLY,
+                )]
+            });
+
+            PROPERTIES.as_ref()
+        }
+
+        fn set_property(
+            &self,
+            _obj: &Self::Type,
+            _id: usize,
+            value: &glib::Value,
+            pspec: &glib::ParamSpec,
+        ) {
+            match pspec.name() {
+                "audio-engine" => {
+                    let value = value.get::<BoxedAudioEngine>().unwrap().0;
+                    self.audio.set(value).unwrap();
+                }
+                _ => unimplemented!(),
+            }
         }
     }
 
@@ -75,16 +133,56 @@ mod imp {
 
             let map: Map = qua.try_into().unwrap();
 
+            // Load the audio file.
+            let track = if let Some(name) = &map.audio_file {
+                if let Some(dir) = file.parent() {
+                    let file = dir.child(name);
+                    match file.load_contents_future().await {
+                        Ok((contents, _)) => {
+                            let contents = Cursor::new(contents);
+                            match rodio::Decoder::new(contents) {
+                                Ok(x) => Some(x),
+                                Err(err) => {
+                                    warn!("error decoding audio file: {err:?}");
+                                    None
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            warn!("error reading audio file: {err:?}");
+                            None
+                        }
+                    }
+                } else {
+                    warn!(".qua file has no parent dir");
+                    None
+                }
+            } else {
+                warn!("map has no audio file set");
+                None
+            };
+
             // Create the playfield.
             let playfield = Playfield::new(map, &create_skin("/plitki-gnome/skin/arrows"));
 
             playfield.set_halign(gtk::Align::Center);
             playfield.set_valign(gtk::Align::End);
             playfield.set_downscroll(true);
+            playfield.set_scroll_speed(ScrollSpeed(60));
 
             self.scrolled_window.set_child(Some(&playfield));
 
+            self.playfield.replace(Some(playfield));
+
             self.stack.set_visible_child_name("content");
+
+            // Start the audio.
+            let engine = self.audio.get().unwrap();
+            if let Some(track) = track {
+                engine.play_track(track);
+            } else {
+                engine.play_track(rodio::source::Zero::<f32>::new(2, 44100));
+            }
         }
     }
 
@@ -140,8 +238,12 @@ glib::wrapper! {
 
 #[gtk::template_callbacks]
 impl Window {
-    pub fn new(app: &impl IsA<gtk::Application>) -> Self {
-        glib::Object::new(&[("application", app)]).unwrap()
+    pub fn new(app: &impl IsA<gtk::Application>, audio: Rc<AudioEngine>) -> Self {
+        glib::Object::new(&[
+            ("application", app),
+            ("audio-engine", &BoxedAudioEngine(audio)),
+        ])
+        .unwrap()
     }
 
     fn open_file(&self, file: gio::File) {
