@@ -7,6 +7,7 @@ use gtk::subclass::prelude::*;
 use plitki_core::map::Map;
 use plitki_core::scroll::ScrollSpeed;
 use plitki_core::state::GameState;
+use plitki_core::timing::MapTimestamp;
 
 #[derive(Debug, Clone, glib::Boxed)]
 #[boxed_type(name = "BoxedMap")]
@@ -172,16 +173,7 @@ mod imp {
                 "map-timestamp" => {
                     let timestamp = value.get::<i32>().expect("wrong property type");
                     let timestamp = MapTimestamp::from_milli_hundredths(timestamp);
-                    let mut state = self.state.get().expect("map needs to be set").borrow_mut();
-                    state.map_timestamp = timestamp;
-
-                    let position = state.game.position_at_time(timestamp);
-                    if state.map_position != position {
-                        state.map_position = position;
-                        drop(state);
-                        obj.notify("map-position");
-                        obj.queue_allocate();
-                    }
+                    self.set_map_timestamp(timestamp);
                 }
                 "map-position" => {
                     let position = value.get::<i64>().expect("wrong property type");
@@ -580,6 +572,21 @@ mod imp {
             }
         }
 
+        pub fn set_map_timestamp(&self, timestamp: MapTimestamp) {
+            let mut state = self.state.get().expect("map needs to be set").borrow_mut();
+            state.map_timestamp = timestamp;
+
+            let position = state.game.position_at_time(timestamp);
+            if state.map_position != position {
+                state.map_position = position;
+                drop(state);
+
+                let obj = self.instance();
+                obj.notify("map-position");
+                obj.queue_allocate();
+            }
+        }
+
         fn state(&self) -> &RefCell<State> {
             self.state
                 .get()
@@ -785,6 +792,10 @@ impl Playfield {
 
     pub fn set_scroll_speed(&self, value: ScrollSpeed) {
         self.imp().set_scroll_speed(value);
+    }
+
+    pub fn set_map_timestamp(&self, timestamp: MapTimestamp) {
+        self.imp().set_map_timestamp(timestamp);
     }
 
     pub fn state(&self) -> Ref<GameState> {
