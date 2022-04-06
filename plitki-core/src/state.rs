@@ -881,7 +881,7 @@ mod tests {
         scroll::ScrollSpeedMultiplier,
     };
     use alloc::vec;
-    use proptest::prelude::*;
+    use proptest::{collection::size_range, prelude::*};
 
     #[test]
     fn game_state_objects_sorted() {
@@ -2117,5 +2117,67 @@ mod tests {
                 .copied();
             prop_assert_eq!(result, correct);
         }
+
+        #[test]
+        fn update_doesnt_panic(
+            map in any_with::<Map>(Valid(true)),
+            hit_window: GameTimestampDifference,
+            timestamps: Vec<GameTimestamp>,
+        ) {
+            let mut state = GameState::new(map, hit_window).unwrap();
+            for timestamp in timestamps {
+                state.update(timestamp);
+            }
+        }
+
+        #[test]
+        fn intermediate_updates_are_unnecessary(
+            map in any_with::<Map>(Valid(true)),
+            hit_window: GameTimestampDifference,
+            timestamps in any_with::<Vec<GameTimestamp>>(size_range(1..100).lift()),
+        ) {
+            let mut state = GameState::new(map, hit_window).unwrap();
+            let mut state2 = state.clone();
+
+            for &timestamp in &timestamps {
+                state.update(timestamp);
+            }
+
+            state2.update(*timestamps.iter().max().unwrap());
+
+            prop_assert_eq!(state, state2);
+        }
+
+        #[test]
+        fn gameplay_doesnt_panic(
+            (map, events) in valid_map_with_events(),
+            hit_window: GameTimestampDifference,
+        ) {
+            let mut state = GameState::new(map, hit_window).unwrap();
+
+            // If additional validation is added to key_press and key_release, this might need
+            // further filtering to e.g. exclude pressing keys that are already pressed or releasing
+            // keys that were not pressed.
+            for (press, lane, timestamp) in events {
+                if press {
+                    state.key_press(lane, timestamp);
+                } else {
+                    state.key_release(lane, timestamp);
+                }
+            }
+        }
+    }
+
+    fn valid_map_with_events(
+    ) -> impl proptest::strategy::Strategy<Value = (Map, Vec<(bool, usize, GameTimestamp)>)> {
+        any_with::<Map>(Valid(true))
+            .prop_filter("zero lanes", |map| map.lane_count() > 0)
+            .prop_flat_map(|map| {
+                let events = prop::collection::vec(
+                    (any::<bool>(), 0..map.lane_count(), any::<GameTimestamp>()),
+                    0..100,
+                );
+                (Just(map), events)
+            })
     }
 }
