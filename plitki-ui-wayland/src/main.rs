@@ -106,7 +106,7 @@ struct State {
 impl State {
     fn new(map: Map) -> Self {
         Self {
-            game_state: GameState::new(map).unwrap(),
+            game_state: GameState::new(map, GameTimestampDifference::from_millis(76)).unwrap(),
             cap_fps: false,
             scroll_speed: ScrollSpeed(32),
             no_scroll_speed_changes: false,

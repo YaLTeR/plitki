@@ -21,6 +21,10 @@ pub struct GameState {
     ///
     /// Stored in an [`Arc`] so it doesn't have to be cloned.
     pub immutable: Arc<ImmutableGameState>,
+    /// Largest timestamp difference that will be considered a hit.
+    ///
+    /// Notes past the hit window will be considered missed.
+    pub hit_window: GameTimestampDifference,
     /// Converter between game timestamps and map timestamps.
     pub timestamp_converter: TimestampConverter,
     /// Contains states of the objects in lanes.
@@ -225,8 +229,11 @@ impl core::fmt::Debug for GameStateCreationError {
 }
 
 impl GameState {
-    /// Creates a new `GameState` given a map.
-    pub fn new(mut map: Map) -> Result<Self, GameStateCreationError> {
+    /// Creates a new `GameState` given a map and a hit window.
+    pub fn new(
+        mut map: Map,
+        hit_window: GameTimestampDifference,
+    ) -> Result<Self, GameStateCreationError> {
         map.sort_and_dedup_scroll_speed_changes();
 
         // Compute the position cache.
@@ -483,6 +490,7 @@ impl GameState {
 
         Ok(Self {
             immutable: Arc::new(immutable),
+            hit_window,
             timestamp_converter,
             lane_states,
             last_hits: CircularQueue::with_capacity(32),
@@ -601,10 +609,8 @@ impl GameState {
             return;
         }
 
-        let hit_window = GameTimestampDifference::from_millis(76);
-
         let map_timestamp = timestamp.to_map(&self.timestamp_converter);
-        let map_hit_window = hit_window.to_map(&self.timestamp_converter);
+        let map_hit_window = self.hit_window.to_map(&self.timestamp_converter);
 
         let lane_state = &mut self.lane_states[lane];
         let objects = &self.immutable.map.lanes[lane].objects[lane_state.first_active_object..];
@@ -622,13 +628,13 @@ impl GameState {
                     if let LongNoteState::Held { press_difference } = *state {
                         *state = LongNoteState::Hit {
                             press_difference,
-                            release_difference: hit_window,
+                            release_difference: self.hit_window,
                         };
 
                         self.last_hits.push(Hit {
                             timestamp: (object.end_timestamp() + map_hit_window)
                                 .to_game(&self.timestamp_converter),
-                            difference: hit_window,
+                            difference: self.hit_window,
                         });
                     } else if *state == LongNoteState::NotHit {
                         // I kind of dislike how this branch exists both here and in the condition
@@ -683,10 +689,8 @@ impl GameState {
             return;
         }
 
-        let hit_window = GameTimestampDifference::from_millis(76);
-
         let map_timestamp = timestamp.to_map(&self.timestamp_converter);
-        let map_hit_window = hit_window.to_map(&self.timestamp_converter);
+        let map_hit_window = self.hit_window.to_map(&self.timestamp_converter);
 
         let lane_state = &mut self.lane_states[lane];
         let object = &self.immutable.map.lanes[lane].objects[lane_state.first_active_object];
@@ -725,10 +729,8 @@ impl GameState {
             return;
         }
 
-        let hit_window = GameTimestampDifference::from_millis(76);
-
         let map_timestamp = timestamp.to_map(&self.timestamp_converter);
-        let map_hit_window = hit_window.to_map(&self.timestamp_converter);
+        let map_hit_window = self.hit_window.to_map(&self.timestamp_converter);
 
         let lane_state = &mut self.lane_states[lane];
         let object = &self.immutable.map.lanes[lane].objects[lane_state.first_active_object];
@@ -920,7 +922,7 @@ mod tests {
             ],
         };
 
-        let state = GameState::new(map).unwrap();
+        let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
         for lane in &state.immutable.map.lanes {
             for xs in lane.objects.windows(2) {
@@ -955,7 +957,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map).unwrap();
+        let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
         state.key_press(0, GameTimestamp::from_millis(10_000));
 
         assert_eq!(
@@ -999,7 +1001,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map).unwrap();
+        let mut state = GameState::new(map, GameTimestampDifference::from_millis(20)).unwrap();
         state.key_press(0, GameTimestamp::from_millis(10));
 
         assert_eq!(
@@ -1039,7 +1041,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map).unwrap();
+        let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
         state.key_press(0, GameTimestamp::from_millis(5_000));
         state.key_release(0, GameTimestamp::from_millis(10_000));
 
@@ -1082,7 +1084,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map).unwrap();
+        let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
         state.key_press(0, GameTimestamp::from_millis(5_000));
         state.key_release(0, GameTimestamp::from_millis(7_000));
 
@@ -1123,7 +1125,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map).unwrap();
+        let mut state = GameState::new(map, GameTimestampDifference::from_millis(123)).unwrap();
         state.key_press(0, GameTimestamp::from_millis(5_000));
         state.key_release(0, GameTimestamp::from_millis(15_000));
 
@@ -1131,7 +1133,7 @@ mod tests {
             &state.lane_states[0].object_states[..],
             &[ObjectState::LongNote(LongNoteState::Hit {
                 press_difference: GameTimestampDifference::from_millis(0),
-                release_difference: GameTimestampDifference::from_millis(76), // TODO: un-hardcode
+                release_difference: state.hit_window,
             })][..]
         );
 
@@ -1141,8 +1143,8 @@ mod tests {
             difference: GameTimestampDifference::from_millis(0),
         });
         hits.push(Hit {
-            timestamp: GameTimestamp::from_millis(10_076),
-            difference: GameTimestampDifference::from_millis(76),
+            timestamp: GameTimestamp::from_millis(10_000) + state.hit_window,
+            difference: state.hit_window,
         });
         assert_eq!(state.last_hits, hits);
     }
@@ -1166,7 +1168,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map).unwrap();
+        let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
         state.key_press(0, GameTimestamp::from_millis(7_000));
         state.key_release(0, GameTimestamp::from_millis(10_000));
 
@@ -1201,7 +1203,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map).unwrap();
+        let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
         state.key_press(0, GameTimestamp::from_millis(5_000));
 
         assert_eq!(
@@ -1238,7 +1240,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map).unwrap();
+        let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
         state.update(0, GameTimestamp::from_millis(15_000));
 
         assert_eq!(
@@ -1271,7 +1273,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map).unwrap();
+        let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
         state.timestamp_converter.global_offset = GameTimestampDifference::from_millis(10_000);
 
         state.key_press(0, GameTimestamp::from_millis(0));
@@ -1314,7 +1316,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map).unwrap();
+        let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
         state.timestamp_converter.local_offset = MapTimestampDifference::from_millis(-10_000);
 
         state.key_press(0, GameTimestamp::from_millis(0));
@@ -1362,7 +1364,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map).unwrap();
+        let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
         let mut state2 = state.clone();
         state2.timestamp_converter.global_offset = GameTimestampDifference::from_millis(10_000);
@@ -1399,7 +1401,7 @@ mod tests {
             }],
         };
 
-        let mut state = GameState::new(map).unwrap();
+        let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
         let mut state2 = state.clone();
         state2.lane_states[0].first_active_object = 1;
@@ -1423,7 +1425,7 @@ mod tests {
             lanes: vec![Lane { objects: vec![] }],
         };
 
-        let mut state = GameState::new(map).unwrap();
+        let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
         let state2 = state.clone();
 
         state.update_to_latest(&state2);
@@ -1473,7 +1475,7 @@ mod tests {
             lanes: vec![Lane { objects: vec![] }],
         };
 
-        let state = GameState::new(map).unwrap();
+        let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
         assert_eq!(
             state.immutable.position_cache.len(),
@@ -1537,7 +1539,7 @@ mod tests {
             lanes: vec![Lane { objects: vec![] }],
         };
 
-        let state = GameState::new(map).unwrap();
+        let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
         assert_eq!(
             &state.immutable.position_cache[..],
@@ -1597,7 +1599,7 @@ mod tests {
             lanes: vec![Lane { objects: vec![] }],
         };
 
-        let state = GameState::new(map).unwrap();
+        let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
         assert_eq!(
             state.position_at_time(MapTimestamp::from_milli_hundredths(-250)),
@@ -1682,7 +1684,7 @@ mod tests {
             ],
         };
 
-        let state = GameState::new(map).unwrap();
+        let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
         assert_eq!(
             state.immutable.lane_caches[0].object_caches[0],
@@ -1770,7 +1772,7 @@ mod tests {
             lanes: vec![Lane { objects: vec![] }],
         };
 
-        let state = GameState::new(map).unwrap();
+        let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
         assert_eq!(
             &state.immutable.timing_lines[..],
@@ -1851,7 +1853,7 @@ mod tests {
             ],
         };
 
-        let state = GameState::new(map).unwrap();
+        let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
         assert_eq!(
             state.first_timestamp(),
@@ -1877,7 +1879,7 @@ mod tests {
             lanes: vec![],
         };
 
-        let state = GameState::new(map).unwrap();
+        let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
         assert_eq!(state.first_timestamp(), None);
         assert_eq!(state.last_timestamp(), None);
@@ -1924,7 +1926,7 @@ mod tests {
         };
 
         assert!(matches!(
-            GameState::new(map),
+            GameState::new(map, GameTimestampDifference::from_millis(0)),
             Err(GameStateCreationError::MapHasOverlappingObjects(_, _, _))
         ));
     }
@@ -1952,7 +1954,7 @@ mod tests {
             }],
         };
 
-        let state = GameState::new(map).unwrap();
+        let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
         assert_eq!(
             state.min_regular(),
             Some(RegularObjectCache {
@@ -1964,17 +1966,17 @@ mod tests {
     proptest! {
         #[test]
         fn game_state_new_doesnt_panic(map: Map) {
-            let _ = GameState::new(map);
+            let _ = GameState::new(map, GameTimestampDifference::from_millis(0));
         }
 
         #[test]
         fn game_state_new_with_valid_map_succeeds(map in any_with::<Map>(Valid(true))) {
-            let _ = GameState::new(map).unwrap();
+            let _ = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
         }
 
         #[test]
         fn min_regular(map in any_with::<Map>(Valid(true))) {
-            let state = GameState::new(map).unwrap();
+            let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
             let result = state.min_regular();
             let correct = state
@@ -1994,7 +1996,7 @@ mod tests {
 
         #[test]
         fn max_regular(map in any_with::<Map>(Valid(true))) {
-            let state = GameState::new(map).unwrap();
+            let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
             let result = state.max_regular();
             let correct = state
@@ -2014,7 +2016,7 @@ mod tests {
 
         #[test]
         fn min_long_note(map in any_with::<Map>(Valid(true))) {
-            let state = GameState::new(map).unwrap();
+            let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
             let result = state.min_long_note();
             let correct = state
@@ -2034,7 +2036,7 @@ mod tests {
 
         #[test]
         fn max_long_note(map in any_with::<Map>(Valid(true))) {
-            let state = GameState::new(map).unwrap();
+            let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
             let result = state.max_long_note();
             let correct = state
@@ -2054,7 +2056,7 @@ mod tests {
 
         #[test]
         fn min_position(map in any_with::<Map>(Valid(true))) {
-            let state = GameState::new(map).unwrap();
+            let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
             let result = state.min_position();
             let correct = state
@@ -2069,7 +2071,7 @@ mod tests {
 
         #[test]
         fn max_position(map in any_with::<Map>(Valid(true))) {
-            let state = GameState::new(map).unwrap();
+            let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
             let result = state.max_position();
             let correct = state
@@ -2084,7 +2086,7 @@ mod tests {
 
         #[test]
         fn max_timing_line(map in any_with::<Map>(Valid(true))) {
-            let state = GameState::new(map).unwrap();
+            let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
             let result = state.max_timing_line();
             let correct = state

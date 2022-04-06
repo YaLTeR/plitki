@@ -22,6 +22,7 @@ mod imp {
     use once_cell::unsync::OnceCell;
     use plitki_core::scroll::{Position, ScrollSpeed};
     use plitki_core::state::ObjectCache;
+    use plitki_core::timing::GameTimestampDifference;
 
     use super::*;
     use crate::long_note::LongNote;
@@ -159,7 +160,11 @@ mod imp {
             match pspec.name() {
                 "map" => {
                     let map = value.get::<BoxedMap>().expect("wrong property type").0;
-                    let state = State::new(GameState::new(map).expect("invalid map"));
+                    // TODO: un-hardcode the hit window.
+                    let state = State::new(
+                        GameState::new(map, GameTimestampDifference::from_millis(76))
+                            .expect("invalid map"),
+                    );
                     self.state
                         .set(RefCell::new(state))
                         .expect("property set more than once");
