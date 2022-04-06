@@ -65,5 +65,49 @@ macro_rules! impl_ops {
                 }
             }
         }
+
+        impl $type {
+            /// Saturating subtraction. Computes `self - rhs`, saturating at the numeric bounds
+            /// instead of overflowing.
+            #[inline]
+            pub fn saturating_sub(self, other: $type_difference) -> $type {
+                type Output = $type;
+                Output {
+                    0: self.0.saturating_sub(other.0),
+                }
+            }
+
+            /// Saturating addition. Computes `self + rhs`, saturating at the numeric bounds instead
+            /// of overflowing.
+            #[inline]
+            pub fn saturating_add(self, other: $type_difference) -> $type {
+                type Output = $type;
+                Output {
+                    0: self.0.saturating_add(other.0),
+                }
+            }
+        }
+
+        impl $type_difference {
+            /// Saturating subtraction. Computes `self - rhs`, saturating at the numeric bounds
+            /// instead of overflowing.
+            #[inline]
+            pub fn saturating_sub(self, other: $type_difference) -> $type_difference {
+                type Output = $type_difference;
+                Output {
+                    0: self.0.saturating_sub(other.0),
+                }
+            }
+
+            /// Saturating addition. Computes `self + rhs`, saturating at the numeric bounds instead
+            /// of overflowing.
+            #[inline]
+            pub fn saturating_add(self, other: $type_difference) -> $type_difference {
+                type Output = $type_difference;
+                Output {
+                    0: self.0.saturating_add(other.0),
+                }
+            }
+        }
     };
 }
