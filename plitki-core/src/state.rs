@@ -302,7 +302,7 @@ impl GameState {
         }
 
         // Compute per-lane and per-object data.
-        let mut lane_states = Vec::with_capacity(map.lanes.len());
+        let mut lane_states = Vec::with_capacity(map.lane_count());
         for lane in &mut map.lanes {
             // Ensure the objects are sorted by their start timestamp (GameState invariant).
             lane.objects.sort_unstable_by_key(Object::start_timestamp);
@@ -356,7 +356,7 @@ impl GameState {
         let mut max_long_note_position = None;
 
         // Now that we can use position_at_time(), fill in the lane caches.
-        let mut lane_caches = Vec::with_capacity(immutable.map.lanes.len());
+        let mut lane_caches = Vec::with_capacity(immutable.lane_count());
         for lane in &immutable.map.lanes {
             let mut object_caches = Vec::with_capacity(lane.objects.len());
 
@@ -557,6 +557,12 @@ impl GameState {
     #[inline]
     pub fn max_position(&self) -> Option<Position> {
         self.immutable.max_position
+    }
+
+    /// Returns the number of lanes in the map.
+    #[inline]
+    pub fn lane_count(&self) -> usize {
+        self.immutable.lane_count()
     }
 
     /// Updates the state to match the `latest` state.
@@ -815,6 +821,12 @@ impl ImmutableGameState {
             .filter_map(|lane| lane.objects.last())
             .map(Object::end_timestamp)
             .max()
+    }
+
+    /// Returns the number of lanes in the map.
+    #[inline]
+    pub fn lane_count(&self) -> usize {
+        self.map.lane_count()
     }
 }
 

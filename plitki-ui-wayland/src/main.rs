@@ -708,7 +708,7 @@ fn main() {
             let elapsed_timestamp = elapsed.try_into().unwrap();
 
             let (latest_state, buf_input) = &mut *state_pair.borrow_mut();
-            for lane in 0..latest_state.game_state.lane_states.len() {
+            for lane in 0..latest_state.game_state.lane_count() {
                 latest_state
                     .game_state
                     .update(lane, GameTimestamp(elapsed_timestamp));

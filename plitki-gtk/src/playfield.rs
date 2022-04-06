@@ -522,7 +522,7 @@ mod imp {
                 state.timing_lines.push(widget);
             }
 
-            let lane_count = state.game.immutable.map.lanes.len();
+            let lane_count = state.game.lane_count();
 
             for (l, lane) in state.game.immutable.lane_caches.iter().enumerate() {
                 let skin = self.skin.get().unwrap().borrow();

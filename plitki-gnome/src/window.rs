@@ -23,7 +23,9 @@ mod imp {
     use once_cell::unsync::OnceCell;
     use plitki_core::map::Map;
     use plitki_core::scroll::ScrollSpeed;
-    use plitki_core::timing::{GameTimestamp, Timestamp};
+    use plitki_core::timing::{
+        GameTimestamp, GameTimestampDifference, MapTimestampDifference, Timestamp,
+    };
     use plitki_gtk::playfield::Playfield;
     use plitki_gtk::skin::{LaneSkin, Skin};
 
@@ -216,7 +218,7 @@ mod imp {
                 playfield.set_game_timestamp(game_timestamp);
 
                 let mut state = playfield.state_mut();
-                for lane in 0..state.lane_states.len() {
+                for lane in 0..state.lane_count() {
                     state.update(lane, game_timestamp);
                 }
 

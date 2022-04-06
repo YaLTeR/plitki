@@ -251,7 +251,7 @@ impl Renderer {
         }
 
         if state.two_playfields {
-            let lane_count = state.game_state.immutable.map.lanes.len();
+            let lane_count = state.game_state.lane_count();
             let lane_width = if lane_count < 6 { 0.2 } else { 0.15 };
             let lane_width = self.to_pixels(lane_width).round();
             let border_offset = lane_width * lane_count as f32 / 2.;
@@ -355,7 +355,7 @@ impl<'a> SingleFrameRenderer<'a> {
         };
         let game_timestamp = map_timestamp.to_game(&state.game_state.timestamp_converter);
 
-        let lane_count = state.game_state.immutable.map.lanes.len();
+        let lane_count = state.game_state.lane_count();
         let lane_width = if lane_count < 6 { 0.2 } else { 0.15 };
         let note_height = renderer.to_pixels(lane_width / 2.).round();
 
@@ -513,8 +513,8 @@ impl<'a> SingleFrameRenderer<'a> {
         let first_visible_position = self.screen_to_core(-self.note_height);
         let one_past_last_visible_position = self.screen_to_core(self.height());
 
-        for (lane, objects, object_states, object_caches) in
-            (0..self.state.game_state.immutable.map.lanes.len()).map(|lane| {
+        for (lane, objects, object_states, object_caches) in (0..self.state.game_state.lane_count())
+            .map(|lane| {
                 (
                     lane,
                     &state.game_state.immutable.map.lanes[lane].objects[..],
@@ -660,15 +660,15 @@ impl<'a> SingleFrameRenderer<'a> {
         };
 
         #[allow(clippy::collapsible_else_if)]
-        let mut color = if self.state.game_state.lane_states.len() == 4 {
+        let mut color = if self.state.game_state.lane_count() == 4 {
             if lane == 0 || lane == 3 {
                 Srgba::new(1., 1., 1., 1.)
             } else {
                 Srgba::new(0., 0.5, 1., 1.)
             }
         } else {
-            if self.state.game_state.lane_states.len() % 2 == 1
-                && lane == self.state.game_state.lane_states.len() / 2
+            if self.state.game_state.lane_count() % 2 == 1
+                && lane == self.state.game_state.lane_count() / 2
             {
                 Srgba::new(1., 1., 0., 1.)
             } else if lane % 2 == 0 {

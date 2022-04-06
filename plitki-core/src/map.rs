@@ -192,6 +192,12 @@ impl Map {
 
         *changes = new_changes;
     }
+
+    /// Returns the number of lanes in the map.
+    #[inline]
+    pub fn lane_count(&self) -> usize {
+        self.lanes.len()
+    }
 }
 
 #[cfg(test)]

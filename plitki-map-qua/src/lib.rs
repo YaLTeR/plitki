@@ -562,10 +562,10 @@ impl From<Map> for Qua {
     fn from(map: Map) -> Self {
         // TODO: this shouldn't panic and should probably be TryFrom instead.
         let mut qua = Self {
-            mode: match map.lanes.len() {
+            mode: match map.lane_count() {
                 4 => GameMode::Keys4,
                 7 => GameMode::Keys7,
-                _ => panic!("Invalid lane count: {}", map.lanes.len()),
+                _ => panic!("Invalid lane count: {}", map.lane_count()),
             },
             artist: map.song_artist,
             title: map.song_title,
