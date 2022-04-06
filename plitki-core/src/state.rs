@@ -634,7 +634,7 @@ impl GameState {
             // We want to increase first_active_object on every continue.
             lane_state.first_active_object += 1;
 
-            if object.end_timestamp() + map_hit_window < map_timestamp {
+            if object.end_timestamp().saturating_add(map_hit_window) < map_timestamp {
                 // The object can no longer be hit.
                 // TODO: mark the object as missed
 
@@ -665,7 +665,7 @@ impl GameState {
                 continue;
             }
 
-            if object.start_timestamp() + map_hit_window < map_timestamp {
+            if object.start_timestamp().saturating_add(map_hit_window) < map_timestamp {
                 // The object can no longer be hit.
                 // TODO: mark the object as missed
 
@@ -710,7 +710,7 @@ impl GameState {
         let object = &self.immutable.map.lanes[lane].objects[lane_state.first_active_object];
         let state = &mut lane_state.object_states[lane_state.first_active_object];
 
-        if map_timestamp >= object.start_timestamp() - map_hit_window {
+        if map_timestamp >= object.start_timestamp().saturating_sub(map_hit_window) {
             // The object can be hit.
             let difference =
                 (map_timestamp - object.start_timestamp()).to_game(&self.timestamp_converter);
@@ -752,7 +752,7 @@ impl GameState {
 
         if let ObjectState::LongNote(state) = state {
             if let LongNoteState::Held { press_difference } = *state {
-                if map_timestamp >= object.end_timestamp() - map_hit_window {
+                if map_timestamp >= object.end_timestamp().saturating_sub(map_hit_window) {
                     let difference =
                         (map_timestamp - object.end_timestamp()).to_game(&self.timestamp_converter);
 
