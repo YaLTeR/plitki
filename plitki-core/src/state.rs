@@ -610,7 +610,15 @@ impl GameState {
     ///
     /// Essentially, this is a way to signal "some time has passed". Stuff like missed objects is
     /// handled here. This should be called every so often for all lanes.
-    pub fn update(&mut self, lane: usize, timestamp: GameTimestamp) {
+    #[inline]
+    pub fn update(&mut self, timestamp: GameTimestamp) {
+        for lane in 0..self.lane_count() {
+            self.update_lane(lane, timestamp);
+        }
+    }
+
+    /// Updates the state for `lane`.
+    fn update_lane(&mut self, lane: usize, timestamp: GameTimestamp) {
         if !self.has_active_objects(lane) {
             return;
         }
@@ -690,7 +698,7 @@ impl GameState {
 
     /// Handles a key press.
     pub fn key_press(&mut self, lane: usize, timestamp: GameTimestamp) {
-        self.update(lane, timestamp);
+        self.update_lane(lane, timestamp);
         if !self.has_active_objects(lane) {
             return;
         }
@@ -730,7 +738,7 @@ impl GameState {
 
     /// Handles a key release.
     pub fn key_release(&mut self, lane: usize, timestamp: GameTimestamp) {
-        self.update(lane, timestamp);
+        self.update_lane(lane, timestamp);
         if !self.has_active_objects(lane) {
             return;
         }
@@ -1253,7 +1261,7 @@ mod tests {
         };
 
         let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
-        state.update(0, GameTimestamp::from_millis(15_000));
+        state.update(GameTimestamp::from_millis(15_000));
 
         assert_eq!(
             &state.lane_states[0].object_states[..],

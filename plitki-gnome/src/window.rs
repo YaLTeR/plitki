@@ -218,9 +218,7 @@ mod imp {
                 playfield.set_game_timestamp(game_timestamp);
 
                 let mut state = playfield.state_mut();
-                for lane in 0..state.lane_count() {
-                    state.update(lane, game_timestamp);
-                }
+                state.update(game_timestamp);
 
                 self.hit_error
                     .update(game_timestamp, state.last_hits.iter().copied().collect());
