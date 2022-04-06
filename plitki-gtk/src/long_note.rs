@@ -16,25 +16,12 @@ mod imp {
 
     use super::*;
 
-    #[derive(Debug)]
+    #[derive(Debug, Default)]
     pub struct LongNote {
         head: OnceCell<gtk::Picture>,
         tail: OnceCell<gtk::Picture>,
         body: OnceCell<gtk::Picture>,
         length: Cell<ScreenPositionDifference>,
-        lane_count: Cell<i32>,
-    }
-
-    impl Default for LongNote {
-        fn default() -> Self {
-            Self {
-                head: Default::default(),
-                tail: Default::default(),
-                body: Default::default(),
-                length: Default::default(),
-                lane_count: Cell::new(1),
-            }
-        }
     }
 
     #[glib::object_subclass]
@@ -100,15 +87,6 @@ mod imp {
                         0,
                         glib::ParamFlags::READWRITE,
                     ),
-                    glib::ParamSpecInt::new(
-                        "lane-count",
-                        "lane-count",
-                        "lane-count",
-                        1,
-                        i32::MAX,
-                        1,
-                        glib::ParamFlags::READWRITE,
-                    ),
                 ]
             });
             PROPERTIES.as_ref()
@@ -117,7 +95,6 @@ mod imp {
         fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
             match pspec.name() {
                 "length" => self.length.get().0.to_value(),
-                "lane-count" => self.lane_count.get().to_value(),
                 _ => unimplemented!(),
             }
         }
@@ -147,14 +124,6 @@ mod imp {
                     assert!(length >= 0);
                     if self.length.get().0 != length {
                         self.length.set(ScreenPositionDifference(length));
-                        obj.queue_resize();
-                    }
-                }
-                "lane-count" => {
-                    let lane_count = value.get::<i32>().expect("wrong property type");
-                    assert!(lane_count >= 1);
-                    if self.lane_count.get() != lane_count {
-                        self.lane_count.set(lane_count);
                         obj.queue_resize();
                     }
                 }
@@ -357,7 +326,6 @@ impl LongNote {
         head: &gdk::Texture,
         tail: &gdk::Texture,
         body: &gdk::Texture,
-        lane_count: i32,
         length: ScreenPositionDifference,
     ) -> Self {
         glib::Object::new(&[
@@ -368,7 +336,6 @@ impl LongNote {
                 picture.set_keep_aspect_ratio(false);
                 picture
             }),
-            ("lane-count", &lane_count),
             ("length", &length.0),
         ])
         .unwrap()

@@ -448,7 +448,6 @@ mod imp {
                 &lane_skin.ln_head,
                 &lane_skin.ln_tail,
                 &lane_skin.ln_body,
-                1,
                 ScreenPositionDifference(length),
             );
 

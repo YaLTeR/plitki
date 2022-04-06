@@ -539,7 +539,6 @@ mod imp {
                             &lane_skin.ln_head,
                             &lane_skin.ln_tail,
                             &lane_skin.ln_body,
-                            map.lanes.len().try_into().unwrap(),
                             (object.end_position() - object.start_position()) * state.scroll_speed,
                         )
                         .upcast(),
