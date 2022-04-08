@@ -194,6 +194,7 @@ impl Renderer {
         size * (self.width() / (self.horizontal_scale * 2.))
     }
 
+    #[allow(clippy::wrong_self_convention)]
     #[inline]
     fn from_pixels(&self, size: f32) -> f32 {
         // This returns the same result when using both X and Y.
