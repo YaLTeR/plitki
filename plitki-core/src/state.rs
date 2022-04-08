@@ -570,6 +570,30 @@ impl GameState {
         self.immutable.lane_count()
     }
 
+    /// Returns the current visual start position for an object.
+    ///
+    /// This is mostly useful for long notes which change their start position while they are held.
+    ///
+    /// `map_position` is the current map position.
+    #[inline]
+    pub fn object_start_position(
+        &self,
+        state: ObjectState,
+        cache: ObjectCache,
+        map_position: Position,
+    ) -> Position {
+        match state {
+            // LNs "stick" to receptors when held.
+            ObjectState::LongNote(LongNoteState::Held { .. }) => map_position,
+            // LNs released prematurely remain at that position.
+            ObjectState::LongNote(LongNoteState::Missed {
+                held_until: Some(held_until),
+                ..
+            }) => self.position_at_time(held_until),
+            _ => cache.start_position(),
+        }
+    }
+
     /// Updates the state to match the `latest` state.
     ///
     /// # Panics
