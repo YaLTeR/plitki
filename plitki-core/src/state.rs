@@ -73,13 +73,15 @@ pub struct ImmutableGameState {
 /// States of a regular object.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum RegularObjectState {
-    /// The object has not been hit.
+    /// The object has not been hit yet.
     NotHit,
     /// The object has been hit.
     Hit {
         /// Difference between the actual hit timestamp and the object timestamp.
         difference: GameTimestampDifference,
     },
+    /// The object has been missed, that is, has not been hit on time.
+    Missed,
 }
 
 /// States of a long note object.
@@ -636,29 +638,36 @@ impl GameState {
 
             if object.end_timestamp().saturating_add(map_hit_window) < map_timestamp {
                 // The object can no longer be hit.
-                // TODO: mark the object as missed
+                match state {
+                    ObjectState::Regular(state) => {
+                        if let RegularObjectState::NotHit = state {
+                            *state = RegularObjectState::Missed;
+                        } else {
+                            unreachable!()
+                        }
+                    }
+                    ObjectState::LongNote(state) => {
+                        if let LongNoteState::Held { press_difference } = *state {
+                            *state = LongNoteState::Hit {
+                                press_difference,
+                                release_difference: self.hit_window,
+                            };
 
-                if let ObjectState::LongNote(state) = state {
-                    if let LongNoteState::Held { press_difference } = *state {
-                        *state = LongNoteState::Hit {
-                            press_difference,
-                            release_difference: self.hit_window,
-                        };
-
-                        self.last_hits.push(Hit {
-                            timestamp: (object.end_timestamp() + map_hit_window)
-                                .to_game(&self.timestamp_converter),
-                            difference: self.hit_window,
-                        });
-                    } else if *state == LongNoteState::NotHit {
-                        // I kind of dislike how this branch exists both here and in the condition
-                        // below...
-                        *state = LongNoteState::Missed {
-                            held_until: None,
-                            press_difference: None,
-                        };
-                    } else {
-                        unreachable!()
+                            self.last_hits.push(Hit {
+                                timestamp: (object.end_timestamp() + map_hit_window)
+                                    .to_game(&self.timestamp_converter),
+                                difference: self.hit_window,
+                            });
+                        } else if *state == LongNoteState::NotHit {
+                            // I kind of dislike how this branch exists both here and in the condition
+                            // below...
+                            *state = LongNoteState::Missed {
+                                held_until: None,
+                                press_difference: None,
+                            };
+                        } else {
+                            unreachable!()
+                        }
                     }
                 }
 
@@ -667,8 +676,6 @@ impl GameState {
 
             if object.start_timestamp().saturating_add(map_hit_window) < map_timestamp {
                 // The object can no longer be hit.
-                // TODO: mark the object as missed
-
                 if let ObjectState::LongNote(state) = state {
                     // Mark this long note as missed.
                     if *state == LongNoteState::NotHit {
@@ -983,7 +990,7 @@ mod tests {
         assert_eq!(
             &state.lane_states[0].object_states[..],
             &[
-                ObjectState::Regular(RegularObjectState::NotHit),
+                ObjectState::Regular(RegularObjectState::Missed),
                 ObjectState::Regular(RegularObjectState::Hit {
                     difference: GameTimestampDifference::from_millis(0)
                 }),
@@ -2163,6 +2170,36 @@ mod tests {
                     state.key_press(lane, timestamp);
                 } else {
                     state.key_release(lane, timestamp);
+                }
+            }
+        }
+
+        #[test]
+        fn all_objects_are_eventually_missed(map in any_with::<Map>(ArbitraryMapType::ValidWithObjects)) {
+            let hit_window = GameTimestampDifference::from_millis(123);
+            let mut state = GameState::new(map, hit_window).unwrap();
+
+            let last_timestamp = state.last_timestamp().unwrap();
+            prop_assume!(
+                last_timestamp.into_milli_hundredths() < 2i32.pow(30) - 12301,
+                "last object too close to timestamp range boundary",
+            );
+
+            let one_past_hit_window_end = (last_timestamp
+                + hit_window.to_map(&state.timestamp_converter)
+                + MapTimestampDifference::from_milli_hundredths(1))
+            .to_game(&state.timestamp_converter);
+            state.update(one_past_hit_window_end);
+
+            for state in state.lane_states.into_iter().flat_map(|x| x.object_states) {
+                match state {
+                    ObjectState::Regular(state) => {
+                        prop_assert_eq!(state, RegularObjectState::Missed);
+                    }
+                    ObjectState::LongNote(state) => {
+                        let is_missed = matches!(state, LongNoteState::Missed { .. });
+                        prop_assert!(is_missed);
+                    }
                 }
             }
         }
