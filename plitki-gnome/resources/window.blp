@@ -7,61 +7,63 @@ template PlitkiWindow : Adw.ApplicationWindow {
   default-width: 1280;
   default-height: 720;
 
-  content: Stack stack {
-    transition-type: crossfade;
+  content: Adw.ToastOverlay toast_overlay {
+    child: Stack stack {
+      transition-type: crossfade;
 
-    StackPage {
-      child: Box {
-        orientation: vertical;
+      StackPage {
+        child: Box {
+          orientation: vertical;
 
-        Adw.HeaderBar {
-          [start]
-          Button {
-            label: "Open";
-            
-            styles ["suggested-action"]
+          Adw.HeaderBar {
+            [start]
+            Button {
+              label: "Open";
+              
+              styles ["suggested-action"]
 
-            clicked => on_open_clicked() swapped;
+              clicked => on_open_clicked() swapped;
+            }
+
+            title-widget: Adw.WindowTitle {
+                title: bind PlitkiWindow.title;
+            };
           }
 
-          title-widget: Adw.WindowTitle {
-              title: bind PlitkiWindow.title;
-          };
-        }
-
-        Adw.StatusPage {
-          vexpand: true;
-          description: "Select a .qua map by clicking the Open button.";
-        }
-      };
-    }
-
-    StackPage {
-      name: "content";
-
-      child: Box {
-        orientation: vertical;
-
-        Adw.HeaderBar {
-          title-widget: Adw.WindowTitle {
-              title: bind PlitkiWindow.title;
-          };
-        }
-
-        Overlay {
-          child: ScrolledWindow scrolled_window {
-            hscrollbar-policy: never;
-            vscrollbar-policy: external;
+          Adw.StatusPage {
             vexpand: true;
-          };
-
-          [overlay]
-          .PlitkiHitError hit_error {
-            halign: center;
-            valign: center;
+            description: "Select a .qua map by clicking the Open button.";
           }
-        }
-      };
-    }
+        };
+      }
+
+      StackPage {
+        name: "content";
+
+        child: Box {
+          orientation: vertical;
+
+          Adw.HeaderBar {
+            title-widget: Adw.WindowTitle {
+                title: bind PlitkiWindow.title;
+            };
+          }
+
+          Overlay {
+            child: ScrolledWindow scrolled_window {
+              hscrollbar-policy: never;
+              vscrollbar-policy: external;
+              vexpand: true;
+            };
+
+            [overlay]
+            .PlitkiHitError hit_error {
+              halign: center;
+              valign: center;
+            }
+          }
+        };
+      }
+    };
   };
 }

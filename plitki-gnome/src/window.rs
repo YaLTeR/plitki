@@ -37,6 +37,8 @@ mod imp {
     #[template(resource = "/plitki-gnome/window.ui")]
     pub struct Window {
         #[template_child]
+        toast_overlay: TemplateChild<adw::ToastOverlay>,
+        #[template_child]
         stack: TemplateChild<gtk::Stack>,
         #[template_child]
         scrolled_window: TemplateChild<gtk::ScrolledWindow>,
@@ -46,6 +48,8 @@ mod imp {
         playfield: RefCell<Option<Playfield>>,
 
         audio: OnceCell<Rc<AudioEngine>>,
+
+        offset_toast: RefCell<Option<adw::Toast>>,
     }
 
     #[glib::object_subclass]
@@ -85,8 +89,8 @@ mod imp {
             // Set up key bindings.
             let controller = gtk::EventControllerKey::new();
             controller.connect_key_pressed(clone!(
-                @weak obj => @default-return gtk::Inhibit(false), move |_, key, _, _| {
-                    obj.imp().on_key_pressed(key)
+                @weak obj => @default-return gtk::Inhibit(false), move |_, key, _, modifier| {
+                    obj.imp().on_key_pressed(key, modifier)
                 }
             ));
             controller.connect_key_released(clone!(@weak obj => move |_, key, _, _| {
@@ -235,6 +239,67 @@ mod imp {
             GameTimestamp(Timestamp::try_from(audio_time_passed).unwrap())
         }
 
+        fn show_local_offset_toast(&self) {
+            let playfield = self.playfield.borrow();
+            let playfield = match &*playfield {
+                Some(x) => x,
+                _ => return,
+            };
+
+            let offset = playfield
+                .state()
+                .timestamp_converter
+                .local_offset
+                .as_millis();
+            let title =
+                format!("Map offset set to <span font_features='tnum=1'>{offset}</span> ms");
+
+            let mut toast = self.offset_toast.borrow_mut();
+            if let Some(toast) = &*toast {
+                toast.set_title(&title);
+            } else {
+                let obj = self.instance();
+                let new_toast = adw::Toast::new(&title);
+                new_toast.connect_dismissed(clone!(@weak obj => move |_| {
+                    obj.imp().offset_toast.replace(None);
+                }));
+                self.toast_overlay.add_toast(&new_toast);
+                *toast = Some(new_toast);
+            }
+        }
+
+        fn maybe_adjust_local_offset(&self, key: gdk::Key, modifier: gdk::ModifierType) -> bool {
+            let playfield = self.playfield.borrow();
+            let playfield = match &*playfield {
+                Some(x) => x,
+                _ => return false,
+            };
+
+            let mut state = playfield.state_mut();
+
+            let diff = MapTimestampDifference::from_millis(
+                if modifier.contains(gdk::ModifierType::CONTROL_MASK) {
+                    1
+                } else {
+                    5
+                },
+            );
+
+            match key {
+                gdk::Key::plus | gdk::Key::equal => {
+                    state.timestamp_converter.local_offset =
+                        state.timestamp_converter.local_offset + diff;
+                    true
+                }
+                gdk::Key::minus => {
+                    state.timestamp_converter.local_offset =
+                        state.timestamp_converter.local_offset - diff;
+                    true
+                }
+                _ => false,
+            }
+        }
+
         fn lane_for_key(&self, key: gdk::Key) -> Option<usize> {
             let playfield = self.playfield.borrow();
             let playfield = playfield.as_ref()?;
@@ -262,7 +327,14 @@ mod imp {
             Some(lane)
         }
 
-        fn on_key_pressed(&self, key: gdk::Key) -> gtk::Inhibit {
+        fn on_key_pressed(&self, key: gdk::Key, modifier: gdk::ModifierType) -> gtk::Inhibit {
+            // Handle local offset keys.
+            if self.maybe_adjust_local_offset(key, modifier) {
+                self.show_local_offset_toast();
+                return gtk::Inhibit(true);
+            }
+
+            // Handle gameplay keys.
             let lane = match self.lane_for_key(key) {
                 Some(x) => x,
                 None => return gtk::Inhibit(false),
