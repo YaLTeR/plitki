@@ -1,5 +1,8 @@
 //! Object positioning on screen.
-use core::ops::{Add, Div, Mul, Sub};
+use core::{
+    convert::TryFrom,
+    ops::{Add, Div, Mul, Sub},
+};
 
 #[cfg(test)]
 use proptest_derive::Arbitrary;
@@ -83,6 +86,12 @@ pub struct ScrollSpeedMultiplier(
 // Objects MapTimestamp times ScrollSpeedMultiplier = Position for each object (precomputed)
 
 impl Position {
+    /// The smallest value that can be represented by this type, -2<sup>56</sup>.
+    pub const MIN: Position = Position(-(2i64.pow(56)));
+
+    /// The largest value that can be represented by this type, 2<sup>56</sup>-1.
+    pub const MAX: Position = Position((2i64.pow(56)) - 1);
+
     /// Returns the zero position.
     #[inline]
     pub fn zero() -> Self {
@@ -96,10 +105,7 @@ impl Position {
     /// Panics if the `value` is outside of the valid `Position` range.
     #[inline]
     pub fn new(value: i64) -> Self {
-        assert!(value < 2i64.pow(56));
-        assert!(value >= -(2i64.pow(56)));
-
-        Self(value)
+        Self::try_from(value).unwrap()
     }
 }
 
@@ -107,6 +113,25 @@ impl From<Position> for i64 {
     #[inline]
     fn from(value: Position) -> Self {
         value.0
+    }
+}
+
+/// The error type returned when a checked conversion fails.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TryFromError(());
+
+impl TryFrom<i64> for Position {
+    type Error = TryFromError;
+
+    #[inline]
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        const MIN: i64 = Position::MIN.0;
+        const MAX: i64 = Position::MAX.0;
+
+        match value {
+            MIN..=MAX => Ok(Self(value)),
+            _ => Err(TryFromError(())),
+        }
     }
 }
 
