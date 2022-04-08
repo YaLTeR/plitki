@@ -226,6 +226,34 @@ impl Map {
         *changes = new_changes;
     }
 
+    /// Sorts and de-duplicates timing points.
+    ///
+    /// This method removes all but the last timing point on every given timestamp.
+    pub fn sort_and_dedup_timing_points(&mut self) {
+        let timing_points = &mut self.timing_points;
+        timing_points.sort_by_key(|a| a.timestamp);
+
+        // Vec::dedup_by_key would have been useful, but it removes all but the first occurrence
+        // of a value, while want to retain the last occurrence.
+        if timing_points.len() <= 1 {
+            return;
+        }
+
+        let mut new_timing_points: Vec<TimingPoint> = Vec::with_capacity(timing_points.len());
+        for i in 0..timing_points.len() {
+            // Skip to the last change with this timestamp.
+            if i + 1 < timing_points.len()
+                && timing_points[i + 1].timestamp == timing_points[i].timestamp
+            {
+                continue;
+            }
+
+            new_timing_points.push(timing_points[i]);
+        }
+
+        *timing_points = new_timing_points;
+    }
+
     /// Returns the number of lanes in the map.
     #[inline]
     pub fn lane_count(&self) -> usize {
@@ -430,6 +458,24 @@ mod tests {
             prop_assume!(map.scroll_speed_changes.len() >= 2);
 
             for ab in map.scroll_speed_changes.windows(2) {
+                prop_assert!(ab[0].timestamp < ab[1].timestamp);
+            }
+        }
+
+        #[test]
+        fn sort_and_dedup_timing_points_doesnt_panic(mut map: Map) {
+            map.sort_and_dedup_timing_points();
+        }
+
+        #[test]
+        fn sort_and_dedup_timing_points_timestamps_monotonically_increase(mut map: Map) {
+            prop_assume!(!map.timing_points.is_empty());
+
+            map.sort_and_dedup_timing_points();
+
+            prop_assume!(map.timing_points.len() >= 2);
+
+            for ab in map.timing_points.windows(2) {
                 prop_assert!(ab[0].timestamp < ab[1].timestamp);
             }
         }

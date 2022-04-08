@@ -237,6 +237,7 @@ impl GameState {
         hit_window: GameTimestampDifference,
     ) -> Result<Self, GameStateCreationError> {
         map.sort_and_dedup_scroll_speed_changes();
+        map.sort_and_dedup_timing_points();
 
         // Compute the position cache.
         let zero_timestamp_scroll_speed_change_index = match map
@@ -1988,6 +1989,39 @@ mod tests {
                 position: Position::new(0)
             })
         );
+    }
+
+    #[test]
+    fn game_state_new_doesnt_panic_proptest_regression_1() {
+        let map = Map {
+            song_artist: None,
+            song_title: None,
+            difficulty_name: None,
+            mapper: None,
+            audio_file: None,
+            timing_points: vec![
+                TimingPoint {
+                    timestamp: MapTimestamp::from_millis(0),
+                    beat_duration: MapTimestampDifference::from_millis(0),
+                    signature: TimeSignature {
+                        beat_count: 0,
+                        beat_unit: 0,
+                    },
+                },
+                TimingPoint {
+                    timestamp: MapTimestamp::from_milli_hundredths(-1073741725),
+                    beat_duration: MapTimestampDifference::from_millis(0),
+                    signature: TimeSignature {
+                        beat_count: 0,
+                        beat_unit: 0,
+                    },
+                },
+            ],
+            scroll_speed_changes: vec![],
+            initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(0),
+            lanes: vec![],
+        };
+        let _ = GameState::new(map, GameTimestampDifference::from_millis(0));
     }
 
     proptest! {
