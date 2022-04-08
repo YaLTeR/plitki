@@ -222,6 +222,11 @@ mod imp {
 
                 self.hit_error
                     .update(game_timestamp, state.last_hits.iter().copied().collect());
+
+                drop(state);
+
+                // TODO: it's very inefficient to loop over all objects here.
+                playfield.update_ln_lengths();
             }
         }
 

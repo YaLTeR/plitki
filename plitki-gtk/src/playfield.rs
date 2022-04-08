@@ -398,7 +398,10 @@ mod imp {
                     }
                     widget.set_child_visible(true);
 
-                    let position = cache.start_position();
+                    let position =
+                        state
+                            .game
+                            .object_start_position(*obj_state, *cache, state.map_position);
                     let difference = position - first_position;
                     let mut y = to_pixels(difference * state.scroll_speed);
                     let height = widget.measure(gtk::Orientation::Vertical, lane_width).1;
@@ -663,6 +666,38 @@ mod imp {
                 self.vadjustment_signal_handler.replace(Some(handler));
             }
         }
+
+        pub fn update_ln_lengths(&self) {
+            let state = self.state().borrow();
+
+            for ((cache, lane_state), widgets) in state
+                .game
+                .immutable
+                .lane_caches
+                .iter()
+                .zip(&state.game.lane_states)
+                .zip(&state.objects)
+            {
+                for ((cache, obj_state), widget) in cache
+                    .object_caches
+                    .iter()
+                    .zip(&lane_state.object_states)
+                    .zip(widgets)
+                {
+                    if let ObjectCache::LongNote(_) = cache {
+                        let long_note: &LongNote = widget.downcast_ref().unwrap();
+                        let start_position = state.game.object_start_position(
+                            *obj_state,
+                            *cache,
+                            state.map_position,
+                        );
+                        long_note.set_length(
+                            (cache.end_position() - start_position) * state.scroll_speed,
+                        );
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -699,5 +734,9 @@ impl Playfield {
 
     pub fn state_mut(&self) -> RefMut<GameState> {
         self.imp().game_state_mut()
+    }
+
+    pub fn update_ln_lengths(&self) {
+        self.imp().update_ln_lengths();
     }
 }
