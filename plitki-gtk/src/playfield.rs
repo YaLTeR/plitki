@@ -392,7 +392,7 @@ mod imp {
                     let nat_widget_width = widget.measure(gtk::Orientation::Horizontal, -1).1;
                     lane_width = (nat_widget_width as f64 * scale).floor() as i32;
 
-                    if obj_state.is_hit() {
+                    if obj_state.is_hidden() {
                         widget.set_child_visible(false);
                         continue;
                     }
