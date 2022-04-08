@@ -78,6 +78,12 @@ pub struct TryFromDurationError(());
 pub struct TryFromTimestampError(());
 
 impl Timestamp {
+    /// The smallest value that can be represented by this type, -2<sup>30</sup>.
+    pub const MIN: Timestamp = Timestamp(-(2i32.pow(30)));
+
+    /// The largest value that can be represented by this type, 2<sup>30</sup>-1.
+    pub const MAX: Timestamp = Timestamp((2i32.pow(30)) - 1);
+
     /// Returns the zero timestamp.
     #[inline]
     pub fn zero() -> Self {
@@ -112,17 +118,27 @@ impl Timestamp {
     /// Panics if `milli_hundredths` overflows the `Timestamp`.
     #[inline]
     pub fn from_milli_hundredths(milli_hundredths: i32) -> Self {
-        assert!(milli_hundredths < 2i32.pow(30));
-        assert!(milli_hundredths >= -(2i32.pow(30)));
+        Self::checked_from_milli_hundredths(milli_hundredths).unwrap()
+    }
 
-        Self(milli_hundredths)
+    /// Creates a new `Timestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths of a
+    /// millisecond, returning `None` if overflow occurred.
+    #[inline]
+    pub fn checked_from_milli_hundredths(milli_hundredths: i32) -> Option<Self> {
+        const MIN: i32 = Timestamp::MIN.0;
+        const MAX: i32 = Timestamp::MAX.0;
+
+        match milli_hundredths {
+            MIN..=MAX => Some(Self(milli_hundredths)),
+            _ => None,
+        }
     }
 
     /// Creates a new `Timestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths of a
     /// millisecond, saturating at the bounds instead of panicking.
     #[inline]
     pub fn saturating_from_milli_hundredths(milli_hundredths: i32) -> Self {
-        let milli_hundredths = milli_hundredths.min(2i32.pow(30) - 1).max(-(2i32.pow(30)));
+        let milli_hundredths = milli_hundredths.clamp(Timestamp::MIN.0, Timestamp::MAX.0);
         Self::from_milli_hundredths(milli_hundredths)
     }
 
@@ -165,6 +181,13 @@ impl MapTimestamp {
     #[inline]
     pub fn from_milli_hundredths(milli_hundredths: i32) -> Self {
         Self(Timestamp::from_milli_hundredths(milli_hundredths))
+    }
+
+    /// Creates a new `MapTimestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths of
+    /// a millisecond, returning `None` if overflow occurred.
+    #[inline]
+    pub fn checked_from_milli_hundredths(milli_hundredths: i32) -> Option<Self> {
+        Timestamp::checked_from_milli_hundredths(milli_hundredths).map(Self)
     }
 
     /// Creates a new `MapTimestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths of
@@ -227,6 +250,13 @@ impl GameTimestamp {
     #[inline]
     pub fn from_milli_hundredths(milli_hundredths: i32) -> Self {
         Self(Timestamp::from_milli_hundredths(milli_hundredths))
+    }
+
+    /// Creates a new `GameTimestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths of
+    /// a millisecond, returning `None` if overflow occurred.
+    #[inline]
+    pub fn checked_from_milli_hundredths(milli_hundredths: i32) -> Option<Self> {
+        Timestamp::checked_from_milli_hundredths(milli_hundredths).map(Self)
     }
 
     /// Creates a new `MapTimestamp` from the specified number of <sup>1</sup>⁄<sub>100</sub>ths of
