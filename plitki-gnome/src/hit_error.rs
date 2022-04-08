@@ -71,7 +71,7 @@ mod imp {
             let timestamp = self.timestamp.get();
 
             let highest_difference =
-                GameTimestampDifference::from_millis(76).into_milli_hundredths();
+                GameTimestampDifference::from_millis(164).into_milli_hundredths();
 
             for hit in &*self.hits.borrow() {
                 let diff = hit.difference.into_milli_hundredths();
@@ -89,6 +89,9 @@ mod imp {
                     0..=18 => gdk::RGBA::new(0.98, 1., 0.71, alpha),
                     19..=43 => gdk::RGBA::new(1., 0.91, 0.42, alpha),
                     44..=76 => gdk::RGBA::new(0.34, 1., 0.43, alpha),
+                    77..=106 => gdk::RGBA::new(0., 0.82, 1., alpha),
+                    107..=127 => gdk::RGBA::new(0.85, 0.42, 0.81, alpha),
+                    128..=164 => gdk::RGBA::new(0.98, 0.39, 0.36, alpha),
                     _ => gdk::RGBA::new(1., 1., 1., alpha),
                 };
 

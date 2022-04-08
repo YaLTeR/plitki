@@ -162,7 +162,7 @@ mod imp {
                     let map = value.get::<BoxedMap>().expect("wrong property type").0;
                     // TODO: un-hardcode the hit window.
                     let state = State::new(
-                        GameState::new(map, GameTimestampDifference::from_millis(76))
+                        GameState::new(map, GameTimestampDifference::from_millis(164))
                             .expect("invalid map"),
                     );
                     self.state
