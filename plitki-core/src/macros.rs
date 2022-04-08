@@ -1,7 +1,7 @@
 #[doc(hidden)]
 #[macro_export]
 macro_rules! impl_ops {
-    ($type:ty, $type_difference:ty) => {
+    ($type:ty, $type_into:ident, $type_checked_from:ident, $type_saturating_from:ident, $type_difference:ty, $type_difference_into:ident) => {
         impl Sub<$type> for $type {
             type Output = $type_difference;
 
@@ -18,9 +18,8 @@ macro_rules! impl_ops {
 
             #[inline]
             fn add(self, other: $type_difference) -> Self::Output {
-                Self::Output {
-                    0: self.0 + other.0,
-                }
+                Self::Output::$type_checked_from(self.$type_into() + other.$type_difference_into())
+                    .unwrap()
             }
         }
 
@@ -29,9 +28,8 @@ macro_rules! impl_ops {
 
             #[inline]
             fn sub(self, other: $type_difference) -> Self::Output {
-                Self::Output {
-                    0: self.0 - other.0,
-                }
+                Self::Output::$type_checked_from(self.$type_into() - other.$type_difference_into())
+                    .unwrap()
             }
         }
 
@@ -72,9 +70,10 @@ macro_rules! impl_ops {
             #[inline]
             pub fn saturating_sub(self, other: $type_difference) -> $type {
                 type Output = $type;
-                Output {
-                    0: self.0.saturating_sub(other.0),
-                }
+                Output::$type_saturating_from(
+                    self.$type_into()
+                        .saturating_sub(other.$type_difference_into()),
+                )
             }
 
             /// Saturating addition. Computes `self + rhs`, saturating at the numeric bounds instead
@@ -82,9 +81,10 @@ macro_rules! impl_ops {
             #[inline]
             pub fn saturating_add(self, other: $type_difference) -> $type {
                 type Output = $type;
-                Output {
-                    0: self.0.saturating_add(other.0),
-                }
+                Output::$type_saturating_from(
+                    self.$type_into()
+                        .saturating_add(other.$type_difference_into()),
+                )
             }
         }
 

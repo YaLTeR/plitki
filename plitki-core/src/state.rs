@@ -452,9 +452,11 @@ impl GameState {
             let end = if let Some(next_timing_point) = immutable.map.timing_points.get(i + 1) {
                 next_timing_point.timestamp - MapTimestampDifference::from_millis(1)
             } else {
-                immutable
-                    .last_timestamp()
-                    .unwrap_or(timing_point.timestamp + MapTimestampDifference::from_millis(1))
+                immutable.last_timestamp().unwrap_or_else(|| {
+                    timing_point
+                        .timestamp
+                        .saturating_add(MapTimestampDifference::from_millis(1))
+                })
             }
             .into_milli_hundredths();
 

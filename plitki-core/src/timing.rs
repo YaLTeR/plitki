@@ -408,9 +408,30 @@ impl TryFrom<Timestamp> for Duration {
     }
 }
 
-impl_ops!(Timestamp, TimestampDifference);
-impl_ops!(MapTimestamp, MapTimestampDifference);
-impl_ops!(GameTimestamp, GameTimestampDifference);
+impl_ops!(
+    Timestamp,
+    into_milli_hundredths,
+    checked_from_milli_hundredths,
+    saturating_from_milli_hundredths,
+    TimestampDifference,
+    into_milli_hundredths
+);
+impl_ops!(
+    MapTimestamp,
+    into_milli_hundredths,
+    checked_from_milli_hundredths,
+    saturating_from_milli_hundredths,
+    MapTimestampDifference,
+    into_milli_hundredths
+);
+impl_ops!(
+    GameTimestamp,
+    into_milli_hundredths,
+    checked_from_milli_hundredths,
+    saturating_from_milli_hundredths,
+    GameTimestampDifference,
+    into_milli_hundredths
+);
 
 impl MapTimestamp {
     /// Converts the game timestamp to a map timestamp.

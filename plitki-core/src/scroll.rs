@@ -25,7 +25,14 @@ pub struct Position(i64);
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct PositionDifference(i64);
 
-impl_ops!(Position, PositionDifference);
+impl_ops!(
+    Position,
+    into_i64,
+    try_from,
+    saturating_new,
+    PositionDifference,
+    into_i64
+);
 
 /// Difference between screen positions.
 ///
@@ -112,6 +119,18 @@ impl Position {
     #[inline]
     pub fn saturating_new(value: i64) -> Self {
         Self::new(value.clamp(Position::MIN.0, Position::MAX.0))
+    }
+
+    #[inline]
+    fn into_i64(self) -> i64 {
+        self.0
+    }
+}
+
+impl PositionDifference {
+    #[inline]
+    fn into_i64(self) -> i64 {
+        self.0
     }
 }
 
