@@ -101,7 +101,7 @@ mod imp {
 
         fn set_property(
             &self,
-            obj: &Self::Type,
+            _obj: &Self::Type,
             _id: usize,
             value: &glib::Value,
             pspec: &glib::ParamSpec,
@@ -120,12 +120,9 @@ mod imp {
                     self.body.set(widget).expect("property set more than once");
                 }
                 "length" => {
-                    let length = value.get::<i64>().expect("wrong property type");
-                    assert!(length >= 0);
-                    if self.length.get().0 != length {
-                        self.length.set(ScreenPositionDifference(length));
-                        obj.queue_resize();
-                    }
+                    let value = value.get::<i64>().expect("wrong property type");
+                    assert!(value >= 0);
+                    self.set_length(ScreenPositionDifference(value));
                 }
                 _ => unimplemented!(),
             }
@@ -313,6 +310,13 @@ mod imp {
                 .get()
                 .expect("property not set during construction")
         }
+
+        pub fn set_length(&self, length: ScreenPositionDifference) {
+            if self.length.get().0 != length.0 {
+                self.length.set(length);
+                self.instance().queue_resize();
+            }
+        }
     }
 }
 
@@ -339,5 +343,9 @@ impl LongNote {
             ("length", &length.0),
         ])
         .unwrap()
+    }
+
+    pub(crate) fn set_length(&self, length: ScreenPositionDifference) {
+        self.imp().set_length(length);
     }
 }
