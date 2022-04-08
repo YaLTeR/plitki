@@ -1,3 +1,7 @@
 .upside-down {
     transform: scaleY(-1);
 }
+
+plitki-playfield {
+    background-color: black;
+}
