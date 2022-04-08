@@ -584,7 +584,10 @@ impl GameState {
     ) -> Position {
         match state {
             // LNs "stick" to receptors when held.
-            ObjectState::LongNote(LongNoteState::Held { .. }) => map_position,
+            ObjectState::LongNote(LongNoteState::Held { .. }) => {
+                // TODO: this isn't quite correct with negative SVs.
+                map_position.max(cache.start_position())
+            }
             // LNs released prematurely remain at that position.
             ObjectState::LongNote(LongNoteState::Missed {
                 held_until: Some(held_until),
