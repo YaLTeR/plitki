@@ -107,6 +107,12 @@ impl Position {
     pub fn new(value: i64) -> Self {
         Self::try_from(value).unwrap()
     }
+
+    /// Creates a new `Position`, saturating at the bounds instead of panicking.
+    #[inline]
+    pub fn saturating_new(value: i64) -> Self {
+        Self::new(value.clamp(Position::MIN.0, Position::MAX.0))
+    }
 }
 
 impl From<Position> for i64 {
