@@ -12,13 +12,44 @@ use crate::{
     timing::{MapTimestamp, MapTimestampDifference},
 };
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg(test)]
-pub struct Valid(pub bool);
+pub enum ArbitraryMapType {
+    Any,
+    Valid,
+    ValidWithLanes,
+    ValidWithObjects,
+}
 
 #[cfg(test)]
-fn arbitrary_valid_lane() -> impl proptest::strategy::Strategy<Value = Vec<Object>> {
-    (0usize..100).prop_flat_map(|length| {
+impl ArbitraryMapType {
+    fn min_lane_count(self) -> usize {
+        match self {
+            ArbitraryMapType::ValidWithLanes | ArbitraryMapType::ValidWithObjects => 1,
+            _ => 0,
+        }
+    }
+
+    fn min_object_count(self) -> usize {
+        match self {
+            ArbitraryMapType::ValidWithObjects => 1,
+            _ => 0,
+        }
+    }
+}
+
+#[cfg(test)]
+impl Default for ArbitraryMapType {
+    fn default() -> Self {
+        ArbitraryMapType::Any
+    }
+}
+
+#[cfg(test)]
+fn arbitrary_valid_lane(
+    type_: ArbitraryMapType,
+) -> impl proptest::strategy::Strategy<Value = Vec<Object>> {
+    (type_.min_object_count()..100).prop_flat_map(|length| {
         (
             proptest::collection::vec(any::<MapTimestamp>(), length),
             proptest::collection::vec(any::<bool>(), (length + 1) / 2),
@@ -50,13 +81,13 @@ fn arbitrary_valid_lane() -> impl proptest::strategy::Strategy<Value = Vec<Objec
 /// One lane in a map.
 #[derive(Debug, Eq, PartialEq, Clone, Default)]
 #[cfg_attr(test, derive(Arbitrary))]
-#[cfg_attr(test, proptest(params(Valid)))]
+#[cfg_attr(test, proptest(params(ArbitraryMapType)))]
 pub struct Lane {
     /// Objects in this lane.
     #[cfg_attr(
         test,
         proptest(
-            strategy = "if params.0 { arbitrary_valid_lane().boxed() } else { any::<Vec<Object>>().boxed() }"
+            strategy = "if params == ArbitraryMapType::Any { any::<Vec<Object>>().boxed() } else { arbitrary_valid_lane(params).boxed() }"
         )
     )]
     pub objects: Vec<Object>,
@@ -65,7 +96,7 @@ pub struct Lane {
 /// A map (beatmap, chart, file).
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
-#[cfg_attr(test, proptest(params(Valid)))]
+#[cfg_attr(test, proptest(params(ArbitraryMapType)))]
 pub struct Map {
     // TODO: separate these out? Leave only the actual object info here?
     // Idea for separation: Mapset contains Difficulties, which have this info plus a Map which has
@@ -90,7 +121,9 @@ pub struct Map {
     /// Lanes constituting the map.
     #[cfg_attr(
         test,
-        proptest(strategy = "any_with::<Vec<Lane>>(((0..10).into(), params))")
+        proptest(
+            strategy = "any_with::<Vec<Lane>>(((params.min_lane_count()..10).into(), params))"
+        )
     )]
     pub lanes: Vec<Lane>,
 }

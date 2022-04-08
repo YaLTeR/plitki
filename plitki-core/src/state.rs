@@ -877,7 +877,7 @@ impl ObjectCache {
 mod tests {
     use super::*;
     use crate::{
-        map::{Lane, ScrollSpeedChange, TimeSignature, TimingPoint, Valid},
+        map::{ArbitraryMapType, Lane, ScrollSpeedChange, TimeSignature, TimingPoint},
         scroll::ScrollSpeedMultiplier,
     };
     use alloc::vec;
@@ -1990,12 +1990,12 @@ mod tests {
         }
 
         #[test]
-        fn game_state_new_with_valid_map_succeeds(map in any_with::<Map>(Valid(true))) {
+        fn game_state_new_with_valid_map_succeeds(map in any_with::<Map>(ArbitraryMapType::Valid)) {
             let _ = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
         }
 
         #[test]
-        fn min_regular(map in any_with::<Map>(Valid(true))) {
+        fn min_regular(map in any_with::<Map>(ArbitraryMapType::Valid)) {
             let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
             let result = state.min_regular();
@@ -2015,7 +2015,7 @@ mod tests {
         }
 
         #[test]
-        fn max_regular(map in any_with::<Map>(Valid(true))) {
+        fn max_regular(map in any_with::<Map>(ArbitraryMapType::Valid)) {
             let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
             let result = state.max_regular();
@@ -2035,7 +2035,7 @@ mod tests {
         }
 
         #[test]
-        fn min_long_note(map in any_with::<Map>(Valid(true))) {
+        fn min_long_note(map in any_with::<Map>(ArbitraryMapType::Valid)) {
             let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
             let result = state.min_long_note();
@@ -2055,7 +2055,7 @@ mod tests {
         }
 
         #[test]
-        fn max_long_note(map in any_with::<Map>(Valid(true))) {
+        fn max_long_note(map in any_with::<Map>(ArbitraryMapType::Valid)) {
             let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
             let result = state.max_long_note();
@@ -2075,7 +2075,7 @@ mod tests {
         }
 
         #[test]
-        fn min_position(map in any_with::<Map>(Valid(true))) {
+        fn min_position(map in any_with::<Map>(ArbitraryMapType::Valid)) {
             let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
             let result = state.min_position();
@@ -2090,7 +2090,7 @@ mod tests {
         }
 
         #[test]
-        fn max_position(map in any_with::<Map>(Valid(true))) {
+        fn max_position(map in any_with::<Map>(ArbitraryMapType::Valid)) {
             let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
             let result = state.max_position();
@@ -2105,7 +2105,7 @@ mod tests {
         }
 
         #[test]
-        fn max_timing_line(map in any_with::<Map>(Valid(true))) {
+        fn max_timing_line(map in any_with::<Map>(ArbitraryMapType::Valid)) {
             let state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
 
             let result = state.max_timing_line();
@@ -2120,7 +2120,7 @@ mod tests {
 
         #[test]
         fn update_doesnt_panic(
-            map in any_with::<Map>(Valid(true)),
+            map in any_with::<Map>(ArbitraryMapType::Valid),
             hit_window: GameTimestampDifference,
             timestamps: Vec<GameTimestamp>,
         ) {
@@ -2132,7 +2132,7 @@ mod tests {
 
         #[test]
         fn intermediate_updates_are_unnecessary(
-            map in any_with::<Map>(Valid(true)),
+            map in any_with::<Map>(ArbitraryMapType::Valid),
             hit_window: GameTimestampDifference,
             timestamps in any_with::<Vec<GameTimestamp>>(size_range(1..100).lift()),
         ) {
@@ -2170,14 +2170,12 @@ mod tests {
 
     fn valid_map_with_events(
     ) -> impl proptest::strategy::Strategy<Value = (Map, Vec<(bool, usize, GameTimestamp)>)> {
-        any_with::<Map>(Valid(true))
-            .prop_filter("zero lanes", |map| map.lane_count() > 0)
-            .prop_flat_map(|map| {
-                let events = prop::collection::vec(
-                    (any::<bool>(), 0..map.lane_count(), any::<GameTimestamp>()),
-                    0..100,
-                );
-                (Just(map), events)
-            })
+        any_with::<Map>(ArbitraryMapType::ValidWithLanes).prop_flat_map(|map| {
+            let events = prop::collection::vec(
+                (any::<bool>(), 0..map.lane_count(), any::<GameTimestamp>()),
+                0..100,
+            );
+            (Just(map), events)
+        })
     }
 }
