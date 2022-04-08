@@ -43,15 +43,6 @@ template PlitkiWindow : Adw.ApplicationWindow {
         orientation: vertical;
 
         Adw.HeaderBar {
-          [start]
-          Button {
-            label: "Open";
-            
-            styles ["suggested-action"]
-
-            clicked => on_open_clicked() swapped;
-          }
-
           title-widget: Adw.WindowTitle {
               title: bind PlitkiWindow.title;
           };
