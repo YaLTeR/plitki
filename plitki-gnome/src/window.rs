@@ -53,6 +53,7 @@ mod imp {
         audio: OnceCell<Rc<AudioEngine>>,
 
         offset_toast: RefCell<Option<adw::Toast>>,
+        scroll_speed_toast: RefCell<Option<adw::Toast>>,
     }
 
     #[glib::object_subclass]
@@ -272,6 +273,46 @@ mod imp {
                 self.toast_overlay.add_toast(&new_toast);
                 *toast = Some(new_toast);
             }
+            drop(toast);
+
+            let scroll_speed_toast = self.scroll_speed_toast.borrow();
+            if let Some(toast) = scroll_speed_toast.clone() {
+                drop(scroll_speed_toast);
+                toast.dismiss();
+            }
+        }
+
+        fn show_scroll_speed_toast(&self) {
+            let playfield = self.playfield.borrow();
+            let playfield = match &*playfield {
+                Some(x) => x,
+                _ => return,
+            };
+
+            let title = format!(
+                "Scroll speed set to <span font_features='tnum=1'>{}</span>",
+                playfield.scroll_speed().0
+            );
+
+            let mut toast = self.scroll_speed_toast.borrow_mut();
+            if let Some(toast) = &*toast {
+                toast.set_title(&title);
+            } else {
+                let obj = self.instance();
+                let new_toast = adw::Toast::new(&title);
+                new_toast.connect_dismissed(clone!(@weak obj => move |_| {
+                    obj.imp().scroll_speed_toast.replace(None);
+                }));
+                self.toast_overlay.add_toast(&new_toast);
+                *toast = Some(new_toast);
+            }
+            drop(toast);
+
+            let offset_toast = self.offset_toast.borrow();
+            if let Some(toast) = offset_toast.clone() {
+                drop(offset_toast);
+                toast.dismiss();
+            }
         }
 
         fn maybe_adjust_local_offset(&self, key: gdk::Key, modifier: gdk::ModifierType) -> bool {
@@ -294,12 +335,42 @@ mod imp {
             match key {
                 gdk::Key::plus | gdk::Key::equal => {
                     state.timestamp_converter.local_offset =
-                        state.timestamp_converter.local_offset + diff;
+                        state.timestamp_converter.local_offset.saturating_add(diff);
                     true
                 }
                 gdk::Key::minus => {
                     state.timestamp_converter.local_offset =
-                        state.timestamp_converter.local_offset - diff;
+                        state.timestamp_converter.local_offset.saturating_sub(diff);
+                    true
+                }
+                _ => false,
+            }
+        }
+
+        fn maybe_adjust_scroll_speed(&self, key: gdk::Key, modifier: gdk::ModifierType) -> bool {
+            let playfield = self.playfield.borrow();
+            let playfield = match &*playfield {
+                Some(x) => x,
+                _ => return false,
+            };
+
+            let diff = if modifier.contains(gdk::ModifierType::CONTROL_MASK) {
+                1
+            } else {
+                5
+            };
+
+            match key {
+                gdk::Key::F4 => {
+                    playfield.set_scroll_speed(ScrollSpeed(
+                        playfield.scroll_speed().0.saturating_add(diff),
+                    ));
+                    true
+                }
+                gdk::Key::F3 => {
+                    playfield.set_scroll_speed(ScrollSpeed(
+                        playfield.scroll_speed().0.saturating_sub(diff).max(1),
+                    ));
                     true
                 }
                 _ => false,
@@ -337,6 +408,12 @@ mod imp {
             // Handle local offset keys.
             if self.maybe_adjust_local_offset(key, modifier) {
                 self.show_local_offset_toast();
+                return gtk::Inhibit(true);
+            }
+
+            // Handle scroll speed keys.
+            if self.maybe_adjust_scroll_speed(key, modifier) {
+                self.show_scroll_speed_toast();
                 return gtk::Inhibit(true);
             }
 
