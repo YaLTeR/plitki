@@ -441,6 +441,14 @@ mod imp {
             }
         }
 
+        pub fn scroll_speed(&self) -> ScrollSpeed {
+            self.state
+                .get()
+                .expect("map needs to be set")
+                .borrow()
+                .scroll_speed
+        }
+
         pub fn set_scroll_speed(&self, value: ScrollSpeed) {
             let mut state = self.state.get().expect("map needs to be set").borrow_mut();
 
@@ -714,6 +722,10 @@ impl Playfield {
 
     pub fn set_downscroll(&self, value: bool) {
         self.imp().set_downscroll(value);
+    }
+
+    pub fn scroll_speed(&self) -> ScrollSpeed {
+        self.imp().scroll_speed()
     }
 
     pub fn set_scroll_speed(&self, value: ScrollSpeed) {
