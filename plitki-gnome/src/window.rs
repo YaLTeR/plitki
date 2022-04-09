@@ -54,6 +54,9 @@ mod imp {
 
         offset_toast: RefCell<Option<adw::Toast>>,
         scroll_speed_toast: RefCell<Option<adw::Toast>>,
+
+        // GTK key events have key repeat, so filter that out manually using this array.
+        is_lane_pressed: RefCell<[bool; 7]>,
     }
 
     #[glib::object_subclass]
@@ -208,6 +211,9 @@ mod imp {
             self.playfield.replace(Some(playfield));
 
             self.stack.set_visible_child_name("content");
+
+            let mut is_lane_pressed = self.is_lane_pressed.borrow_mut();
+            *is_lane_pressed = [false; 7];
 
             // Start the audio.
             let engine = self.audio.get().unwrap();
@@ -429,6 +435,12 @@ mod imp {
                 _ => return gtk::Inhibit(false),
             };
 
+            let mut is_lane_pressed = self.is_lane_pressed.borrow_mut();
+            if is_lane_pressed[lane] {
+                return gtk::Inhibit(false);
+            }
+            is_lane_pressed[lane] = true;
+
             playfield.state_mut().key_press(lane, self.game_timestamp());
 
             gtk::Inhibit(true)
@@ -445,6 +457,12 @@ mod imp {
                 Some(x) => x,
                 _ => return,
             };
+
+            let mut is_lane_pressed = self.is_lane_pressed.borrow_mut();
+            if !is_lane_pressed[lane] {
+                return;
+            }
+            is_lane_pressed[lane] = false;
 
             playfield
                 .state_mut()
