@@ -30,6 +30,7 @@ mod imp {
     use plitki_gtk::skin::{LaneSkin, Skin};
 
     use crate::hit_error::HitError;
+    use crate::judgement::Judgement;
 
     use super::*;
 
@@ -44,6 +45,8 @@ mod imp {
         scrolled_window: TemplateChild<gtk::ScrolledWindow>,
         #[template_child]
         hit_error: TemplateChild<HitError>,
+        #[template_child]
+        judgement: TemplateChild<Judgement>,
 
         playfield: RefCell<Option<Playfield>>,
 
@@ -226,6 +229,9 @@ mod imp {
 
                 self.hit_error
                     .update(game_timestamp, state.last_hits.iter().copied().collect());
+
+                self.judgement
+                    .update(game_timestamp, state.last_hits.iter().next().copied());
 
                 drop(state);
 
