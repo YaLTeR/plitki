@@ -5,3 +5,9 @@
 plitki-playfield {
     background-color: black;
 }
+
+plitki-judgement {
+    border-radius: 99px;
+    margin: 12px;
+    margin-bottom: 100px;
+}

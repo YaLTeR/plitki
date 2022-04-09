@@ -60,13 +60,20 @@ template PlitkiWindow : Adw.ApplicationWindow {
             .PlitkiHitError hit_error {
               halign: center;
               valign: center;
+
+              layout {
+                measure: true;
+              }
             }
 
             [overlay]
             .PlitkiJudgement judgement {
               halign: center;
               valign: end;
-              margin-bottom: 128;
+
+              layout {
+                measure: true;
+              }
             }
           }
         };
