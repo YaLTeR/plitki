@@ -32,9 +32,19 @@ mod imp {
         const NAME: &'static str = "PlitkiHitError";
         type Type = super::HitError;
         type ParentType = gtk::Widget;
+
+        fn class_init(klass: &mut Self::Class) {
+            klass.set_css_name("plitki-hit-error");
+        }
     }
 
-    impl ObjectImpl for HitError {}
+    impl ObjectImpl for HitError {
+        fn constructed(&self, obj: &Self::Type) {
+            self.parent_constructed(obj);
+
+            obj.set_overflow(gtk::Overflow::Hidden);
+        }
+    }
 
     impl WidgetImpl for HitError {
         fn request_mode(&self, _widget: &Self::Type) -> gtk::SizeRequestMode {

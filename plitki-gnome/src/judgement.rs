@@ -31,9 +31,19 @@ mod imp {
         const NAME: &'static str = "PlitkiJudgement";
         type Type = super::Judgement;
         type ParentType = gtk::Widget;
+
+        fn class_init(klass: &mut Self::Class) {
+            klass.set_css_name("plitki-judgement");
+        }
     }
 
-    impl ObjectImpl for Judgement {}
+    impl ObjectImpl for Judgement {
+        fn constructed(&self, obj: &Self::Type) {
+            self.parent_constructed(obj);
+
+            obj.set_overflow(gtk::Overflow::Hidden);
+        }
+    }
 
     impl WidgetImpl for Judgement {
         fn request_mode(&self, _widget: &Self::Type) -> gtk::SizeRequestMode {
