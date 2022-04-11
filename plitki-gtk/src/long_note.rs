@@ -4,24 +4,34 @@ use gtk::{gdk, glib};
 use plitki_core::scroll::ScreenPositionDifference;
 
 mod imp {
-    use std::cell::Cell;
+    use std::cell::{Cell, RefCell};
 
     use gtk::{gdk, graphene};
     use log::trace;
     use once_cell::sync::Lazy;
-    use once_cell::unsync::OnceCell;
     use plitki_core::scroll::ScreenPositionDifference;
 
     use crate::utils::to_pixels;
 
     use super::*;
 
-    #[derive(Debug, Default)]
+    #[derive(Debug)]
     pub struct LongNote {
-        head: OnceCell<gtk::Picture>,
-        tail: OnceCell<gtk::Picture>,
-        body: OnceCell<gtk::Picture>,
+        head: RefCell<gtk::Widget>,
+        tail: RefCell<gtk::Widget>,
+        body: RefCell<gtk::Widget>,
         length: Cell<ScreenPositionDifference>,
+    }
+
+    impl Default for LongNote {
+        fn default() -> Self {
+            Self {
+                head: RefCell::new(gtk::Picture::new().upcast()),
+                tail: RefCell::new(gtk::Picture::new().upcast()),
+                body: RefCell::new(gtk::Picture::new().upcast()),
+                length: Default::default(),
+            }
+        }
     }
 
     #[glib::object_subclass]
@@ -39,13 +49,10 @@ mod imp {
         fn constructed(&self, obj: &Self::Type) {
             self.parent_constructed(obj);
 
-            self.body().set_parent(obj);
-            self.tail().set_parent(obj);
-            self.head().set_parent(obj);
-
-            self.body().add_css_class("body");
-            self.tail().add_css_class("tail");
-            self.head().add_css_class("head");
+            // Set parent in case the properties weren't set during construction.
+            self.head.borrow().set_parent(obj);
+            self.tail.borrow().set_parent(obj);
+            self.body.borrow().set_parent(obj);
         }
 
         fn dispose(&self, obj: &Self::Type) {
@@ -59,33 +66,33 @@ mod imp {
                 vec![
                     glib::ParamSpecObject::new(
                         "head",
-                        "head",
-                        "head",
-                        gtk::Picture::static_type(),
-                        glib::ParamFlags::WRITABLE | glib::ParamFlags::CONSTRUCT_ONLY,
+                        "",
+                        "",
+                        gtk::Widget::static_type(),
+                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
                     ),
                     glib::ParamSpecObject::new(
                         "tail",
-                        "tail",
-                        "tail",
-                        gtk::Picture::static_type(),
-                        glib::ParamFlags::WRITABLE | glib::ParamFlags::CONSTRUCT_ONLY,
+                        "",
+                        "",
+                        gtk::Widget::static_type(),
+                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
                     ),
                     glib::ParamSpecObject::new(
                         "body",
-                        "body",
-                        "body",
-                        gtk::Picture::static_type(),
-                        glib::ParamFlags::WRITABLE | glib::ParamFlags::CONSTRUCT_ONLY,
+                        "",
+                        "",
+                        gtk::Widget::static_type(),
+                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
                     ),
                     glib::ParamSpecInt64::new(
                         "length",
-                        "length",
-                        "length",
+                        "",
+                        "",
                         0,
                         i64::MAX,
                         0,
-                        glib::ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
                     ),
                 ]
             });
@@ -94,7 +101,10 @@ mod imp {
 
         fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
             match pspec.name() {
-                "length" => self.length.get().0.to_value(),
+                "head" => self.head().to_value(),
+                "tail" => self.tail().to_value(),
+                "body" => self.body().to_value(),
+                "length" => self.length().0.to_value(),
                 _ => unimplemented!(),
             }
         }
@@ -107,23 +117,10 @@ mod imp {
             pspec: &glib::ParamSpec,
         ) {
             match pspec.name() {
-                "head" => {
-                    let widget = value.get::<gtk::Picture>().expect("wrong property type");
-                    self.head.set(widget).expect("property set more than once");
-                }
-                "tail" => {
-                    let widget = value.get::<gtk::Picture>().expect("wrong property type");
-                    self.tail.set(widget).expect("property set more than once");
-                }
-                "body" => {
-                    let widget = value.get::<gtk::Picture>().expect("wrong property type");
-                    self.body.set(widget).expect("property set more than once");
-                }
-                "length" => {
-                    let value = value.get::<i64>().expect("wrong property type");
-                    assert!(value >= 0);
-                    self.set_length(ScreenPositionDifference(value));
-                }
+                "head" => self.set_head(value.get().unwrap()),
+                "tail" => self.set_tail(value.get().unwrap()),
+                "body" => self.set_body(value.get().unwrap()),
+                "length" => self.set_length(ScreenPositionDifference(value.get().unwrap())),
                 _ => unimplemented!(),
             }
         }
@@ -137,185 +134,280 @@ mod imp {
 
         fn measure(
             &self,
-            widget: &Self::Type,
+            obj: &Self::Type,
             orientation: gtk::Orientation,
             for_size: i32,
         ) -> (i32, i32, i32, i32) {
             trace!("LongNote::measure({}, {})", orientation, for_size);
 
-            // We only support can-shrink paintables which can always go down to zero, so our min
-            // size is always zero.
+            let head = self.head.borrow();
+            let head = &*head;
+            let tail = self.tail.borrow();
+            let tail = &*tail;
+
             match orientation {
                 gtk::Orientation::Horizontal => {
                     if for_size == -1 {
-                        // We're basing our natural size on the head size.
-                        let nat = self.head().measure(gtk::Orientation::Horizontal, -1).1;
+                        // Global min and nat width are maximum min and nat width across components,
+                        // except body, which is hidden when it doesn't fit.
+                        let (min, nat) =
+                            [head, tail].into_iter().fold((0, 0), |(min, nat), widget| {
+                                let (min_w, nat_w, _, _) =
+                                    widget.measure(gtk::Orientation::Horizontal, -1);
+                                (min.max(min_w), nat.max(nat_w))
+                            });
 
-                        trace!("returning for height = {}: nat width = {}", for_size, nat);
-                        (0, nat, -1, -1)
-                    } else if for_size == 0 {
-                        // GtkPicture natural size for 0 isn't 0, so special-case it.
-                        (0, 0, -1, -1)
+                        trace!("returning global min width = {min}, nat = {nat}");
+                        (min, nat, -1, -1)
                     } else {
                         let height_to_fit = for_size;
 
-                        // Natural width is the biggest width that fits the given height.
+                        // Use the measure property: when width increases, min height can stay or
+                        // decrease. Loop from min_width up until we fit the given height.
+                        let min_width = self.measure(obj, gtk::Orientation::Horizontal, -1).0;
+                        let min = (min_width..)
+                            .find(|&width| self.height_for_width(width).0 <= height_to_fit)
+                            .unwrap();
 
-                        // Compute the aspect ratio of the long note, then estimate the starting
-                        // width from there.
-                        let nat_width = self.measure(widget, gtk::Orientation::Horizontal, -1).1;
-                        let nat_height = self
-                            .measure(widget, gtk::Orientation::Vertical, nat_width)
-                            .1;
-                        let starting_width =
-                            (nat_width as f32 / nat_height as f32 * height_to_fit as f32) as i32;
+                        // Natural width for this height = min width that can fit it.
+                        let nat = min;
 
-                        // The real width should be somewhere close.
-                        let height = self
-                            .measure(widget, gtk::Orientation::Vertical, starting_width)
-                            .1;
-                        if height <= height_to_fit {
-                            // We're under, search up from here.
-                            for width in starting_width + 1.. {
-                                let height =
-                                    self.measure(widget, gtk::Orientation::Vertical, width).1;
-                                if height > height_to_fit {
-                                    // We went over, so take the previous width.
-                                    let nat = width - 1;
-                                    trace!(
-                                        "returning for height = {}: nat width = {}",
-                                        for_size,
-                                        nat
-                                    );
-                                    return (0, nat, -1, -1);
-                                }
-                            }
-                        } else {
-                            // We're over, search down from here.
-                            for width in (0..starting_width).rev() {
-                                let height =
-                                    self.measure(widget, gtk::Orientation::Vertical, width).1;
-                                if height <= height_to_fit {
-                                    let nat = width;
-                                    trace!(
-                                        "returning for height = {}: nat width = {}",
-                                        for_size,
-                                        nat
-                                    );
-                                    return (0, nat, -1, -1);
-                                }
-                            }
-                        }
-
-                        unreachable!()
+                        trace!("returning for height = {for_size}: min width = {min}, nat = {nat}");
+                        (min, nat, -1, -1)
                     }
                 }
                 gtk::Orientation::Vertical => {
+                    // Even though the length does not depend on the width, the height does, because
+                    // the LN tail (and possibly the head) sticks out past the length.
                     if for_size == -1 {
-                        // We're basing our natural size on the head size.
-                        let width = self.head().measure(gtk::Orientation::Horizontal, -1).1;
-                        // Compute our heights at that width.
-                        self.measure(widget, gtk::Orientation::Vertical, width)
-                    } else if for_size == 0 {
-                        // GtkPicture natural size for 0 isn't 0, so special-case it.
-                        (0, 0, -1, -1)
+                        // Global min height is the min height for min width that gives the min
+                        // height for the head and tail.
+                        let width = [head, tail]
+                            .into_iter()
+                            .map(|widget| {
+                                let min_height = widget.measure(gtk::Orientation::Vertical, -1).0;
+                                widget.measure(gtk::Orientation::Horizontal, min_height).0
+                            })
+                            .max()
+                            .unwrap();
+
+                        let min = self.height_for_width(width).0;
+
+                        // Global nat height is the nat height for global nat width.
+                        let nat_width = self.measure(obj, gtk::Orientation::Horizontal, -1).1;
+                        let nat = self.height_for_width(nat_width).1;
+
+                        trace!("returning global min height = {min}, nat = {nat}");
+                        (min, nat, -1, -1)
                     } else {
-                        let width = for_size;
+                        let width_to_fit = for_size;
 
-                        let nat_head = self.head().measure(gtk::Orientation::Vertical, width).1;
+                        // Loop over all widths and pick the lowest min height we can get.
+                        let min_width = self.measure(obj, gtk::Orientation::Horizontal, -1).0;
+                        let min = (min_width..=width_to_fit)
+                            .map(|width| self.height_for_width(width).0)
+                            .min()
+                            .unwrap();
 
-                        let length = to_pixels(self.length.get());
-                        let tail_start = length;
+                        let nat = self.height_for_width(width_to_fit).1;
 
-                        let nat_tail = self.tail().measure(gtk::Orientation::Vertical, width).1;
-                        // A very small tail can end up smaller than the rest of the head.
-                        let nat = (tail_start + nat_tail).max(nat_head);
-
-                        trace!("returning for width = {}: nat height = {}", for_size, nat);
-                        (0, nat, -1, -1)
+                        trace!("returning for width = {for_size}: min height = {min}, nat = {nat}");
+                        (min, nat, -1, -1)
                     }
                 }
                 _ => unimplemented!(),
             }
         }
 
-        fn size_allocate(&self, widget: &Self::Type, width: i32, height: i32, _baseline: i32) {
+        fn size_allocate(&self, obj: &Self::Type, width: i32, height: i32, _baseline: i32) {
             trace!("LongNote::size_allocate({}, {})", width, height);
 
-            // Check that the given width would fit into the given height.
-            let nat_height = self.measure(widget, gtk::Orientation::Vertical, width).1;
-            let width = if nat_height <= height {
-                width
-            } else {
-                // If it wouldn't, compute a smaller width that would fit and use that.
-                let nat_width = self.measure(widget, gtk::Orientation::Horizontal, height).1;
-                assert!(nat_width < width);
-                nat_width
+            let head = self.head.borrow();
+            let head = &*head;
+            let tail = self.tail.borrow();
+            let tail = &*tail;
+            let body = self.body.borrow();
+            let body = &*body;
+            let length = to_pixels(self.length.get());
+
+            // We really want to allocate natural heights. Find the largest width that we can use
+            // within the given allocation that still lets us use natural heights. Otherwise bail
+            // out.
+            let min_width = self.measure(obj, gtk::Orientation::Horizontal, -1).0;
+            let width = match (min_width..=width)
+                .rev()
+                .find(|&width| self.height_for_width(width).1 <= height)
+            {
+                Some(x) => x,
+                None => {
+                    head.set_child_visible(false);
+                    tail.set_child_visible(false);
+                    body.set_child_visible(false);
+                    return;
+                }
             };
 
-            let nat_head = self.head().measure(gtk::Orientation::Vertical, width).1;
-            self.head()
-                .size_allocate(&gdk::Rectangle::new(0, 0, width, nat_head), -1);
+            head.set_child_visible(true);
+            tail.set_child_visible(true);
 
-            let length = to_pixels(self.length.get());
+            // Allocate the head.
+            let nat_head = head.measure(gtk::Orientation::Vertical, width).1;
+            head.size_allocate(&gdk::Rectangle::new(0, 0, width, nat_head), -1);
+
+            // Allocate the tail.
             let tail_start = length;
+            let nat_tail = tail.measure(gtk::Orientation::Vertical, width).1;
+            tail.size_allocate(&gdk::Rectangle::new(0, tail_start, width, nat_tail), -1);
 
-            let nat_tail = self.tail().measure(gtk::Orientation::Vertical, width).1;
-            self.tail()
-                .size_allocate(&gdk::Rectangle::new(0, tail_start, width, nat_tail), -1);
-
-            // Silence warning from GTK.
-            let _ = self.body().measure(gtk::Orientation::Vertical, width);
-
+            // Allocate the body, if it fits.
             let body_start = nat_head / 2;
             let body_end = (length + nat_tail / 2).max(body_start);
             let body_height = body_end - body_start;
 
-            self.body()
-                .size_allocate(&gdk::Rectangle::new(0, body_start, width, body_height), -1);
+            let body_min_height = body.measure(gtk::Orientation::Vertical, width).0;
+            if body_height >= body_min_height {
+                let body_min_width = body.measure(gtk::Orientation::Horizontal, body_height).0;
+                if width >= body_min_width {
+                    body.set_child_visible(true);
+                    body.size_allocate(&gdk::Rectangle::new(0, body_start, width, body_height), -1);
+                } else {
+                    body.set_child_visible(false);
+                }
+            } else {
+                body.set_child_visible(false);
+            }
         }
 
         fn snapshot(&self, widget: &Self::Type, snapshot: &gtk::Snapshot) {
-            widget.snapshot_child(self.body(), snapshot);
+            let head = self.head.borrow();
+            let head = &*head;
+            let tail = self.tail.borrow();
+            let tail = &*tail;
+            let body = self.body.borrow();
+            let body = &*body;
 
-            let bounds = self.tail().compute_bounds(widget).unwrap();
+            if body.is_child_visible() {
+                widget.snapshot_child(body, snapshot);
+            }
+
+            let bounds = tail.compute_bounds(widget).unwrap();
             snapshot.push_clip(&graphene::Rect::new(
                 bounds.x(),
-                (self.head().allocated_height() / 2) as f32,
+                (head.allocated_height() / 2) as f32,
                 bounds.width(),
                 bounds.y() + bounds.height(),
             ));
-            widget.snapshot_child(self.tail(), snapshot);
+            widget.snapshot_child(tail, snapshot);
             snapshot.pop();
 
-            widget.snapshot_child(self.head(), snapshot);
+            widget.snapshot_child(head, snapshot);
         }
     }
 
     impl LongNote {
-        fn head(&self) -> &gtk::Picture {
-            self.head
-                .get()
-                .expect("property not set during construction")
+        pub fn head(&self) -> gtk::Widget {
+            self.head.borrow().clone()
         }
 
-        fn tail(&self) -> &gtk::Picture {
-            self.tail
-                .get()
-                .expect("property not set during construction")
+        pub fn tail(&self) -> gtk::Widget {
+            self.tail.borrow().clone()
         }
 
-        fn body(&self) -> &gtk::Picture {
-            self.body
-                .get()
-                .expect("property not set during construction")
+        pub fn body(&self) -> gtk::Widget {
+            self.body.borrow().clone()
+        }
+
+        pub fn set_head(&self, widget: Option<gtk::Widget>) {
+            let widget = widget.unwrap_or_else(|| gtk::Picture::new().upcast());
+
+            if *self.head.borrow() == widget {
+                return;
+            }
+
+            let obj = self.instance();
+
+            widget.add_css_class("head");
+            widget.set_parent(&obj);
+
+            let old_widget = self.head.replace(widget);
+            old_widget.unparent();
+            old_widget.remove_css_class("head");
+
+            obj.notify("head");
+            obj.queue_resize();
+        }
+
+        pub fn set_tail(&self, widget: Option<gtk::Widget>) {
+            let widget = widget.unwrap_or_else(|| gtk::Picture::new().upcast());
+
+            if *self.tail.borrow() == widget {
+                return;
+            }
+
+            let obj = self.instance();
+
+            widget.add_css_class("tail");
+            widget.set_parent(&obj);
+
+            let old_widget = self.tail.replace(widget);
+            old_widget.unparent();
+            old_widget.remove_css_class("tail");
+
+            obj.notify("tail");
+            obj.queue_resize();
+        }
+
+        pub fn set_body(&self, widget: Option<gtk::Widget>) {
+            let widget = widget.unwrap_or_else(|| gtk::Picture::new().upcast());
+
+            if *self.body.borrow() == widget {
+                return;
+            }
+
+            let obj = self.instance();
+
+            widget.add_css_class("body");
+            widget.set_parent(&obj);
+
+            let old_widget = self.body.replace(widget);
+            old_widget.unparent();
+            old_widget.remove_css_class("body");
+
+            obj.notify("body");
+            obj.queue_resize();
+        }
+
+        pub fn length(&self) -> ScreenPositionDifference {
+            self.length.get()
         }
 
         pub fn set_length(&self, length: ScreenPositionDifference) {
             if self.length.get().0 != length.0 {
                 self.length.set(length);
-                self.instance().queue_resize();
+
+                let obj = self.instance();
+                obj.notify("length");
+                obj.queue_resize();
             }
+        }
+
+        fn height_for_width(&self, width: i32) -> (i32, i32) {
+            let head = self.head.borrow();
+            let head = &*head;
+            let tail = self.tail.borrow();
+            let tail = &*tail;
+            let length = to_pixels(self.length.get());
+
+            let (min_head, nat_head, _, _) = head.measure(gtk::Orientation::Vertical, width);
+            let (min_tail, nat_tail, _, _) = tail.measure(gtk::Orientation::Vertical, width);
+
+            let tail_start = length;
+
+            // Body will be hidden if it doesn't fit, so no need to consider it.
+            (
+                min_head.max(tail_start + min_tail),
+                nat_head.max(tail_start + nat_tail),
+            )
         }
     }
 }
@@ -326,10 +418,10 @@ glib::wrapper! {
 }
 
 impl LongNote {
-    pub(crate) fn new(
-        head: &gdk::Texture,
-        tail: &gdk::Texture,
-        body: &gdk::Texture,
+    pub fn new(
+        head: &impl IsA<gdk::Paintable>,
+        tail: &impl IsA<gdk::Paintable>,
+        body: &impl IsA<gdk::Paintable>,
         length: ScreenPositionDifference,
     ) -> Self {
         glib::Object::new(&[
@@ -345,7 +437,38 @@ impl LongNote {
         .unwrap()
     }
 
-    pub(crate) fn set_length(&self, length: ScreenPositionDifference) {
+    pub fn new_with_widgets(
+        head: &impl IsA<gtk::Widget>,
+        tail: &impl IsA<gtk::Widget>,
+        body: &impl IsA<gtk::Widget>,
+        length: ScreenPositionDifference,
+    ) -> Self {
+        glib::Object::new(&[
+            ("head", head),
+            ("tail", tail),
+            ("body", body),
+            ("length", &length.0),
+        ])
+        .unwrap()
+    }
+
+    pub fn head(&self) -> gtk::Widget {
+        self.imp().head()
+    }
+
+    pub fn tail(&self) -> gtk::Widget {
+        self.imp().tail()
+    }
+
+    pub fn body(&self) -> gtk::Widget {
+        self.imp().body()
+    }
+
+    pub fn length(&self) -> ScreenPositionDifference {
+        self.imp().length()
+    }
+
+    pub fn set_length(&self, length: ScreenPositionDifference) {
         self.imp().set_length(length);
     }
 }
