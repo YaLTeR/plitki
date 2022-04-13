@@ -176,6 +176,10 @@ mod imp {
             self.long_note.set_body_paintable(Some(&lane_skin.ln_body));
 
             self.playfield.set_skin(Some(skin));
+
+            set_up_picture_drop_target(self.long_note.head().downcast().unwrap());
+            set_up_picture_drop_target(self.long_note.tail().downcast().unwrap());
+            set_up_picture_drop_target(self.long_note.body().downcast().unwrap());
         }
 
         #[template_callback]
@@ -256,6 +260,27 @@ mod imp {
                 }
             }
         }
+    }
+
+    fn set_up_picture_drop_target(picture: gtk::Picture) {
+        let drop_target = gtk::DropTarget::new(gio::File::static_type(), gdk::DragAction::COPY);
+        picture.add_controller(&drop_target);
+        drop_target.connect_drop(move |_, data, _, _| {
+            if let Ok(file) = data.get::<gio::File>() {
+                let old_paintable = picture.paintable();
+
+                picture.set_file(Some(&file));
+                
+                if picture.paintable().is_none() {
+                    picture.set_paintable(old_paintable.as_ref());
+                    return false;
+                }
+
+                return true;
+            }
+
+            false
+        });
     }
 }
 
