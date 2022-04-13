@@ -426,7 +426,6 @@ impl LongNote {
         head: &impl IsA<gdk::Paintable>,
         tail: &impl IsA<gdk::Paintable>,
         body: &impl IsA<gdk::Paintable>,
-        length: ScreenPositionDifference,
     ) -> Self {
         glib::Object::new(&[
             ("head", &gtk::Picture::for_paintable(head)),
@@ -436,7 +435,6 @@ impl LongNote {
                 picture.set_keep_aspect_ratio(false);
                 picture
             }),
-            ("length", &length.0),
         ])
         .unwrap()
     }
@@ -445,15 +443,8 @@ impl LongNote {
         head: &impl IsA<gtk::Widget>,
         tail: &impl IsA<gtk::Widget>,
         body: &impl IsA<gtk::Widget>,
-        length: ScreenPositionDifference,
     ) -> Self {
-        glib::Object::new(&[
-            ("head", head),
-            ("tail", tail),
-            ("body", body),
-            ("length", &length.0),
-        ])
-        .unwrap()
+        glib::Object::new(&[("head", head), ("tail", tail), ("body", body)]).unwrap()
     }
 
     pub fn head(&self) -> gtk::Widget {
