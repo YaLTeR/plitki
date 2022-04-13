@@ -365,7 +365,10 @@ mod imp {
                 self.scroll_speed.set(value);
 
                 self.update_ln_lengths();
-                self.instance().notify("scroll-speed");
+
+                let obj = self.instance();
+                obj.notify("scroll-speed");
+                obj.queue_allocate();
             }
         }
 
