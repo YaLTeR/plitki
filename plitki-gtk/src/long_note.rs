@@ -418,7 +418,11 @@ glib::wrapper! {
 }
 
 impl LongNote {
-    pub fn new(
+    pub fn new() -> Self {
+        glib::Object::new(&[]).unwrap()
+    }
+
+    pub fn with_paintables(
         head: &impl IsA<gdk::Paintable>,
         tail: &impl IsA<gdk::Paintable>,
         body: &impl IsA<gdk::Paintable>,
@@ -437,7 +441,7 @@ impl LongNote {
         .unwrap()
     }
 
-    pub fn new_with_widgets(
+    pub fn with_widgets(
         head: &impl IsA<gtk::Widget>,
         tail: &impl IsA<gtk::Widget>,
         body: &impl IsA<gtk::Widget>,
@@ -464,11 +468,45 @@ impl LongNote {
         self.imp().body()
     }
 
+    pub fn set_head(&self, value: Option<impl IsA<gtk::Widget>>) {
+        self.imp().set_head(value.map(|w| w.upcast()));
+    }
+
+    pub fn set_tail(&self, value: Option<impl IsA<gtk::Widget>>) {
+        self.imp().set_tail(value.map(|w| w.upcast()));
+    }
+
+    pub fn set_body(&self, value: Option<impl IsA<gtk::Widget>>) {
+        self.imp().set_body(value.map(|w| w.upcast()));
+    }
+
+    pub fn set_head_paintable(&self, value: Option<&impl IsA<gdk::Paintable>>) {
+        self.set_head(value.map(|p| gtk::Picture::for_paintable(p)));
+    }
+
+    pub fn set_tail_paintable(&self, value: Option<&impl IsA<gdk::Paintable>>) {
+        self.set_tail(value.map(|p| gtk::Picture::for_paintable(p)));
+    }
+
+    pub fn set_body_paintable(&self, value: Option<&impl IsA<gdk::Paintable>>) {
+        self.set_body(value.map(|p| {
+            let picture = gtk::Picture::for_paintable(p);
+            picture.set_keep_aspect_ratio(false);
+            picture
+        }));
+    }
+
     pub fn length(&self) -> ScreenPositionDifference {
         self.imp().length()
     }
 
     pub fn set_length(&self, length: ScreenPositionDifference) {
         self.imp().set_length(length);
+    }
+}
+
+impl Default for LongNote {
+    fn default() -> Self {
+        Self::new()
     }
 }

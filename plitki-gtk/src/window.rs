@@ -1,18 +1,19 @@
+use anyhow::Context;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gio, glib};
+use log::info;
 
 mod imp {
     use std::cell::{Cell, RefCell};
     use std::time::Duration;
 
-    use anyhow::Context;
-    use gtk::{gdk, gdk_pixbuf, CompositeTemplate, ResponseType, TickCallbackId};
-    use log::info;
+    use anyhow::{anyhow, Context};
+    use gtk::{gdk, gdk_pixbuf, CompositeTemplate, TickCallbackId};
     use once_cell::unsync::OnceCell;
     use plitki_core::map::Map;
-    use plitki_core::scroll::ScreenPositionDifference;
-    use plitki_core::timing::Timestamp;
+    use plitki_core::state::GameState;
+    use plitki_core::timing::{GameTimestampDifference, Timestamp};
 
     use super::*;
     use crate::long_note::LongNote;
@@ -66,44 +67,17 @@ mod imp {
     #[template(resource = "/plitki-gtk/window.ui")]
     pub struct ApplicationWindow {
         #[template_child]
-        button_open: TemplateChild<gtk::Button>,
-
-        #[template_child]
-        button_upscroll: TemplateChild<gtk::ToggleButton>,
-        #[template_child]
-        button_downscroll: TemplateChild<gtk::ToggleButton>,
-
-        #[template_child]
-        button_arrows: TemplateChild<gtk::ToggleButton>,
-        #[template_child]
-        button_bars: TemplateChild<gtk::ToggleButton>,
-        #[template_child]
-        button_circles: TemplateChild<gtk::ToggleButton>,
-
-        #[template_child]
-        scrolled_window_playfield: TemplateChild<gtk::ScrolledWindow>,
-        #[template_child]
-        scale_scroll_speed: TemplateChild<gtk::Scale>,
-        #[template_child]
-        button_play_pause: TemplateChild<gtk::Button>,
+        playfield: TemplateChild<Playfield>,
         #[template_child]
         adjustment_timestamp: TemplateChild<gtk::Adjustment>,
-
         #[template_child]
-        box_long_note: TemplateChild<gtk::Box>,
-        #[template_child]
-        scale_length: TemplateChild<gtk::Scale>,
+        long_note: TemplateChild<LongNote>,
 
-        playfield: OnceCell<RefCell<Playfield>>,
-        scroll_speed_binding: OnceCell<RefCell<glib::Binding>>,
-        timestamp_binding: OnceCell<RefCell<glib::Binding>>,
         tick_callback: RefCell<Option<TickCallbackId>>,
-        long_note: RefCell<Option<LongNote>>,
 
         skin_arrows: OnceCell<Skin>,
         skin_bars: OnceCell<Skin>,
         skin_circles: OnceCell<Skin>,
-        skin_current: OnceCell<RefCell<Skin>>,
     }
 
     #[glib::object_subclass]
@@ -114,6 +88,8 @@ mod imp {
 
         fn class_init(klass: &mut Self::Class) {
             Self::bind_template(klass);
+            Self::bind_template_callbacks(klass);
+            Self::Type::bind_template_callbacks(klass);
         }
 
         fn instance_init(obj: &glib::subclass::InitializingObject<Self>) {
@@ -134,221 +110,11 @@ mod imp {
             self.skin_circles
                 .set(create_skin("/plitki-gtk/skin/circles"))
                 .unwrap();
-            self.skin_current
-                .set(RefCell::new(self.skin_arrows.get().unwrap().clone()))
+
+            self.set_skin(self.skin_arrows.get().unwrap().clone());
+
+            self.open_reader(&include_bytes!("../../plitki-map-qua/tests/data/actual_map.qua")[..])
                 .unwrap();
-
-            let qua = plitki_map_qua::from_reader(
-                &include_bytes!("../../plitki-map-qua/tests/data/actual_map.qua")[..],
-            )
-            .unwrap();
-            let map: Map = qua.try_into().unwrap();
-            let playfield = Playfield::new(map, &*self.skin_current.get().unwrap().borrow());
-
-            playfield.set_halign(gtk::Align::Center);
-            playfield.set_valign(gtk::Align::Center);
-            playfield.set_vexpand(true);
-
-            let binding = playfield
-                .bind_property(
-                    "scroll-speed",
-                    &self.scale_scroll_speed.adjustment(),
-                    "value",
-                )
-                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                .build();
-            self.scroll_speed_binding
-                .set(RefCell::new(binding))
-                .unwrap();
-
-            {
-                let state = playfield.state();
-                self.adjustment_timestamp.configure(
-                    0.,
-                    state
-                        .first_timestamp()
-                        .unwrap()
-                        .into_milli_hundredths()
-                        .min(0)
-                        .into(),
-                    state
-                        .last_timestamp()
-                        .unwrap()
-                        .into_milli_hundredths()
-                        .max(0)
-                        .into(),
-                    1.,
-                    10.,
-                    10.,
-                );
-            }
-
-            let binding = playfield
-                .bind_property("map-timestamp", &*self.adjustment_timestamp, "value")
-                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                .build();
-            self.timestamp_binding.set(RefCell::new(binding)).unwrap();
-
-            self.scrolled_window_playfield.set_child(Some(&playfield));
-
-            self.playfield.set(RefCell::new(playfield)).unwrap();
-
-            self.set_skin(self.skin_arrows.get().unwrap());
-
-            self.button_open.connect_clicked({
-                let obj = obj.downgrade();
-                move |_| {
-                    let obj = obj.upgrade().unwrap();
-
-                    let file_chooser = gtk::FileChooserNative::builder()
-                        .transient_for(&obj)
-                        .action(gtk::FileChooserAction::Open)
-                        .title("Open a .qua map")
-                        .transient_for(&obj)
-                        .modal(true)
-                        .build();
-
-                    glib::MainContext::default().spawn_local(async move {
-                        if file_chooser.run_future().await != ResponseType::Accept {
-                            return;
-                        }
-
-                        let file = file_chooser.file().unwrap();
-                        if let Err(err) = obj.open(file).with_context(|| "couldn't load the map") {
-                            info!("{:?}", err);
-                        }
-                    });
-                }
-            });
-
-            self.button_upscroll.connect_toggled({
-                let obj = obj.downgrade();
-                move |button| {
-                    let obj = obj.upgrade().unwrap();
-                    let self_ = Self::from_instance(&obj);
-
-                    if button.is_active() {
-                        self_
-                            .playfield
-                            .get()
-                            .unwrap()
-                            .borrow()
-                            .set_property("downscroll", false);
-                        self_
-                            .long_note
-                            .borrow()
-                            .as_ref()
-                            .unwrap()
-                            .remove_css_class("upside-down");
-                    }
-                }
-            });
-
-            self.button_downscroll.connect_toggled({
-                let obj = obj.downgrade();
-                move |button| {
-                    let obj = obj.upgrade().unwrap();
-                    let self_ = Self::from_instance(&obj);
-
-                    if button.is_active() {
-                        self_
-                            .playfield
-                            .get()
-                            .unwrap()
-                            .borrow()
-                            .set_property("downscroll", true);
-                        self_
-                            .long_note
-                            .borrow()
-                            .as_ref()
-                            .unwrap()
-                            .add_css_class("upside-down");
-                    }
-                }
-            });
-
-            self.button_arrows.connect_toggled({
-                let obj = obj.downgrade();
-                move |button| {
-                    let obj = obj.upgrade().unwrap();
-                    let self_ = Self::from_instance(&obj);
-
-                    if button.is_active() {
-                        self_.set_skin(self_.skin_arrows.get().unwrap());
-                    }
-                }
-            });
-
-            self.button_bars.connect_toggled({
-                let obj = obj.downgrade();
-                move |button| {
-                    let obj = obj.upgrade().unwrap();
-                    let self_ = Self::from_instance(&obj);
-
-                    if button.is_active() {
-                        self_.set_skin(self_.skin_bars.get().unwrap());
-                    }
-                }
-            });
-
-            self.button_circles.connect_toggled({
-                let obj = obj.downgrade();
-                move |button| {
-                    let obj = obj.upgrade().unwrap();
-                    let self_ = Self::from_instance(&obj);
-
-                    if button.is_active() {
-                        self_.set_skin(self_.skin_circles.get().unwrap());
-                    }
-                }
-            });
-
-            self.button_play_pause.connect_clicked({
-                let obj = obj.downgrade();
-                move |button| {
-                    let obj = obj.upgrade().unwrap();
-                    let self_ = Self::from_instance(&obj);
-
-                    let mut callback = self_.tick_callback.borrow_mut();
-                    match callback.take() {
-                        Some(callback) => {
-                            callback.remove();
-                            button.set_icon_name("media-playback-start-symbolic");
-                        }
-                        None => {
-                            button.set_icon_name("media-playback-pause-symbolic");
-
-                            let last_frame_time =
-                                Cell::new(obj.frame_clock().unwrap().frame_time());
-                            let button = button.clone();
-                            *callback = Some(obj.add_tick_callback(move |obj, clock| {
-                                let self_ = Self::from_instance(obj);
-
-                                let frame_time = clock.frame_time();
-                                let time_passed = Duration::from_micros(
-                                    (frame_time - last_frame_time.get()).try_into().unwrap(),
-                                );
-                                let time_passed = Timestamp::try_from(time_passed)
-                                    .unwrap()
-                                    .into_milli_hundredths();
-                                last_frame_time.set(frame_time);
-
-                                let adjustment = &*self_.adjustment_timestamp;
-                                let new_time = adjustment.value() + f64::from(time_passed);
-                                if new_time >= adjustment.upper() {
-                                    adjustment.set_value(adjustment.upper());
-                                    self_.tick_callback.borrow_mut().take();
-                                    button.set_icon_name("media-playback-start-symbolic");
-                                    glib::Continue(false)
-                                } else {
-                                    adjustment.set_value(new_time);
-                                    glib::Continue(true)
-                                }
-                            }));
-                        }
-                    }
-                }
-            });
         }
     }
 
@@ -357,6 +123,7 @@ mod imp {
 
     impl ApplicationWindowImpl for ApplicationWindow {}
 
+    #[gtk::template_callbacks]
     impl ApplicationWindow {
         pub fn open(&self, file: gio::File) -> anyhow::Result<()> {
             let bytes = file
@@ -364,109 +131,130 @@ mod imp {
                 .with_context(|| "couldn't read the file")?
                 .0;
 
-            let qua = plitki_map_qua::from_reader(&bytes[..])
+            self.open_reader(&bytes[..])
+        }
+
+        fn open_reader(&self, reader: impl std::io::Read) -> anyhow::Result<()> {
+            let qua = plitki_map_qua::from_reader(reader)
                 .with_context(|| "couldn't parse the file as a .qua map")?;
             let map: Map = qua
                 .try_into()
                 .with_context(|| "couldn't convert the map to plitki's format")?;
-            let playfield = Playfield::new(map, &*self.skin_current.get().unwrap().borrow());
+            let state = GameState::new(map, GameTimestampDifference::from_millis(0))
+                .map_err(|_| anyhow!("map has invalid objects"))?;
 
-            playfield.set_halign(gtk::Align::Center);
-            playfield.set_valign(gtk::Align::Center);
-            playfield.set_vexpand(true);
+            self.adjustment_timestamp.configure(
+                state
+                    .first_timestamp()
+                    .unwrap()
+                    .into_milli_hundredths()
+                    .into(),
+                state
+                    .first_timestamp()
+                    .unwrap()
+                    .into_milli_hundredths()
+                    .into(),
+                state
+                    .last_timestamp()
+                    .unwrap()
+                    .into_milli_hundredths()
+                    .into(),
+                1.,
+                10.,
+                10.,
+            );
 
-            if self.button_downscroll.is_active() {
-                playfield.set_property("downscroll", true);
-            }
-
-            self.scrolled_window_playfield.set_child(Some(&playfield));
-
-            self.scroll_speed_binding.get().unwrap().borrow().unbind();
-            self.timestamp_binding.get().unwrap().borrow().unbind();
-
-            let scroll_speed_binding = playfield
-                .bind_property(
-                    "scroll-speed",
-                    &self.scale_scroll_speed.adjustment(),
-                    "value",
-                )
-                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                .build();
-
-            {
-                let state = playfield.state();
-                self.adjustment_timestamp.configure(
-                    0.,
-                    state
-                        .first_timestamp()
-                        .unwrap()
-                        .into_milli_hundredths()
-                        .min(0)
-                        .into(),
-                    state
-                        .last_timestamp()
-                        .unwrap()
-                        .into_milli_hundredths()
-                        .max(0)
-                        .into(),
-                    1.,
-                    10.,
-                    10.,
-                );
-            }
-
-            let timestamp_binding = playfield
-                .bind_property("map-timestamp", &*self.adjustment_timestamp, "value")
-                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                .build();
-
-            *self.playfield.get().unwrap().borrow_mut() = playfield;
-            *self.scroll_speed_binding.get().unwrap().borrow_mut() = scroll_speed_binding;
-            *self.timestamp_binding.get().unwrap().borrow_mut() = timestamp_binding;
+            self.playfield.set_game_state(Some(state));
 
             Ok(())
         }
 
-        fn set_skin(&self, skin: &Skin) {
-            *self.skin_current.get().unwrap().borrow_mut() = skin.clone();
-
-            let mut long_note_field = self.long_note.borrow_mut();
-            let length = if let Some(long_note) = &*long_note_field {
-                self.box_long_note.remove(long_note);
-                self.playfield
-                    .get()
-                    .unwrap()
-                    .borrow()
-                    .set_property("skin", skin);
-                long_note.property("length")
-            } else {
-                0
-            };
-
+        fn set_skin(&self, skin: Skin) {
             let lane_skin = skin.store().get(4, 0);
-            let long_note = LongNote::new(
-                &lane_skin.ln_head,
-                &lane_skin.ln_tail,
-                &lane_skin.ln_body,
-                ScreenPositionDifference(length),
-            );
+            self.long_note.set_head_paintable(Some(&lane_skin.ln_head));
+            self.long_note.set_tail_paintable(Some(&lane_skin.ln_tail));
+            self.long_note.set_body_paintable(Some(&lane_skin.ln_body));
 
-            long_note.set_halign(gtk::Align::Center);
-            long_note.set_valign(gtk::Align::Center);
-            long_note.set_vexpand(true);
+            self.playfield.set_skin(Some(skin));
+        }
 
-            if self.button_downscroll.is_active() {
-                long_note.add_css_class("upside-down");
+        #[template_callback]
+        fn on_upscroll_toggled(&self, button: gtk::ToggleButton) {
+            if button.is_active() {
+                self.playfield.set_downscroll(false);
+                self.long_note.remove_css_class("upside-down");
             }
+        }
 
-            long_note
-                .bind_property("length", &self.scale_length.adjustment(), "value")
-                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                .build();
+        #[template_callback]
+        fn on_downscroll_toggled(&self, button: gtk::ToggleButton) {
+            if button.is_active() {
+                self.playfield.set_downscroll(true);
+                self.long_note.add_css_class("upside-down");
+            }
+        }
 
-            self.box_long_note.prepend(&long_note);
+        #[template_callback]
+        fn on_arrows_toggled(&self, button: gtk::ToggleButton) {
+            if button.is_active() {
+                self.set_skin(self.skin_arrows.get().unwrap().clone());
+            }
+        }
 
-            *long_note_field = Some(long_note);
+        #[template_callback]
+        fn on_bars_toggled(&self, button: gtk::ToggleButton) {
+            if button.is_active() {
+                self.set_skin(self.skin_bars.get().unwrap().clone());
+            }
+        }
+
+        #[template_callback]
+        fn on_circles_toggled(&self, button: gtk::ToggleButton) {
+            if button.is_active() {
+                self.set_skin(self.skin_circles.get().unwrap().clone());
+            }
+        }
+
+        #[template_callback]
+        fn on_play_pause_clicked(&self, button: gtk::Button) {
+            let obj = self.instance();
+
+            let mut callback = self.tick_callback.borrow_mut();
+            match callback.take() {
+                Some(callback) => {
+                    callback.remove();
+                    button.set_icon_name("media-playback-start-symbolic");
+                }
+                None => {
+                    button.set_icon_name("media-playback-pause-symbolic");
+
+                    let last_frame_time = Cell::new(obj.frame_clock().unwrap().frame_time());
+                    *callback = Some(obj.add_tick_callback(move |obj, clock| {
+                        let self_ = Self::from_instance(obj);
+
+                        let frame_time = clock.frame_time();
+                        let time_passed = Duration::from_micros(
+                            (frame_time - last_frame_time.get()).try_into().unwrap(),
+                        );
+                        let time_passed = Timestamp::try_from(time_passed)
+                            .unwrap()
+                            .into_milli_hundredths();
+                        last_frame_time.set(frame_time);
+
+                        let adjustment = &*self_.adjustment_timestamp;
+                        let new_time = adjustment.value() + f64::from(time_passed);
+                        if new_time >= adjustment.upper() {
+                            adjustment.set_value(adjustment.upper());
+                            self_.tick_callback.borrow_mut().take();
+                            button.set_icon_name("media-playback-start-symbolic");
+                            glib::Continue(false)
+                        } else {
+                            adjustment.set_value(new_time);
+                            glib::Continue(true)
+                        }
+                    }));
+                }
+            }
         }
     }
 }
@@ -477,6 +265,7 @@ glib::wrapper! {
         @implements gio::ActionMap, gio::ActionGroup;
 }
 
+#[gtk::template_callbacks]
 impl ApplicationWindow {
     pub fn new(app: &adw::Application) -> Self {
         glib::Object::new(&[("application", app)]).unwrap()
@@ -484,5 +273,27 @@ impl ApplicationWindow {
 
     fn open(&self, file: gio::File) -> anyhow::Result<()> {
         imp::ApplicationWindow::from_instance(self).open(file)
+    }
+
+    #[template_callback]
+    fn on_open_clicked(self) {
+        let file_chooser = gtk::FileChooserNative::builder()
+            .transient_for(&self)
+            .action(gtk::FileChooserAction::Open)
+            .title("Open a .qua map")
+            .transient_for(&self)
+            .modal(true)
+            .build();
+
+        glib::MainContext::default().spawn_local(async move {
+            if file_chooser.run_future().await != gtk::ResponseType::Accept {
+                return;
+            }
+
+            let file = file_chooser.file().unwrap();
+            if let Err(err) = self.open(file).with_context(|| "couldn't load the map") {
+                info!("{:?}", err);
+            }
+        });
     }
 }

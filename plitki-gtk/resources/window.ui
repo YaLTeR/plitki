@@ -7,7 +7,7 @@
       <object class="AdwHeaderBar">
         <property name="centering-policy">strict</property>
         <child type="start">
-          <object class="GtkButton" id="button_open">
+          <object class="GtkButton">
             <property name="child">
               <object class="AdwButtonContent">
                 <property name="icon-name">document-open-symbolic</property>
@@ -15,18 +15,21 @@
                 <property name="use-underline">True</property>
               </object>
             </property>
+            <signal name="clicked" handler="on_open_clicked" swapped="true"/>
           </object>
         </child>
         <child type="start">
           <object class="GtkToggleButton" id="button_upscroll">
             <property name="icon-name">go-up-symbolic</property>
             <property name="active">true</property>
+            <signal name="toggled" handler="on_upscroll_toggled" swapped="true"/>
           </object>
         </child>
         <child type="start">
-          <object class="GtkToggleButton" id="button_downscroll">
+          <object class="GtkToggleButton">
             <property name="icon-name">go-down-symbolic</property>
             <property name="group">button_upscroll</property>
+            <signal name="toggled" handler="on_downscroll_toggled" swapped="true"/>
           </object>
         </child>
         <child type="title">
@@ -36,21 +39,24 @@
           </object>
         </child>
         <child type="end">
-          <object class="GtkToggleButton" id="button_circles">
+          <object class="GtkToggleButton">
             <property name="icon-name">media-record-symbolic</property>
             <property name="group">button_arrows</property>
+            <signal name="toggled" handler="on_circles_toggled" swapped="true"/>
           </object>
         </child>
         <child type="end">
-          <object class="GtkToggleButton" id="button_bars">
+          <object class="GtkToggleButton">
             <property name="icon-name">value-decrease-symbolic</property>
             <property name="group">button_arrows</property>
+            <signal name="toggled" handler="on_bars_toggled" swapped="true"/>
           </object>
         </child>
         <child type="end">
           <object class="GtkToggleButton" id="button_arrows">
             <property name="icon-name">folder-download-symbolic</property>
             <property name="active">true</property>
+            <signal name="toggled" handler="on_arrows_toggled" swapped="true"/>
           </object>
         </child>
       </object>
@@ -68,9 +74,10 @@
                   <object class="GtkBox">
                     <property name="orientation">vertical</property>
                     <child>
-                      <object class="GtkScrolledWindow" id="scrolled_window_playfield">
-                        <property name="hscrollbar-policy">never</property>
+                      <object class="PlitkiPlayfield" id="playfield">
+                        <property name="halign">center</property>
                         <property name="vexpand">true</property>
+                        <property name="game-timestamp" bind-source="adjustment_timestamp" bind-property="value" bind-flags="bidirectional"/>
                       </object>
                     </child>
                     <child>
@@ -89,15 +96,15 @@
                           </object>
                         </child>
                         <child>
-                          <object class="GtkScale" id="scale_scroll_speed">
+                          <object class="GtkScale">
                             <property name="hexpand">true</property>
                             <property name="adjustment">
                               <object class="GtkAdjustment">
                                 <property name="upper">255</property>
                                 <property name="lower">0</property>
-                                <property name="value">32</property>
                                 <property name="step-increment">1</property>
                                 <property name="page-increment">10</property>
+                                <property name="value" bind-source="playfield" bind-property="scroll-speed" bind-flags="bidirectional|sync-create"/>
                               </object>
                             </property>
                           </object>
@@ -111,8 +118,9 @@
                         <property name="margin-bottom">6</property>
                         <property name="spacing">6</property>
                         <child>
-                          <object class="GtkButton" id="button_play_pause">
+                          <object class="GtkButton">
                             <property name="icon-name">media-playback-start-symbolic</property>
+                            <signal name="clicked" handler="on_play_pause_clicked" swapped="true"/>
                           </object>
                         </child>
                         <child>
@@ -134,8 +142,15 @@
                 <property name="title">Long Note</property>
                 <property name="icon-name">emblem-system-symbolic</property>
                 <property name="child">
-                  <object class="GtkBox" id="box_long_note">
+                  <object class="GtkBox">
                     <property name="orientation">vertical</property>
+                    <child>
+                      <object class="PlitkiLongNote" id="long_note">
+                        <property name="halign">center</property>
+                        <property name="valign">center</property>
+                        <property name="vexpand">true</property>
+                      </object>
+                    </child>
                     <child>
                       <object class="GtkSeparator" />
                     </child>
@@ -152,13 +167,13 @@
                           </object>
                         </child>
                         <child>
-                          <object class="GtkScale" id="scale_length">
+                          <object class="GtkScale">
                             <property name="hexpand">true</property>
                             <property name="adjustment">
                               <object class="GtkAdjustment">
                                 <property name="upper">600000000</property>
                                 <property name="lower">0</property>
-                                <property name="value">0</property>
+                                <property name="value" bind-source="long_note" bind-property="length" bind-flags="bidirectional"/>
                                 <property name="step-increment">1</property>
                                 <property name="page-increment">10</property>
                               </object>

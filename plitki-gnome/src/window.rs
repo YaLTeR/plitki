@@ -23,6 +23,7 @@ mod imp {
     use once_cell::unsync::OnceCell;
     use plitki_core::map::Map;
     use plitki_core::scroll::ScrollSpeed;
+    use plitki_core::state::GameState;
     use plitki_core::timing::{
         GameTimestamp, GameTimestampDifference, MapTimestampDifference, Timestamp,
     };
@@ -42,13 +43,11 @@ mod imp {
         #[template_child]
         stack: TemplateChild<gtk::Stack>,
         #[template_child]
-        scrolled_window: TemplateChild<gtk::ScrolledWindow>,
+        playfield: TemplateChild<Playfield>,
         #[template_child]
         hit_error: TemplateChild<HitError>,
         #[template_child]
         judgement: TemplateChild<Judgement>,
-
-        playfield: RefCell<Option<Playfield>>,
 
         audio: OnceCell<Rc<AudioEngine>>,
 
@@ -78,6 +77,9 @@ mod imp {
     impl ObjectImpl for Window {
         fn constructed(&self, obj: &Self::Type) {
             self.parent_constructed(obj);
+
+            self.playfield
+                .set_skin(Some(create_skin("/plitki-gnome/skin/arrows")));
 
             // Set up the drop target.
             let drop_target = gtk::DropTarget::new(gio::File::static_type(), gdk::DragAction::COPY);
@@ -198,17 +200,15 @@ mod imp {
                 None
             };
 
-            // Create the playfield.
-            let playfield = Playfield::new(map, &create_skin("/plitki-gnome/skin/arrows"));
+            let state = match GameState::new(map, GameTimestampDifference::from_millis(164)) {
+                Ok(x) => x,
+                Err(err) => {
+                    warn!("map is invalid: {err:?}");
+                    return;
+                }
+            };
 
-            playfield.set_halign(gtk::Align::Center);
-            playfield.set_valign(gtk::Align::End);
-            playfield.set_downscroll(true);
-            playfield.set_scroll_speed(ScrollSpeed(49));
-
-            self.scrolled_window.set_child(Some(&playfield));
-
-            self.playfield.replace(Some(playfield));
+            self.playfield.set_game_state(Some(state));
 
             self.stack.set_visible_child_name("content");
 
@@ -227,11 +227,9 @@ mod imp {
         fn on_tick_callback(&self) {
             let game_timestamp = self.game_timestamp();
 
-            let playfield = self.playfield.borrow();
-            if let Some(playfield) = &*playfield {
-                playfield.set_game_timestamp(game_timestamp);
+            self.playfield.set_game_timestamp(game_timestamp);
 
-                let mut state = playfield.state_mut();
+            if let Some(mut state) = self.playfield.state_mut() {
                 state.update(game_timestamp);
 
                 self.hit_error
@@ -239,12 +237,10 @@ mod imp {
 
                 self.judgement
                     .update(game_timestamp, state.last_hits.iter().next().copied());
-
-                drop(state);
-
-                // TODO: it's very inefficient to loop over all objects here.
-                playfield.update_ln_lengths();
             }
+
+            // TODO: it's very inefficient to loop over all objects here.
+            self.playfield.update_ln_lengths();
         }
 
         fn game_timestamp(&self) -> GameTimestamp {
@@ -253,17 +249,11 @@ mod imp {
         }
 
         fn show_local_offset_toast(&self) {
-            let playfield = self.playfield.borrow();
-            let playfield = match &*playfield {
-                Some(x) => x,
-                _ => return,
+            let offset = match self.playfield.state() {
+                Some(state) => state.timestamp_converter.local_offset.as_millis(),
+                None => return,
             };
 
-            let offset = playfield
-                .state()
-                .timestamp_converter
-                .local_offset
-                .as_millis();
             let title =
                 format!("Map offset set to <span font_features='tnum=1'>{offset}</span> ms");
 
@@ -289,15 +279,9 @@ mod imp {
         }
 
         fn show_scroll_speed_toast(&self) {
-            let playfield = self.playfield.borrow();
-            let playfield = match &*playfield {
-                Some(x) => x,
-                _ => return,
-            };
-
             let title = format!(
                 "Scroll speed set to <span font_features='tnum=1'>{}</span>",
-                playfield.scroll_speed().0
+                self.playfield.scroll_speed().0
             );
 
             let mut toast = self.scroll_speed_toast.borrow_mut();
@@ -322,13 +306,10 @@ mod imp {
         }
 
         fn maybe_adjust_local_offset(&self, key: gdk::Key, modifier: gdk::ModifierType) -> bool {
-            let playfield = self.playfield.borrow();
-            let playfield = match &*playfield {
+            let mut state = match self.playfield.state_mut() {
                 Some(x) => x,
-                _ => return false,
+                None => return false,
             };
-
-            let mut state = playfield.state_mut();
 
             let diff = MapTimestampDifference::from_millis(
                 if modifier.contains(gdk::ModifierType::CONTROL_MASK) {
@@ -354,29 +335,22 @@ mod imp {
         }
 
         fn maybe_adjust_scroll_speed(&self, key: gdk::Key, modifier: gdk::ModifierType) -> bool {
-            let playfield = self.playfield.borrow();
-            let playfield = match &*playfield {
-                Some(x) => x,
-                _ => return false,
-            };
-
             let diff = if modifier.contains(gdk::ModifierType::CONTROL_MASK) {
                 1
             } else {
                 5
             };
 
+            let scroll_speed = self.playfield.scroll_speed();
             match key {
                 gdk::Key::F4 => {
-                    playfield.set_scroll_speed(ScrollSpeed(
-                        playfield.scroll_speed().0.saturating_add(diff),
-                    ));
+                    self.playfield
+                        .set_scroll_speed(ScrollSpeed(scroll_speed.0.saturating_add(diff)));
                     true
                 }
                 gdk::Key::F3 => {
-                    playfield.set_scroll_speed(ScrollSpeed(
-                        playfield.scroll_speed().0.saturating_sub(diff).max(1),
-                    ));
+                    self.playfield
+                        .set_scroll_speed(ScrollSpeed(scroll_speed.0.saturating_sub(diff).max(1)));
                     true
                 }
                 _ => false,
@@ -384,10 +358,7 @@ mod imp {
         }
 
         fn lane_for_key(&self, key: gdk::Key) -> Option<usize> {
-            let playfield = self.playfield.borrow();
-            let playfield = playfield.as_ref()?;
-
-            let lane = match playfield.state().immutable.lane_caches.len() {
+            let lane = match self.playfield.state()?.immutable.lane_caches.len() {
                 4 => match key {
                     gdk::Key::s => 0,
                     gdk::Key::d => 1,
@@ -429,10 +400,9 @@ mod imp {
                 None => return gtk::Inhibit(false),
             };
 
-            let playfield = self.playfield.borrow();
-            let playfield = match &*playfield {
+            let mut state = match self.playfield.state_mut() {
                 Some(x) => x,
-                _ => return gtk::Inhibit(false),
+                None => return gtk::Inhibit(false),
             };
 
             let mut is_lane_pressed = self.is_lane_pressed.borrow_mut();
@@ -441,7 +411,7 @@ mod imp {
             }
             is_lane_pressed[lane] = true;
 
-            playfield.state_mut().key_press(lane, self.game_timestamp());
+            state.key_press(lane, self.game_timestamp());
 
             gtk::Inhibit(true)
         }
@@ -452,10 +422,9 @@ mod imp {
                 None => return,
             };
 
-            let playfield = self.playfield.borrow();
-            let playfield = match &*playfield {
+            let mut state = match self.playfield.state_mut() {
                 Some(x) => x,
-                _ => return,
+                None => return,
             };
 
             let mut is_lane_pressed = self.is_lane_pressed.borrow_mut();
@@ -464,9 +433,7 @@ mod imp {
             }
             is_lane_pressed[lane] = false;
 
-            playfield
-                .state_mut()
-                .key_release(lane, self.game_timestamp());
+            state.key_release(lane, self.game_timestamp());
         }
     }
 
