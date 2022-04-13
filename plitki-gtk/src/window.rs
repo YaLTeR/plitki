@@ -270,7 +270,7 @@ mod imp {
                 let old_paintable = picture.paintable();
 
                 picture.set_file(Some(&file));
-                
+
                 if picture.paintable().is_none() {
                     picture.set_paintable(old_paintable.as_ref());
                     return false;
