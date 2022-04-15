@@ -68,6 +68,16 @@ template PlitkiWindow : Adw.ApplicationWindow {
             }
 
             [overlay]
+            .PlitkiAccuracy accuracy {
+              halign: end;
+              valign: start;
+
+              layout {
+                measure: true;
+              }
+            }
+
+            [overlay]
             .PlitkiHitError hit_error {
               halign: center;
               valign: center;

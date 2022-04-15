@@ -30,9 +30,11 @@ mod imp {
     use plitki_gtk::playfield::Playfield;
     use plitki_gtk::skin::{LaneSkin, Skin};
 
+    use crate::accuracy::Accuracy;
     use crate::combo::Combo;
     use crate::hit_error::HitError;
     use crate::judgement::Judgement;
+    use crate::statistics::Statistics;
 
     use super::*;
 
@@ -46,11 +48,15 @@ mod imp {
         #[template_child]
         playfield: TemplateChild<Playfield>,
         #[template_child]
+        accuracy: TemplateChild<Accuracy>,
+        #[template_child]
         combo: TemplateChild<Combo>,
         #[template_child]
         hit_error: TemplateChild<HitError>,
         #[template_child]
         judgement: TemplateChild<Judgement>,
+
+        statistics: RefCell<Statistics>,
 
         audio: OnceCell<Rc<AudioEngine>>,
 
@@ -218,6 +224,9 @@ mod imp {
             let mut is_lane_pressed = self.is_lane_pressed.borrow_mut();
             *is_lane_pressed = [false; 7];
 
+            self.statistics.replace(Statistics::new());
+            self.accuracy
+                .set_accuracy(self.statistics.borrow().accuracy());
             self.combo.set_combo(0);
 
             // Start the audio.
@@ -240,6 +249,10 @@ mod imp {
                     }
                 }
             }
+
+            let mut statistics = self.statistics.borrow_mut();
+            statistics.process_event(event);
+            self.accuracy.set_accuracy(statistics.accuracy());
         }
 
         fn update_state(&self, state: &mut GameState, timestamp: GameTimestamp) {

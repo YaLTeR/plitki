@@ -2,6 +2,7 @@
 <gresources>
     <gresource prefix="/plitki-gnome">
         <file>style.css</file>
+        <file>accuracy.ui</file>
         <file>combo.ui</file>
         <file>window.ui</file>
 

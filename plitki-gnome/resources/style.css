@@ -6,6 +6,11 @@ plitki-playfield {
     background-color: black;
 }
 
+plitki-accuracy {
+    font-size: 80px;
+    margin: 12px;
+}
+
 plitki-combo {
     font-size: 80px;
     margin: 12px;
