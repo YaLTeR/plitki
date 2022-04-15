@@ -2,6 +2,7 @@
 <gresources>
     <gresource prefix="/plitki-gnome">
         <file>style.css</file>
+        <file>combo.ui</file>
         <file>window.ui</file>
 
         <file>skin/arrows/4k/note-hitobject-1.png</file>

@@ -58,6 +58,16 @@ template PlitkiWindow : Adw.ApplicationWindow {
             };
 
             [overlay]
+            .PlitkiCombo combo {
+              halign: start;
+              valign: end;
+
+              layout {
+                measure: true;
+              }
+            }
+
+            [overlay]
             .PlitkiHitError hit_error {
               halign: center;
               valign: center;

@@ -9,6 +9,7 @@ use window::Window;
 use crate::audio::AudioEngine;
 
 mod audio;
+mod combo;
 mod hit_error;
 mod judgement;
 mod window;

@@ -23,13 +23,14 @@ mod imp {
     use once_cell::unsync::OnceCell;
     use plitki_core::map::Map;
     use plitki_core::scroll::ScrollSpeed;
-    use plitki_core::state::{Event, GameState};
+    use plitki_core::state::{Event, GameState, Hit};
     use plitki_core::timing::{
         GameTimestamp, GameTimestampDifference, MapTimestampDifference, Timestamp,
     };
     use plitki_gtk::playfield::Playfield;
     use plitki_gtk::skin::{LaneSkin, Skin};
 
+    use crate::combo::Combo;
     use crate::hit_error::HitError;
     use crate::judgement::Judgement;
 
@@ -44,6 +45,8 @@ mod imp {
         stack: TemplateChild<gtk::Stack>,
         #[template_child]
         playfield: TemplateChild<Playfield>,
+        #[template_child]
+        combo: TemplateChild<Combo>,
         #[template_child]
         hit_error: TemplateChild<HitError>,
         #[template_child]
@@ -215,6 +218,8 @@ mod imp {
             let mut is_lane_pressed = self.is_lane_pressed.borrow_mut();
             *is_lane_pressed = [false; 7];
 
+            self.combo.set_combo(0);
+
             // Start the audio.
             let engine = self.audio.get().unwrap();
             if let Some(track) = track {
@@ -224,7 +229,18 @@ mod imp {
             }
         }
 
-        fn process_event(&self, _event: Event) {}
+        fn process_event(&self, event: Event) {
+            match event {
+                Event::Miss => self.combo.set_combo(0),
+                Event::Hit(Hit { difference, .. }) => {
+                    if difference.into_milli_hundredths().abs() / 100 <= 127 {
+                        self.combo.set_combo(self.combo.combo() + 1);
+                    } else {
+                        self.combo.set_combo(0);
+                    }
+                }
+            }
+        }
 
         fn update_state(&self, state: &mut GameState, timestamp: GameTimestamp) {
             while let Some(event) = state.update(timestamp) {

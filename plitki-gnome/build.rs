@@ -8,6 +8,7 @@ fn main() {
             "batch-compile",
             "resources",
             "resources",
+            "resources/combo.blp",
             "resources/window.blp"
         ])
         .status()

@@ -6,6 +6,11 @@ plitki-playfield {
     background-color: black;
 }
 
+plitki-combo {
+    font-size: 80px;
+    margin: 12px;
+}
+
 plitki-judgement {
     border-radius: 99px;
     margin: 12px;
