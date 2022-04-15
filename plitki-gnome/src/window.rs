@@ -23,7 +23,7 @@ mod imp {
     use once_cell::unsync::OnceCell;
     use plitki_core::map::Map;
     use plitki_core::scroll::ScrollSpeed;
-    use plitki_core::state::GameState;
+    use plitki_core::state::{Event, GameState};
     use plitki_core::timing::{
         GameTimestamp, GameTimestampDifference, MapTimestampDifference, Timestamp,
     };
@@ -224,13 +224,21 @@ mod imp {
             }
         }
 
+        fn process_event(&self, _event: Event) {}
+
+        fn update_state(&self, state: &mut GameState, timestamp: GameTimestamp) {
+            while let Some(event) = state.update(timestamp) {
+                self.process_event(event);
+            }
+        }
+
         fn on_tick_callback(&self) {
             let game_timestamp = self.game_timestamp();
 
             self.playfield.set_game_timestamp(game_timestamp);
 
             if let Some(mut state) = self.playfield.state_mut() {
-                state.update(game_timestamp);
+                self.update_state(&mut *state, game_timestamp);
 
                 self.hit_error
                     .update(game_timestamp, state.last_hits.iter().copied().collect());
@@ -411,7 +419,11 @@ mod imp {
             }
             is_lane_pressed[lane] = true;
 
-            state.key_press(lane, self.game_timestamp());
+            let timestamp = self.game_timestamp();
+            self.update_state(&mut *state, timestamp);
+            if let Some(event) = state.key_press(lane, timestamp) {
+                self.process_event(event);
+            };
 
             gtk::Inhibit(true)
         }
@@ -433,7 +445,11 @@ mod imp {
             }
             is_lane_pressed[lane] = false;
 
-            state.key_release(lane, self.game_timestamp());
+            let timestamp = self.game_timestamp();
+            self.update_state(&mut *state, timestamp);
+            if let Some(event) = state.key_release(lane, timestamp) {
+                self.process_event(event);
+            };
         }
     }
 

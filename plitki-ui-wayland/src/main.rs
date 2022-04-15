@@ -708,9 +708,11 @@ fn main() {
             let elapsed_timestamp = elapsed.try_into().unwrap();
 
             let (latest_state, buf_input) = &mut *state_pair.borrow_mut();
-            latest_state
+            while latest_state
                 .game_state
-                .update(GameTimestamp(elapsed_timestamp));
+                .update(GameTimestamp(elapsed_timestamp))
+                .is_some()
+            {}
             buf_input.input_buffer().update_to_latest(latest_state);
             buf_input.publish();
         }

@@ -208,6 +208,20 @@ pub struct Hit {
     pub difference: GameTimestampDifference,
 }
 
+/// An event that can occur as the result of an gameplay update.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum Event {
+    /// An object was missed.
+    ///
+    /// This is both the usual misses and a long note being released way too early.
+    Miss,
+
+    /// A hit has occurred.
+    ///
+    /// Long notes usually produce more than one hit (for press and for release).
+    Hit(Hit),
+}
+
 /// An error returned from [`GameState::new()`].
 #[derive(Clone, PartialEq, Eq)]
 pub enum GameStateCreationError {
@@ -642,102 +656,177 @@ impl GameState {
     ///
     /// Essentially, this is a way to signal "some time has passed". Stuff like missed objects is
     /// handled here. This should be called every so often for all lanes.
+    ///
+    /// This function processes and returns events one by one. To use `update()` correctly, you must
+    /// call it in a loop until it returns `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use plitki_core::map::Map;
+    /// # use plitki_core::scroll::ScrollSpeedMultiplier;
+    /// # use plitki_core::state::GameState;
+    /// # use plitki_core::timing::{GameTimestamp, GameTimestampDifference};
+    /// # let map = Map {
+    /// #     song_artist: None,
+    /// #     song_title: None,
+    /// #     difficulty_name: None,
+    /// #     mapper: None,
+    /// #     audio_file: None,
+    /// #     timing_points: vec![],
+    /// #     scroll_speed_changes: vec![],
+    /// #     initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(0),
+    /// #     lanes: vec![],
+    /// # };
+    /// # let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
+    /// # let timestamp = GameTimestamp::from_millis(0);
+    /// while let Some(event) = state.update(timestamp) {
+    ///     // Handle event.
+    /// }
+    /// ```
     #[inline]
-    pub fn update(&mut self, timestamp: GameTimestamp) {
+    pub fn update(&mut self, timestamp: GameTimestamp) -> Option<Event> {
         for lane in 0..self.lane_count() {
-            self.update_lane(lane, timestamp);
+            if let Some(event) = self.update_lane(lane, timestamp) {
+                return Some(event);
+            };
         }
+
+        None
     }
 
     /// Updates the state for `lane`.
-    fn update_lane(&mut self, lane: usize, timestamp: GameTimestamp) {
+    ///
+    /// This function processes and returns events one by one. To use `update_lane()` correctly, you
+    /// must call it in a loop until it returns `None`.
+    fn update_lane(&mut self, lane: usize, timestamp: GameTimestamp) -> Option<Event> {
         if !self.has_active_objects(lane) {
-            return;
+            return None;
         }
 
         let map_timestamp = timestamp.to_map(&self.timestamp_converter);
         let map_hit_window = self.hit_window.to_map(&self.timestamp_converter);
 
         let lane_state = &mut self.lane_states[lane];
-        let objects = &self.immutable.map.lanes[lane].objects[lane_state.first_active_object..];
-        let object_states = &mut lane_state.object_states[lane_state.first_active_object..];
+        let object = &self.immutable.map.lanes[lane].objects[lane_state.first_active_object];
+        let state = &mut lane_state.object_states[lane_state.first_active_object];
 
-        for (object, state) in objects.iter().zip(object_states.iter_mut()) {
-            // We want to increase first_active_object on every continue.
-            lane_state.first_active_object += 1;
+        // We want to increase first_active_object on every early return.
+        lane_state.first_active_object += 1;
 
-            if object.end_timestamp().saturating_add(map_hit_window) < map_timestamp {
-                // The object can no longer be hit.
-                match state {
-                    ObjectState::Regular(state) => {
-                        if let RegularObjectState::NotHit = state {
-                            *state = RegularObjectState::Missed;
-                        } else {
-                            unreachable!()
-                        }
-                    }
-                    ObjectState::LongNote(state) => {
-                        if let LongNoteState::Held { press_difference } = *state {
-                            *state = LongNoteState::Hit {
-                                press_difference,
-                                release_difference: self.hit_window,
-                            };
+        if object.end_timestamp().saturating_add(map_hit_window) < map_timestamp {
+            // The object can no longer be hit.
+            match state {
+                ObjectState::Regular(state) => {
+                    if let RegularObjectState::NotHit = state {
+                        *state = RegularObjectState::Missed;
 
-                            self.last_hits.push(Hit {
-                                timestamp: (object.end_timestamp() + map_hit_window)
-                                    .to_game(&self.timestamp_converter),
-                                difference: self.hit_window,
-                            });
-                        } else if *state == LongNoteState::NotHit {
-                            // I kind of dislike how this branch exists both here and in the condition
-                            // below...
-                            *state = LongNoteState::Missed {
-                                held_until: None,
-                                press_difference: None,
-                            };
-                        } else {
-                            unreachable!()
-                        }
+                        return Some(Event::Miss);
+                    } else {
+                        unreachable!()
                     }
                 }
+                ObjectState::LongNote(state) => {
+                    if let LongNoteState::Held { press_difference } = *state {
+                        *state = LongNoteState::Hit {
+                            press_difference,
+                            release_difference: self.hit_window,
+                        };
 
-                continue;
-            }
+                        let hit = Hit {
+                            timestamp: (object.end_timestamp() + map_hit_window)
+                                .to_game(&self.timestamp_converter),
+                            difference: self.hit_window,
+                        };
+                        self.last_hits.push(hit);
 
-            if object.start_timestamp().saturating_add(map_hit_window) < map_timestamp {
-                // The object can no longer be hit.
-                if let ObjectState::LongNote(state) = state {
-                    // Mark this long note as missed.
-                    if *state == LongNoteState::NotHit {
+                        return Some(Event::Hit(hit));
+                    } else if *state == LongNoteState::NotHit {
+                        // I kind of dislike how this branch exists both here and in the condition
+                        // below...
                         *state = LongNoteState::Missed {
                             held_until: None,
                             press_difference: None,
                         };
-                        continue;
-                    }
 
-                    if let LongNoteState::Held { .. } = state {
-                        // All good.
+                        return Some(Event::Miss);
                     } else {
                         unreachable!()
                     }
-                } else {
-                    // Regular objects would be skipped over in the previous if.
-                    unreachable!()
                 }
             }
-
-            // Didn't hit a continue, decrease it back.
-            lane_state.first_active_object -= 1;
-            break;
         }
+
+        if object.start_timestamp().saturating_add(map_hit_window) < map_timestamp {
+            // The object can no longer be hit.
+            if let ObjectState::LongNote(state) = state {
+                // Mark this long note as missed.
+                if *state == LongNoteState::NotHit {
+                    *state = LongNoteState::Missed {
+                        held_until: None,
+                        press_difference: None,
+                    };
+
+                    return Some(Event::Miss);
+                }
+
+                if let LongNoteState::Held { .. } = state {
+                    // All good.
+                } else {
+                    unreachable!()
+                }
+            } else {
+                // Regular objects would be skipped over in the previous if.
+                unreachable!()
+            }
+        }
+
+        // Didn't hit a continue, decrease it back.
+        lane_state.first_active_object -= 1;
+
+        None
     }
 
     /// Handles a key press.
-    pub fn key_press(&mut self, lane: usize, timestamp: GameTimestamp) {
-        self.update_lane(lane, timestamp);
+    ///
+    /// You should call [`GameState::update()`] with the same `timestamp` prior to calling
+    /// `key_press()`, otherwise you may miss some events.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use plitki_core::map::{Lane, Map};
+    /// # use plitki_core::scroll::ScrollSpeedMultiplier;
+    /// # use plitki_core::state::GameState;
+    /// # use plitki_core::timing::{GameTimestamp, GameTimestampDifference};
+    /// # let map = Map {
+    /// #     song_artist: None,
+    /// #     song_title: None,
+    /// #     difficulty_name: None,
+    /// #     mapper: None,
+    /// #     audio_file: None,
+    /// #     timing_points: vec![],
+    /// #     scroll_speed_changes: vec![],
+    /// #     initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(0),
+    /// #     lanes: vec![Lane { objects: vec![] }],
+    /// # };
+    /// # let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
+    /// # let lane = 0;
+    /// # let timestamp = GameTimestamp::from_millis(0);
+    /// // Same timestamp as passed to `key_press()` right below.
+    /// while let Some(event) = state.update(timestamp) {
+    ///     // Handle event.
+    /// }
+    ///
+    /// if let Some(event) = state.key_press(lane, timestamp) {
+    ///     // Handle event.
+    /// }
+    /// ```
+    pub fn key_press(&mut self, lane: usize, timestamp: GameTimestamp) -> Option<Event> {
+        while self.update(timestamp).is_some() {}
+
         if !self.has_active_objects(lane) {
-            return;
+            return None;
         }
 
         let map_timestamp = timestamp.to_map(&self.timestamp_converter);
@@ -766,18 +855,58 @@ impl GameState {
                 }
             }
 
-            self.last_hits.push(Hit {
+            let hit = Hit {
                 timestamp,
                 difference,
-            });
+            };
+            self.last_hits.push(hit);
+
+            Some(Event::Hit(hit))
+        } else {
+            None
         }
     }
 
     /// Handles a key release.
-    pub fn key_release(&mut self, lane: usize, timestamp: GameTimestamp) {
-        self.update_lane(lane, timestamp);
+    ///
+    /// You should call [`GameState::update()`] with the same `timestamp` prior to calling
+    /// `key_release()`, otherwise you may miss some events.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use plitki_core::map::{Lane, Map};
+    /// # use plitki_core::scroll::ScrollSpeedMultiplier;
+    /// # use plitki_core::state::GameState;
+    /// # use plitki_core::timing::{GameTimestamp, GameTimestampDifference};
+    /// # let map = Map {
+    /// #     song_artist: None,
+    /// #     song_title: None,
+    /// #     difficulty_name: None,
+    /// #     mapper: None,
+    /// #     audio_file: None,
+    /// #     timing_points: vec![],
+    /// #     scroll_speed_changes: vec![],
+    /// #     initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(0),
+    /// #     lanes: vec![Lane { objects: vec![] }],
+    /// # };
+    /// # let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
+    /// # let lane = 0;
+    /// # let timestamp = GameTimestamp::from_millis(0);
+    /// // Same timestamp as passed to `key_release()` right below.
+    /// while let Some(event) = state.update(timestamp) {
+    ///     // Handle event.
+    /// }
+    ///
+    /// if let Some(event) = state.key_release(lane, timestamp) {
+    ///     // Handle event.
+    /// }
+    /// ```
+    pub fn key_release(&mut self, lane: usize, timestamp: GameTimestamp) -> Option<Event> {
+        while self.update(timestamp).is_some() {}
+
         if !self.has_active_objects(lane) {
-            return;
+            return None;
         }
 
         let map_timestamp = timestamp.to_map(&self.timestamp_converter);
@@ -789,6 +918,9 @@ impl GameState {
 
         if let ObjectState::LongNote(state) = state {
             if let LongNoteState::Held { press_difference } = *state {
+                // This object is no longer active.
+                lane_state.first_active_object += 1;
+
                 if map_timestamp >= object.end_timestamp().saturating_sub(map_hit_window) {
                     let difference =
                         (map_timestamp - object.end_timestamp()).to_game(&self.timestamp_converter);
@@ -798,22 +930,26 @@ impl GameState {
                         release_difference: difference,
                     };
 
-                    self.last_hits.push(Hit {
+                    let hit = Hit {
                         timestamp,
                         difference,
-                    });
+                    };
+                    self.last_hits.push(hit);
+
+                    return Some(Event::Hit(hit));
                 } else {
                     // Released too early.
                     *state = LongNoteState::Missed {
                         held_until: Some(map_timestamp),
                         press_difference: Some(press_difference),
                     };
-                }
 
-                // This object is no longer active.
-                lane_state.first_active_object += 1;
+                    return Some(Event::Miss);
+                }
             }
         }
+
+        None
     }
 }
 
@@ -1298,7 +1434,7 @@ mod tests {
         };
 
         let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
-        state.update(GameTimestamp::from_millis(15_000));
+        while state.update(GameTimestamp::from_millis(15_000)).is_some() {}
 
         assert_eq!(
             &state.lane_states[0].object_states[..],
@@ -2196,7 +2332,7 @@ mod tests {
         ) {
             let mut state = GameState::new(map, hit_window).unwrap();
             for timestamp in timestamps {
-                state.update(timestamp);
+                while state.update(timestamp).is_some() {}
             }
         }
 
@@ -2210,10 +2346,10 @@ mod tests {
             let mut state2 = state.clone();
 
             for &timestamp in &timestamps {
-                state.update(timestamp);
+                while state.update(timestamp).is_some() {}
             }
 
-            state2.update(*timestamps.iter().max().unwrap());
+            while state2.update(*timestamps.iter().max().unwrap()).is_some() {}
 
             prop_assert_eq!(state, state2);
         }
@@ -2252,7 +2388,8 @@ mod tests {
                 + hit_window.to_map(&state.timestamp_converter)
                 + MapTimestampDifference::from_milli_hundredths(1))
             .to_game(&state.timestamp_converter);
-            state.update(one_past_hit_window_end);
+
+            while state.update(one_past_hit_window_end).is_some() {}
 
             for state in state.lane_states.into_iter().flat_map(|x| x.object_states) {
                 match state {
