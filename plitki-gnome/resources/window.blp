@@ -50,6 +50,7 @@ template PlitkiWindow : Adw.ApplicationWindow {
 
             [end]
             ToggleButton settings_button {
+              can-focus: false; // Don't steal spacebar from the playfield...
               icon-name: "document-properties-symbolic";
             }
           }
