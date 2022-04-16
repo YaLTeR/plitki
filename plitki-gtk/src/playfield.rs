@@ -47,6 +47,7 @@ mod imp {
         game_timestamp: Cell<GameTimestamp>,
         downscroll: Cell<bool>,
         lane_width: Cell<i32>,
+        hit_position: Cell<i32>,
     }
 
     impl Default for Playfield {
@@ -58,6 +59,7 @@ mod imp {
                 game_timestamp: Cell::new(GameTimestamp::zero()),
                 downscroll: Default::default(),
                 lane_width: Cell::new(0),
+                hit_position: Cell::new(0),
             }
         }
     }
@@ -137,6 +139,15 @@ mod imp {
                         0,
                         glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
                     ),
+                    glib::ParamSpecInt::new(
+                        "hit-position",
+                        "",
+                        "",
+                        -10_000,
+                        10_000,
+                        0,
+                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
+                    ),
                 ]
             });
             PROPERTIES.as_ref()
@@ -167,6 +178,7 @@ mod imp {
                 }
                 "downscroll" => self.set_downscroll(value.get().unwrap()),
                 "lane-width" => self.set_lane_width(value.get().unwrap()),
+                "hit-position" => self.set_hit_position(value.get().unwrap()),
                 _ => unimplemented!(),
             }
         }
@@ -181,6 +193,7 @@ mod imp {
                 "downscroll" => self.downscroll.get().to_value(),
                 "skin" => self.skin.borrow().to_value(),
                 "lane-width" => self.lane_width.get().to_value(),
+                "hit-position" => self.hit_position.get().to_value(),
                 _ => unimplemented!(),
             }
         }
@@ -250,6 +263,7 @@ mod imp {
 
             let scroll_speed = self.scroll_speed.get();
             let downscroll = self.downscroll.get();
+            let hit_position = self.hit_position.get();
 
             for (line, widget) in state
                 .game
@@ -262,7 +276,7 @@ mod imp {
                 // measure().
 
                 let difference = line.position - state.map_position;
-                let mut y = to_pixels(difference * scroll_speed);
+                let mut y = to_pixels(difference * scroll_speed) + hit_position;
                 if y >= height {
                     widget.set_child_visible(false);
                     continue;
@@ -321,7 +335,7 @@ mod imp {
                             .game
                             .object_start_position(*obj_state, *cache, state.map_position);
                     let difference = position - state.map_position;
-                    let mut y = to_pixels(difference * scroll_speed);
+                    let mut y = to_pixels(difference * scroll_speed) + hit_position;
                     if y >= height {
                         widget.set_child_visible(false);
                         continue;
@@ -393,6 +407,16 @@ mod imp {
                 let obj = self.instance();
                 obj.notify("lane-width");
                 obj.queue_resize();
+            }
+        }
+
+        pub fn set_hit_position(&self, value: i32) {
+            if self.hit_position.get() != value {
+                self.hit_position.set(value);
+
+                let obj = self.instance();
+                obj.notify("hit-position");
+                obj.queue_allocate();
             }
         }
 
