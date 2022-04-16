@@ -47,6 +47,11 @@ template PlitkiWindow : Adw.ApplicationWindow {
             title-widget: Adw.WindowTitle {
                 title: bind PlitkiWindow.title;
             };
+
+            [end]
+            ToggleButton settings_button {
+              icon-name: "document-properties-symbolic";
+            }
           }
 
           Overlay {
@@ -55,6 +60,8 @@ template PlitkiWindow : Adw.ApplicationWindow {
               vexpand: true;
               scroll-speed: 49;
               downscroll: true;
+
+              lane-width: bind lane_width_adjustment.value;
             };
 
             [overlay]
@@ -95,6 +102,42 @@ template PlitkiWindow : Adw.ApplicationWindow {
               layout {
                 measure: true;
               }
+            }
+
+            [overlay]
+            Revealer {
+              styles ["background"]
+
+              valign: start;
+              
+              reveal-child: bind settings_button.active;
+
+              layout {
+                measure: true;
+              }
+
+              child: Box {
+                margin-start: 12;
+                margin-end: 12;
+                margin-top: 6;
+                margin-bottom: 6;
+                spacing: 6;
+
+                Label {
+                  label: "Lane Width";
+                }
+
+                Scale {
+                  hexpand: true;
+
+                  adjustment: Adjustment lane_width_adjustment {
+                    lower: 0;
+                    upper: 1000;
+                    step-increment: 10;
+                    page-increment: 50;
+                  };
+                }
+              };
             }
           }
         };
