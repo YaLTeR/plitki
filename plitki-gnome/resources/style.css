@@ -21,3 +21,8 @@ plitki-judgement {
     margin: 12px;
     margin-bottom: 100px;
 }
+
+.hit-position {
+    min-height: 5px;
+    background-color: white;
+}
