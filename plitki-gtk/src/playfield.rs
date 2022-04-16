@@ -14,6 +14,7 @@ pub(crate) struct BoxedGameState(GameState);
 
 mod imp {
     use std::cell::{Cell, RefCell};
+    use std::collections::HashMap;
 
     use gtk::{graphene, gsk};
     use log::trace;
@@ -45,6 +46,7 @@ mod imp {
         scroll_speed: Cell<ScrollSpeed>,
         game_timestamp: Cell<GameTimestamp>,
         downscroll: Cell<bool>,
+        lane_width: Cell<i32>,
     }
 
     impl Default for Playfield {
@@ -55,6 +57,7 @@ mod imp {
                 scroll_speed: Cell::new(ScrollSpeed(30)),
                 game_timestamp: Cell::new(GameTimestamp::zero()),
                 downscroll: Default::default(),
+                lane_width: Cell::new(0),
             }
         }
     }
@@ -125,6 +128,15 @@ mod imp {
                         false,
                         glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
                     ),
+                    glib::ParamSpecInt::new(
+                        "lane-width",
+                        "",
+                        "",
+                        0,
+                        10_000,
+                        0,
+                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
+                    ),
                 ]
             });
             PROPERTIES.as_ref()
@@ -154,6 +166,7 @@ mod imp {
                     self.set_game_timestamp(timestamp);
                 }
                 "downscroll" => self.set_downscroll(value.get().unwrap()),
+                "lane-width" => self.set_lane_width(value.get().unwrap()),
                 _ => unimplemented!(),
             }
         }
@@ -167,6 +180,7 @@ mod imp {
                 "game-timestamp" => self.game_timestamp.get().into_milli_hundredths().to_value(),
                 "downscroll" => self.downscroll.get().to_value(),
                 "skin" => self.skin.borrow().to_value(),
+                "lane-width" => self.lane_width.get().to_value(),
                 _ => unimplemented!(),
             }
         }
@@ -369,6 +383,16 @@ mod imp {
                 let obj = self.instance();
                 obj.notify("scroll-speed");
                 obj.queue_allocate();
+            }
+        }
+
+        pub fn set_lane_width(&self, value: i32) {
+            if self.lane_width.get() != value {
+                self.lane_width.set(value);
+
+                let obj = self.instance();
+                obj.notify("lane-width");
+                obj.queue_resize();
             }
         }
 
@@ -588,6 +612,42 @@ mod imp {
             for (place, value) in state.lane_sizes.iter_mut().zip(lane_sizes) {
                 *place = value;
             }
+
+            self.scale_lane_nat_sizes(state);
+        }
+
+        fn scale_lane_nat_sizes(&self, state: &mut State) {
+            let lane_width = self.lane_width.get();
+            if lane_width == 0 {
+                // Lane width not set.
+                return;
+            }
+
+            // Count the number of lanes sized the same.
+            let mut nat_sizes = HashMap::with_capacity(state.lane_sizes.len());
+            for &(_, nat) in &state.lane_sizes {
+                *nat_sizes.entry(nat).or_insert(0) += 1;
+            }
+
+            // Find the most common non-zero lane size. This is the one we'll use for scaling.
+            let mut nat_sizes: Vec<_> = nat_sizes.into_iter().collect();
+            nat_sizes.sort_by_key(|&(_, count)| count);
+
+            match nat_sizes.into_iter().rev().find(|&(nat, _)| nat > 0) {
+                Some((most_common, _)) => {
+                    // Compute scale based on the most common nat lane size.
+                    let scale = lane_width as f64 / most_common as f64;
+                    for (min, nat) in &mut state.lane_sizes {
+                        *nat = ((*nat as f64 * scale).round() as i32).max(*min);
+                    }
+                }
+                None => {
+                    // All nat sizes were zero.
+                    for (min, nat) in &mut state.lane_sizes {
+                        *nat = lane_width.max(*min);
+                    }
+                }
+            }
         }
     }
 
@@ -681,6 +741,10 @@ impl Playfield {
 
     pub fn set_game_timestamp(&self, timestamp: GameTimestamp) {
         self.imp().set_game_timestamp(timestamp);
+    }
+
+    pub fn set_lane_width(&self, value: i32) {
+        self.imp().set_lane_width(value);
     }
 
     pub fn state(&self) -> Option<Ref<GameState>> {
