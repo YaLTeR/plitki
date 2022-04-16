@@ -98,6 +98,7 @@
                         <child>
                           <object class="GtkScale">
                             <property name="hexpand">true</property>
+                            <property name="draw-value">true</property>
                             <property name="adjustment">
                               <object class="GtkAdjustment">
                                 <property name="upper">255</property>
