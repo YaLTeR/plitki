@@ -57,6 +57,8 @@ mod imp {
         judgement: TemplateChild<Judgement>,
         #[template_child]
         pref_window: TemplateChild<adw::PreferencesWindow>,
+        #[template_child]
+        gameplay_window_title: TemplateChild<adw::WindowTitle>,
 
         statistics: RefCell<Statistics>,
 
@@ -225,6 +227,18 @@ mod imp {
                     return;
                 }
             };
+
+            let map = &state.immutable.map;
+            let title = match (&map.song_artist, &map.song_title) {
+                (None, None) => "Plitki".to_owned(),
+                (None, Some(title)) => title.clone(),
+                (Some(artist), None) => artist.clone(),
+                (Some(artist), Some(title)) => format!("{} - {}", artist, title),
+            };
+            self.gameplay_window_title.set_title(&title);
+
+            self.gameplay_window_title
+                .set_subtitle(map.difficulty_name.as_deref().unwrap_or(""));
 
             self.playfield.set_game_state(Some(state));
 

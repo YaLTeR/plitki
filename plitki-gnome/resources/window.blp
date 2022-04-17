@@ -50,9 +50,7 @@ template PlitkiWindow : Adw.ApplicationWindow {
           orientation: vertical;
 
           Adw.HeaderBar {
-            title-widget: Adw.WindowTitle {
-                title: bind PlitkiWindow.title;
-            };
+            title-widget: Adw.WindowTitle gameplay_window_title {};
 
             [end]
             Button {
