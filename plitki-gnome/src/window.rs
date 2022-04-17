@@ -55,6 +55,8 @@ mod imp {
         hit_error: TemplateChild<HitError>,
         #[template_child]
         judgement: TemplateChild<Judgement>,
+        #[template_child]
+        pref_window: TemplateChild<adw::PreferencesWindow>,
 
         statistics: RefCell<Statistics>,
 
@@ -75,6 +77,7 @@ mod imp {
 
         fn class_init(klass: &mut Self::Class) {
             Self::bind_template(klass);
+            Self::bind_template_callbacks(klass);
             Self::Type::bind_template_callbacks(klass);
         }
 
@@ -159,7 +162,13 @@ mod imp {
     impl ApplicationWindowImpl for Window {}
     impl AdwApplicationWindowImpl for Window {}
 
+    #[gtk::template_callbacks]
     impl Window {
+        #[template_callback]
+        fn open_preferences(&self) {
+            self.pref_window.present();
+        }
+
         pub async fn open_file(&self, file: &gio::File) {
             // Load the .qua.
             let (contents, _) = match file.load_contents_future().await {
