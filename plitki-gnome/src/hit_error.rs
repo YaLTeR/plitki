@@ -58,7 +58,7 @@ mod imp {
             _for_size: i32,
         ) -> (i32, i32, i32, i32) {
             let (min, nat) = match orientation {
-                gtk::Orientation::Horizontal => (2, 255),
+                gtk::Orientation::Horizontal => (2, 499),
                 gtk::Orientation::Vertical => (3, 32),
                 _ => unreachable!(),
             };
