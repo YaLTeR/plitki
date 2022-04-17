@@ -242,7 +242,7 @@ mod imp {
 
             self.playfield.set_game_state(Some(state));
 
-            self.stack.set_visible_child_name("content");
+            self.stack.set_visible_child_name("gameplay");
 
             let mut is_lane_pressed = self.is_lane_pressed.borrow_mut();
             *is_lane_pressed = [false; 7];
