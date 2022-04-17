@@ -203,6 +203,8 @@ pub struct Qua {
     pub creator: Option<String>,
     #[serde(rename = "DifficultyName")]
     pub difficulty_name: Option<String>,
+    #[serde(rename = "BackgroundFile")]
+    pub background_file: Option<String>,
     #[serde(rename = "AudioFile")]
     pub audio_file: Option<String>,
     #[serde(default, rename = "BPMDoesNotAffectScrollVelocity")]
@@ -545,6 +547,7 @@ impl From<Qua> for Map {
             song_artist: qua.artist,
             song_title: qua.title,
             difficulty_name: qua.difficulty_name,
+            background_file: qua.background_file,
             mapper: qua.creator,
             audio_file: qua.audio_file,
             timing_points: qua.timing_points.into_iter().map(Into::into).collect(),
@@ -570,6 +573,7 @@ impl From<Map> for Qua {
             artist: map.song_artist,
             title: map.song_title,
             difficulty_name: map.difficulty_name,
+            background_file: map.background_file,
             creator: map.mapper,
             audio_file: map.audio_file,
             bpm_does_not_affect_scroll_velocity: true,

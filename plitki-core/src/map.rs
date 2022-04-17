@@ -109,6 +109,8 @@ pub struct Map {
     pub difficulty_name: Option<String>,
     /// Mapper's name.
     pub mapper: Option<String>,
+    /// Filename of the background.
+    pub background_file: Option<String>,
 
     /// Filename of the audio track.
     pub audio_file: Option<String>,
@@ -272,6 +274,7 @@ mod tests {
             song_artist: None,
             song_title: None,
             difficulty_name: None,
+            background_file: None,
             mapper: None,
             audio_file: None,
             timing_points: Vec::new(),
@@ -360,6 +363,7 @@ mod tests {
             song_artist: None,
             song_title: None,
             difficulty_name: None,
+            background_file: None,
             mapper: None,
             audio_file: None,
             timing_points: Vec::new(),
@@ -382,6 +386,7 @@ mod tests {
             song_artist: None,
             song_title: None,
             difficulty_name: None,
+            background_file: None,
             mapper: None,
             audio_file: None,
             timing_points: Vec::new(),
@@ -410,6 +415,7 @@ mod tests {
             song_artist: None,
             song_title: None,
             difficulty_name: None,
+            background_file: None,
             mapper: None,
             audio_file: None,
             timing_points: vec![],
