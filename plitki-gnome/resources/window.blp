@@ -64,7 +64,7 @@ template PlitkiWindow : Adw.ApplicationWindow {
             vexpand: true;
 
             child: .PlitkiBackground map_background {
-              dim: 0.9;
+              dim: bind background_dim_adjustment.value;
             };
 
             [overlay]
@@ -197,6 +197,26 @@ Adw.PreferencesWindow pref_window {
             step-increment: 5;
             page-increment: 10;
             value: 49;
+          };
+        }
+      }
+    }
+
+    Adw.PreferencesGroup {
+      title: "Stage";
+
+      Adw.ActionRow {
+        title: "Background Dim";
+
+        Scale {
+          hexpand: true;
+
+          adjustment: Adjustment background_dim_adjustment {
+            lower: 0;
+            upper: 1;
+            step-increment: 0.1;
+            page-increment: 0.5;
+            value: 0.9;
           };
         }
       }
