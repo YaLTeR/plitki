@@ -4,6 +4,8 @@
 
 plitki-playfield {
     background-color: black;
+    border-left: 5px solid gray;
+    border-right: 5px solid gray;
 }
 
 plitki-accuracy {
@@ -24,5 +26,5 @@ plitki-judgement {
 
 .hit-position {
     min-height: 5px;
-    background-color: white;
+    background-color: gray;
 }
