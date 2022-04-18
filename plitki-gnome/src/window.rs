@@ -100,6 +100,8 @@ mod imp {
             self.playfield
                 .set_skin(Some(create_skin("/plitki-gnome/skin/arrows")));
 
+            self.pref_window.set_transient_for(Some(obj));
+
             // Set up the drop target.
             let drop_target = gtk::DropTarget::new(gio::File::static_type(), gdk::DragAction::COPY);
             drop_target.connect_drop(
