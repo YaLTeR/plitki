@@ -31,6 +31,7 @@ mod imp {
     use plitki_gtk::skin::{LaneSkin, Skin};
 
     use crate::accuracy::Accuracy;
+    use crate::background::Background;
     use crate::combo::Combo;
     use crate::hit_error::HitError;
     use crate::judgement::Judgement;
@@ -59,6 +60,8 @@ mod imp {
         pref_window: TemplateChild<adw::PreferencesWindow>,
         #[template_child]
         gameplay_window_title: TemplateChild<adw::WindowTitle>,
+        #[template_child]
+        map_background: TemplateChild<Background>,
 
         statistics: RefCell<Statistics>,
 
@@ -191,9 +194,11 @@ mod imp {
 
             let map: Map = qua.try_into().unwrap();
 
+            let map_dir = file.parent();
+
             // Load the audio file.
             let track = if let Some(name) = &map.audio_file {
-                if let Some(dir) = file.parent() {
+                if let Some(dir) = &map_dir {
                     let file = dir.child(name);
                     match file.load_contents_future().await {
                         Ok((contents, _)) => {
@@ -236,6 +241,14 @@ mod imp {
                 (Some(artist), Some(title)) => format!("{} - {}", artist, title),
             };
             self.gameplay_window_title.set_title(&title);
+
+            self.map_background.set_paintable(
+                map.background_file
+                    .as_deref()
+                    .zip(map_dir)
+                    .map(|(name, dir)| dir.child(name))
+                    .and_then(|file| gdk::Texture::from_file(&file).ok()),
+            );
 
             self.gameplay_window_title
                 .set_subtitle(map.difficulty_name.as_deref().unwrap_or(""));

@@ -61,9 +61,19 @@ template PlitkiWindow : Adw.ApplicationWindow {
           }
 
           Overlay {
-            child: Overlay {
+            vexpand: true;
+
+            child: .PlitkiBackground map_background {
+              dim: 0.9;
+            };
+
+            [overlay]
+            Overlay {
               halign: center;
-              vexpand: true;
+
+              layout {
+                measure: true;
+              }
 
               child: .PlitkiPlayfield playfield {
                 downscroll: true;
@@ -87,7 +97,7 @@ template PlitkiWindow : Adw.ApplicationWindow {
                   clip-overlay: true;
                 }
               }
-            };
+            }
 
             [overlay]
             .PlitkiCombo combo {

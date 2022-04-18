@@ -10,6 +10,7 @@ use crate::audio::AudioEngine;
 
 mod accuracy;
 mod audio;
+mod background;
 mod combo;
 mod hit_error;
 mod judgement;
