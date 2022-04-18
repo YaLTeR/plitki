@@ -221,5 +221,28 @@ Adw.PreferencesWindow pref_window {
         }
       }
     }
+
+    Adw.PreferencesGroup {
+      title: "Audio";
+
+      Adw.ActionRow {
+        title: "Device Offset";
+        subtitle: "Global audio offset in milliseconds";
+
+        SpinButton {
+          valign: center;
+
+          adjustment: Adjustment global_offset_adjustment {
+            lower: -300;
+            upper: 300;
+            step-increment: 1;
+            page-increment: 5;
+            value: -40;
+
+            value-changed => on_global_offset_changed() swapped;
+          };
+        }
+      }
+    }
   }
 }

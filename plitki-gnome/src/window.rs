@@ -62,6 +62,8 @@ mod imp {
         gameplay_window_title: TemplateChild<adw::WindowTitle>,
         #[template_child]
         map_background: TemplateChild<Background>,
+        #[template_child]
+        global_offset_adjustment: TemplateChild<gtk::Adjustment>,
 
         statistics: RefCell<Statistics>,
 
@@ -174,6 +176,16 @@ mod imp {
             self.pref_window.present();
         }
 
+        #[template_callback]
+        fn on_global_offset_changed(&self) {
+            if let Some(mut state) = self.playfield.state_mut() {
+                state.timestamp_converter.global_offset = GameTimestampDifference::from_millis(
+                    self.global_offset_adjustment.value() as i32,
+                );
+                self.playfield.queue_allocate();
+            }
+        }
+
         pub async fn open_file(&self, file: &gio::File) {
             // Load the .qua.
             let (contents, _) = match file.load_contents_future().await {
@@ -225,7 +237,7 @@ mod imp {
                 None
             };
 
-            let state = match GameState::new(map, GameTimestampDifference::from_millis(164)) {
+            let mut state = match GameState::new(map, GameTimestampDifference::from_millis(164)) {
                 Ok(x) => x,
                 Err(err) => {
                     warn!("map is invalid: {err:?}");
@@ -252,6 +264,9 @@ mod imp {
 
             self.gameplay_window_title
                 .set_subtitle(map.difficulty_name.as_deref().unwrap_or(""));
+
+            state.timestamp_converter.global_offset =
+                GameTimestampDifference::from_millis(self.global_offset_adjustment.value() as i32);
 
             self.playfield.set_game_state(Some(state));
 
