@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Install dependencies
         run: |
@@ -36,25 +36,20 @@ jobs:
           sudo apt-get install libasound2-dev libxxf86vm-dev libosmesa6-dev libssl-dev
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          override: true
-          toolchain: ${{ matrix.rust }}
+        run: |
+          rustup toolchain install ${{ matrix.rust }} --profile minimal
+          rustup override set ${{ matrix.rust }}
 
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
 
       - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: ${{ matrix.release-flag }} --workspace --exclude plitki-gtk --exclude plitki-gnome --exclude plitki-ui-wayland
+        run: cargo build ${{ matrix.release-flag }} --workspace --exclude plitki-gtk --exclude plitki-gnome --exclude plitki-ui-wayland
+
+      - name: Build Tests
+        run: cargo test --no-run ${{ matrix.release-flag }} --workspace --exclude plitki-gtk --exclude plitki-gnome --exclude plitki-ui-wayland
 
       - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: ${{ matrix.release-flag }} --workspace --exclude plitki-gtk --exclude plitki-gnome --exclude plitki-ui-wayland
+        run: cargo test ${{ matrix.release-flag }} --workspace --exclude plitki-gtk --exclude plitki-gnome --exclude plitki-ui-wayland -- --nocapture
 
   clippy:
     strategy:
@@ -64,7 +59,7 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Install dependencies
         run: |
@@ -72,37 +67,23 @@ jobs:
           sudo apt-get install libasound2-dev libxxf86vm-dev libosmesa6-dev libssl-dev
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          override: true
-          toolchain: stable
-          components: clippy
+        run: rustup toolchain install stable --profile minimal --component clippy
 
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
 
       - name: Run clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --workspace --exclude plitki-gtk --exclude plitki-gnome --exclude plitki-ui-wayland
+        run: cargo clippy --all-targets --workspace --exclude plitki-gtk --exclude plitki-gnome --exclude plitki-ui-wayland
 
   rustfmt:
     runs-on: ubuntu-20.04
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          override: true
-          toolchain: nightly
-          components: rustfmt
+        run: |
+          rustup toolchain install nightly --profile minimal --component rustfmt
+          rustup override set nightly
 
       - name: Run rustfmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: cargo fmt --all -- --check
