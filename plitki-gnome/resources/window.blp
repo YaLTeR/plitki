@@ -78,9 +78,9 @@ template PlitkiWindow : Adw.ApplicationWindow {
               child: .PlitkiPlayfield playfield {
                 downscroll: true;
 
-                scroll-speed: bind scroll_speed_adjustment.value;
-                lane-width: bind lane_width_adjustment.value;
-                hit-position: bind hit_position_adjustment.value;
+                scroll-speed: bind scroll_speed_adjustment.value bidirectional;
+                lane-width: bind lane_width_adjustment.value bidirectional;
+                hit-position: bind hit_position_adjustment.value bidirectional;
               };
 
               [overlay]
