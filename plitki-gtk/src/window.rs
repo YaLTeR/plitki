@@ -98,8 +98,8 @@ mod imp {
     }
 
     impl ObjectImpl for ApplicationWindow {
-        fn constructed(&self, obj: &Self::Type) {
-            self.parent_constructed(obj);
+        fn constructed(&self) {
+            self.parent_constructed();
 
             self.skin_arrows
                 .set(create_skin("/plitki-gtk/skin/arrows"))
@@ -221,7 +221,7 @@ mod imp {
 
         #[template_callback]
         fn on_play_pause_clicked(&self, button: gtk::Button) {
-            let obj = self.instance();
+            let obj = self.obj();
 
             let mut callback = self.tick_callback.borrow_mut();
             match callback.take() {
@@ -293,7 +293,7 @@ glib::wrapper! {
 #[gtk::template_callbacks]
 impl ApplicationWindow {
     pub fn new(app: &adw::Application) -> Self {
-        glib::Object::new(&[("application", app)]).unwrap()
+        glib::Object::builder().property("application", app).build()
     }
 
     fn open(&self, file: gio::File) -> anyhow::Result<()> {

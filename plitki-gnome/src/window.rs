@@ -17,7 +17,6 @@ mod imp {
 
     use adw::subclass::prelude::*;
     use gtk::prelude::*;
-    use gtk::subclass::prelude::*;
     use gtk::{gdk, gdk_pixbuf, CompositeTemplate};
     use once_cell::sync::Lazy;
     use once_cell::unsync::OnceCell;
@@ -94,13 +93,14 @@ mod imp {
     }
 
     impl ObjectImpl for Window {
-        fn constructed(&self, obj: &Self::Type) {
-            self.parent_constructed(obj);
+        fn constructed(&self) {
+            let obj = self.obj();
+            self.parent_constructed();
 
             self.playfield
                 .set_skin(Some(create_skin("/plitki-gnome/skin/arrows")));
 
-            self.pref_window.set_transient_for(Some(obj));
+            self.pref_window.set_transient_for(Some(&*obj));
 
             // Set up the drop target.
             let drop_target = gtk::DropTarget::new(gio::File::static_type(), gdk::DragAction::COPY);
@@ -149,13 +149,7 @@ mod imp {
             PROPERTIES.as_ref()
         }
 
-        fn set_property(
-            &self,
-            _obj: &Self::Type,
-            _id: usize,
-            value: &glib::Value,
-            pspec: &glib::ParamSpec,
-        ) {
+        fn set_property(&self, _id: usize, value: &glib::Value, pspec: &glib::ParamSpec) {
             match pspec.name() {
                 "audio-engine" => {
                     let value = value.get::<BoxedAudioEngine>().unwrap().0;
@@ -351,7 +345,7 @@ mod imp {
             if let Some(toast) = &*toast {
                 toast.set_title(&title);
             } else {
-                let obj = self.instance();
+                let obj = self.obj();
                 let new_toast = adw::Toast::new(&title);
                 new_toast.connect_dismissed(clone!(@weak obj => move |_| {
                     obj.imp().offset_toast.replace(None);
@@ -378,7 +372,7 @@ mod imp {
             if let Some(toast) = &*toast {
                 toast.set_title(&title);
             } else {
-                let obj = self.instance();
+                let obj = self.obj();
                 let new_toast = adw::Toast::new(&title);
                 new_toast.connect_dismissed(clone!(@weak obj => move |_| {
                     obj.imp().scroll_speed_toast.replace(None);
@@ -588,11 +582,10 @@ glib::wrapper! {
 #[gtk::template_callbacks]
 impl Window {
     pub fn new(app: &impl IsA<gtk::Application>, audio: Rc<AudioEngine>) -> Self {
-        glib::Object::new(&[
-            ("application", app),
-            ("audio-engine", &BoxedAudioEngine(audio)),
-        ])
-        .unwrap()
+        glib::Object::builder()
+            .property("application", app)
+            .property("audio-engine", &BoxedAudioEngine(audio))
+            .build()
     }
 
     pub fn open_file(&self, file: gio::File) {

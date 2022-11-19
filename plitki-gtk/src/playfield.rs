@@ -76,14 +76,14 @@ mod imp {
     }
 
     impl ObjectImpl for Playfield {
-        fn constructed(&self, obj: &Self::Type) {
-            self.parent_constructed(obj);
+        fn constructed(&self) {
+            self.parent_constructed();
 
-            obj.set_overflow(gtk::Overflow::Hidden);
+            self.obj().set_overflow(gtk::Overflow::Hidden);
         }
 
-        fn dispose(&self, obj: &Self::Type) {
-            while let Some(child) = obj.first_child() {
+        fn dispose(&self) {
+            while let Some(child) = self.obj().first_child() {
                 child.unparent();
             }
         }
@@ -153,13 +153,7 @@ mod imp {
             PROPERTIES.as_ref()
         }
 
-        fn set_property(
-            &self,
-            _obj: &Self::Type,
-            _id: usize,
-            value: &glib::Value,
-            pspec: &glib::ParamSpec,
-        ) {
+        fn set_property(&self, _id: usize, value: &glib::Value, pspec: &glib::ParamSpec) {
             match pspec.name() {
                 "game-state" => {
                     let value = value.get::<Option<BoxedGameState>>().unwrap();
@@ -183,7 +177,7 @@ mod imp {
             }
         }
 
-        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+        fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
             match pspec.name() {
                 "scroll-speed" => {
                     let speed: u32 = self.scroll_speed().0.into();
@@ -200,16 +194,11 @@ mod imp {
     }
 
     impl WidgetImpl for Playfield {
-        fn request_mode(&self, _widget: &Self::Type) -> gtk::SizeRequestMode {
+        fn request_mode(&self) -> gtk::SizeRequestMode {
             gtk::SizeRequestMode::ConstantSize
         }
 
-        fn measure(
-            &self,
-            _widget: &Self::Type,
-            orientation: gtk::Orientation,
-            for_size: i32,
-        ) -> (i32, i32, i32, i32) {
+        fn measure(&self, orientation: gtk::Orientation, for_size: i32) -> (i32, i32, i32, i32) {
             trace!("Playfield::measure({}, {})", orientation, for_size);
 
             match orientation {
@@ -252,7 +241,7 @@ mod imp {
             }
         }
 
-        fn size_allocate(&self, _obj: &Self::Type, width: i32, height: i32, _baseline: i32) {
+        fn size_allocate(&self, width: i32, height: i32, _baseline: i32) {
             trace!("Playfield::size_allocate({}, {})", width, height);
 
             let state = self.state.borrow();
@@ -293,15 +282,12 @@ mod imp {
                     y = height - y - widget_height;
                 }
 
-                let mut transform = gsk::Transform::new()
-                    .translate(&graphene::Point::new(0., y as f32))
-                    .unwrap();
+                let mut transform =
+                    gsk::Transform::new().translate(&graphene::Point::new(0., y as f32));
                 if downscroll {
                     transform = transform
                         .translate(&graphene::Point::new(0., widget_height as f32))
-                        .unwrap_or_default()
                         .scale(1., -1.)
-                        .unwrap();
                 }
 
                 widget.allocate(width, widget_height, -1, Some(&transform));
@@ -352,15 +338,12 @@ mod imp {
                         y = height - y - widget_height;
                     }
 
-                    let mut transform = gsk::Transform::new()
-                        .translate(&graphene::Point::new(x as f32, y as f32))
-                        .unwrap();
+                    let mut transform =
+                        gsk::Transform::new().translate(&graphene::Point::new(x as f32, y as f32));
                     if downscroll {
                         transform = transform
                             .translate(&graphene::Point::new(0., widget_height as f32))
-                            .unwrap_or_default()
                             .scale(1., -1.)
-                            .unwrap();
                     }
 
                     widget.allocate(lane_width, widget_height, -1, Some(&transform));
@@ -378,7 +361,7 @@ mod imp {
             if self.downscroll.get() != value {
                 self.downscroll.set(value);
 
-                let obj = self.instance();
+                let obj = self.obj();
                 obj.notify("downscroll");
                 obj.queue_allocate();
             }
@@ -394,7 +377,7 @@ mod imp {
 
                 self.update_ln_lengths();
 
-                let obj = self.instance();
+                let obj = self.obj();
                 obj.notify("scroll-speed");
                 obj.queue_allocate();
             }
@@ -404,7 +387,7 @@ mod imp {
             if self.lane_width.get() != value {
                 self.lane_width.set(value);
 
-                let obj = self.instance();
+                let obj = self.obj();
                 obj.notify("lane-width");
                 obj.queue_resize();
             }
@@ -414,7 +397,7 @@ mod imp {
             if self.hit_position.get() != value {
                 self.hit_position.set(value);
 
-                let obj = self.instance();
+                let obj = self.obj();
                 obj.notify("hit-position");
                 obj.queue_allocate();
             }
@@ -424,7 +407,7 @@ mod imp {
             if self.game_timestamp.get() != value {
                 self.game_timestamp.set(value);
 
-                let obj = self.instance();
+                let obj = self.obj();
                 obj.notify("game-timestamp");
 
                 let mut state = self.state.borrow_mut();
@@ -440,7 +423,7 @@ mod imp {
         }
 
         pub fn set_game_state(&self, value: Option<GameState>) {
-            let obj = &self.instance();
+            let obj = self.obj();
             obj.queue_resize();
 
             while let Some(child) = obj.first_child() {
@@ -463,7 +446,7 @@ mod imp {
                 .iter()
                 .map(|_| {
                     let widget = gtk::Separator::new(gtk::Orientation::Horizontal);
-                    widget.set_parent(obj);
+                    widget.set_parent(&*obj);
                     widget
                 })
                 .collect();
@@ -484,7 +467,7 @@ mod imp {
 
                     // Set parent in reverse to get the right draw order.
                     for widget in widgets.iter().rev() {
-                        widget.set_parent(obj);
+                        widget.set_parent(&*obj);
                     }
 
                     widgets
@@ -514,7 +497,7 @@ mod imp {
             let value_is_some = value.is_some();
             if self.skin.replace(value).is_some() || value_is_some {
                 self.update_skin();
-                self.instance().notify("skin");
+                self.obj().notify("skin");
             }
         }
 
@@ -740,7 +723,7 @@ glib::wrapper! {
 
 impl Playfield {
     pub fn new() -> Self {
-        glib::Object::new(&[]).unwrap()
+        glib::Object::builder().build()
     }
 
     pub fn set_game_state(&self, value: Option<GameState>) {

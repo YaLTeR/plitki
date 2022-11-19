@@ -37,7 +37,7 @@ fn main() {
     }
 }
 
-/// Copy of `gio::compile_resources()` that returns the dependency string.
+/// Copy of `glib_build_tools::compile_resources()` that returns the dependency string.
 ///
 /// We need this to filter out the Blueprint-generated `.ui` files from the output before passing it
 /// to `cargo:rerun-if-changed`. Otherwise cargo thinks they are always changed (since Blueprint

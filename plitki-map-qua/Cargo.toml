@@ -5,10 +5,10 @@ authors = ["Ivan Molodetskikh <yalterz@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_yaml = "0.8"
 plitki-core = { path = "../plitki-core" }
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
 
 [dev-dependencies]
-pretty_assertions = "0.6"
-proptest = "0.9"
+pretty_assertions = "1.3"
+proptest = "1.0"

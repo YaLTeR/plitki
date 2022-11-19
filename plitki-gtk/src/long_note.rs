@@ -46,17 +46,18 @@ mod imp {
     }
 
     impl ObjectImpl for LongNote {
-        fn constructed(&self, obj: &Self::Type) {
-            self.parent_constructed(obj);
+        fn constructed(&self) {
+            let obj = self.obj();
+            self.parent_constructed();
 
             // Set parent in case the properties weren't set during construction.
-            self.head.borrow().set_parent(obj);
-            self.tail.borrow().set_parent(obj);
-            self.body.borrow().set_parent(obj);
+            self.head.borrow().set_parent(&*obj);
+            self.tail.borrow().set_parent(&*obj);
+            self.body.borrow().set_parent(&*obj);
         }
 
-        fn dispose(&self, obj: &Self::Type) {
-            while let Some(child) = obj.first_child() {
+        fn dispose(&self) {
+            while let Some(child) = self.obj().first_child() {
                 child.unparent();
             }
         }
@@ -99,7 +100,7 @@ mod imp {
             PROPERTIES.as_ref()
         }
 
-        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+        fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
             match pspec.name() {
                 "head" => self.head().to_value(),
                 "tail" => self.tail().to_value(),
@@ -109,13 +110,7 @@ mod imp {
             }
         }
 
-        fn set_property(
-            &self,
-            _obj: &Self::Type,
-            _id: usize,
-            value: &glib::Value,
-            pspec: &glib::ParamSpec,
-        ) {
+        fn set_property(&self, _id: usize, value: &glib::Value, pspec: &glib::ParamSpec) {
             match pspec.name() {
                 "head" => self.set_head(value.get().unwrap()),
                 "tail" => self.set_tail(value.get().unwrap()),
@@ -127,17 +122,12 @@ mod imp {
     }
 
     impl WidgetImpl for LongNote {
-        fn request_mode(&self, _widget: &Self::Type) -> gtk::SizeRequestMode {
+        fn request_mode(&self) -> gtk::SizeRequestMode {
             gtk::SizeRequestMode::HeightForWidth
             // gtk::SizeRequestMode::WidthForHeight
         }
 
-        fn measure(
-            &self,
-            obj: &Self::Type,
-            orientation: gtk::Orientation,
-            for_size: i32,
-        ) -> (i32, i32, i32, i32) {
+        fn measure(&self, orientation: gtk::Orientation, for_size: i32) -> (i32, i32, i32, i32) {
             trace!("LongNote::measure({}, {})", orientation, for_size);
 
             let head = self.head.borrow();
@@ -164,7 +154,7 @@ mod imp {
 
                         // Use the measure property: when width increases, min height can stay or
                         // decrease. Loop from min_width up until we fit the given height.
-                        let min_width = self.measure(obj, gtk::Orientation::Horizontal, -1).0;
+                        let min_width = self.measure(gtk::Orientation::Horizontal, -1).0;
                         let min = (min_width..)
                             .find(|&width| self.height_for_width(width).0 <= height_to_fit)
                             .unwrap();
@@ -194,7 +184,7 @@ mod imp {
                         let min = self.height_for_width(width).0;
 
                         // Global nat height is the nat height for global nat width.
-                        let nat_width = self.measure(obj, gtk::Orientation::Horizontal, -1).1;
+                        let nat_width = self.measure(gtk::Orientation::Horizontal, -1).1;
                         let nat = self.height_for_width(nat_width).1;
 
                         trace!("returning global min height = {min}, nat = {nat}");
@@ -203,7 +193,7 @@ mod imp {
                         let width_to_fit = for_size;
 
                         // Loop over all widths and pick the lowest min height we can get.
-                        let min_width = self.measure(obj, gtk::Orientation::Horizontal, -1).0;
+                        let min_width = self.measure(gtk::Orientation::Horizontal, -1).0;
                         let min = (min_width..=width_to_fit)
                             .map(|width| self.height_for_width(width).0)
                             .min()
@@ -219,7 +209,7 @@ mod imp {
             }
         }
 
-        fn size_allocate(&self, obj: &Self::Type, width: i32, height: i32, _baseline: i32) {
+        fn size_allocate(&self, width: i32, height: i32, _baseline: i32) {
             trace!("LongNote::size_allocate({}, {})", width, height);
 
             let head = self.head.borrow();
@@ -233,7 +223,7 @@ mod imp {
             // We really want to allocate natural heights. Find the largest width that we can use
             // within the given allocation that still lets us use natural heights. Otherwise bail
             // out.
-            let min_width = self.measure(obj, gtk::Orientation::Horizontal, -1).0;
+            let min_width = self.measure(gtk::Orientation::Horizontal, -1).0;
             let width = match (min_width..=width)
                 .rev()
                 .find(|&width| self.height_for_width(width).1 <= height)
@@ -278,7 +268,9 @@ mod imp {
             }
         }
 
-        fn snapshot(&self, widget: &Self::Type, snapshot: &gtk::Snapshot) {
+        fn snapshot(&self, snapshot: &gtk::Snapshot) {
+            let widget = self.obj();
+
             let head = self.head.borrow();
             let head = &*head;
             let tail = self.tail.borrow();
@@ -290,7 +282,7 @@ mod imp {
                 widget.snapshot_child(body, snapshot);
             }
 
-            let bounds = tail.compute_bounds(widget).unwrap();
+            let bounds = tail.compute_bounds(&*widget).unwrap();
             snapshot.push_clip(&graphene::Rect::new(
                 bounds.x(),
                 (head.allocated_height() / 2) as f32,
@@ -324,10 +316,10 @@ mod imp {
                 return;
             }
 
-            let obj = self.instance();
+            let obj = self.obj();
 
             widget.add_css_class("head");
-            widget.set_parent(&obj);
+            widget.set_parent(&*obj);
 
             let old_widget = self.head.replace(widget);
             old_widget.unparent();
@@ -344,10 +336,10 @@ mod imp {
                 return;
             }
 
-            let obj = self.instance();
+            let obj = self.obj();
 
             widget.add_css_class("tail");
-            widget.set_parent(&obj);
+            widget.set_parent(&*obj);
 
             let old_widget = self.tail.replace(widget);
             old_widget.unparent();
@@ -364,10 +356,10 @@ mod imp {
                 return;
             }
 
-            let obj = self.instance();
+            let obj = self.obj();
 
             widget.add_css_class("body");
-            widget.set_parent(&obj);
+            widget.set_parent(&*obj);
 
             let old_widget = self.body.replace(widget);
             old_widget.unparent();
@@ -385,7 +377,7 @@ mod imp {
             if self.length.get().0 != length.0 {
                 self.length.set(length);
 
-                let obj = self.instance();
+                let obj = self.obj();
                 obj.notify("length");
                 obj.queue_resize();
             }
@@ -419,7 +411,7 @@ glib::wrapper! {
 
 impl LongNote {
     pub fn new() -> Self {
-        glib::Object::new(&[]).unwrap()
+        glib::Object::builder().build()
     }
 
     pub fn with_paintables(
@@ -427,16 +419,15 @@ impl LongNote {
         tail: &impl IsA<gdk::Paintable>,
         body: &impl IsA<gdk::Paintable>,
     ) -> Self {
-        glib::Object::new(&[
-            ("head", &gtk::Picture::for_paintable(head)),
-            ("tail", &gtk::Picture::for_paintable(tail)),
-            ("body", &{
+        glib::Object::builder()
+            .property("head", &gtk::Picture::for_paintable(head))
+            .property("tail", &gtk::Picture::for_paintable(tail))
+            .property("body", &{
                 let picture = gtk::Picture::for_paintable(body);
                 picture.set_keep_aspect_ratio(false);
                 picture
-            }),
-        ])
-        .unwrap()
+            })
+            .build()
     }
 
     pub fn with_widgets(
@@ -444,7 +435,11 @@ impl LongNote {
         tail: &impl IsA<gtk::Widget>,
         body: &impl IsA<gtk::Widget>,
     ) -> Self {
-        glib::Object::new(&[("head", head), ("tail", tail), ("body", body)]).unwrap()
+        glib::Object::builder()
+            .property("head", head)
+            .property("tail", tail)
+            .property("body", body)
+            .build()
     }
 
     pub fn head(&self) -> gtk::Widget {

@@ -38,24 +38,19 @@ mod imp {
     }
 
     impl ObjectImpl for Judgement {
-        fn constructed(&self, obj: &Self::Type) {
-            self.parent_constructed(obj);
+        fn constructed(&self) {
+            self.parent_constructed();
 
-            obj.set_overflow(gtk::Overflow::Hidden);
+            self.obj().set_overflow(gtk::Overflow::Hidden);
         }
     }
 
     impl WidgetImpl for Judgement {
-        fn request_mode(&self, _widget: &Self::Type) -> gtk::SizeRequestMode {
+        fn request_mode(&self) -> gtk::SizeRequestMode {
             gtk::SizeRequestMode::ConstantSize
         }
 
-        fn measure(
-            &self,
-            _widget: &Self::Type,
-            orientation: gtk::Orientation,
-            _for_size: i32,
-        ) -> (i32, i32, i32, i32) {
+        fn measure(&self, orientation: gtk::Orientation, _for_size: i32) -> (i32, i32, i32, i32) {
             let (min, nat) = match orientation {
                 gtk::Orientation::Horizontal => (1, 300),
                 gtk::Orientation::Vertical => (1, 100),
@@ -65,7 +60,9 @@ mod imp {
             (min, nat, -1, -1)
         }
 
-        fn snapshot(&self, widget: &Self::Type, snapshot: &gtk::Snapshot) {
+        fn snapshot(&self, snapshot: &gtk::Snapshot) {
+            let widget = self.obj();
+
             let hit = match self.last_hit.get() {
                 Some(x) => x,
                 None => return,
@@ -107,7 +104,7 @@ mod imp {
             }
 
             self.timestamp.set(timestamp);
-            self.instance().queue_draw();
+            self.obj().queue_draw();
         }
     }
 }
@@ -119,7 +116,7 @@ glib::wrapper! {
 
 impl Judgement {
     pub fn new() -> Self {
-        glib::Object::new(&[]).unwrap()
+        glib::Object::builder().build()
     }
 
     pub fn update(&self, timestamp: GameTimestamp, last_hit: Option<Hit>) {

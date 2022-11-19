@@ -39,10 +39,11 @@ mod imp {
     }
 
     impl ObjectImpl for Combo {
-        fn constructed(&self, obj: &Self::Type) {
-            self.parent_constructed(obj);
+        fn constructed(&self) {
+            self.parent_constructed();
 
-            obj.property_expression("combo")
+            self.obj()
+                .property_expression("combo")
                 .chain_closure::<String>(closure!(|_: Option<glib::Object>, combo: u32| {
                     format!("{combo}×")
                 }))
@@ -64,20 +65,14 @@ mod imp {
             PROPERTIES.as_ref()
         }
 
-        fn set_property(
-            &self,
-            _obj: &Self::Type,
-            _id: usize,
-            value: &glib::Value,
-            pspec: &glib::ParamSpec,
-        ) {
+        fn set_property(&self, _id: usize, value: &glib::Value, pspec: &glib::ParamSpec) {
             match pspec.name() {
                 "combo" => self.set_combo(value.get().unwrap()),
                 _ => unreachable!(),
             }
         }
 
-        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+        fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
             match pspec.name() {
                 "combo" => self.combo().to_value(),
                 _ => unreachable!(),
@@ -92,7 +87,7 @@ mod imp {
         pub fn set_combo(&self, value: u32) {
             if self.combo.get() != value {
                 self.combo.set(value);
-                self.instance().notify("combo");
+                self.obj().notify("combo");
             }
         }
 
@@ -109,7 +104,7 @@ glib::wrapper! {
 
 impl Combo {
     pub fn new() -> Self {
-        glib::Object::new(&[]).unwrap()
+        glib::Object::builder().build()
     }
 
     pub fn set_combo(&self, value: u32) {
