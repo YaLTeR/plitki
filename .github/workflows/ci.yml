@@ -41,6 +41,8 @@ jobs:
           rustup override set ${{ matrix.rust }}
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.configuration }}
 
       - name: Build
         run: cargo build ${{ matrix.release-flag }} --workspace --exclude plitki-gtk --exclude plitki-gnome --exclude plitki-ui-wayland
