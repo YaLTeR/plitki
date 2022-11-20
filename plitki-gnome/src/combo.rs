@@ -7,18 +7,29 @@ mod imp {
     use adw::subclass::prelude::*;
     use glib::closure;
     use gtk::prelude::*;
-    use gtk::CompositeTemplate;
+    use gtk::{graphene, CompositeTemplate};
     use once_cell::sync::Lazy;
 
     use super::*;
 
-    #[derive(Debug, Default, CompositeTemplate)]
+    #[derive(Debug, CompositeTemplate)]
     #[template(resource = "/plitki-gnome/combo.ui")]
     pub struct Combo {
         #[template_child]
         label: TemplateChild<gtk::Label>,
 
         combo: Cell<u32>,
+        scale: Cell<f32>,
+    }
+
+    impl Default for Combo {
+        fn default() -> Self {
+            Self {
+                label: Default::default(),
+                combo: Default::default(),
+                scale: Cell::new(1.),
+            }
+        }
     }
 
     #[glib::object_subclass]
@@ -52,9 +63,16 @@ mod imp {
 
         fn properties() -> &'static [glib::ParamSpec] {
             static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-                vec![glib::ParamSpecUInt::builder("combo")
-                    .explicit_notify()
-                    .build()]
+                vec![
+                    glib::ParamSpecUInt::builder("combo")
+                        .explicit_notify()
+                        .build(),
+                    glib::ParamSpecFloat::builder("scale")
+                        .minimum(0.)
+                        .default_value(1.)
+                        .explicit_notify()
+                        .build(),
+                ]
             });
             PROPERTIES.as_ref()
         }
@@ -62,6 +80,7 @@ mod imp {
         fn set_property(&self, _id: usize, value: &glib::Value, pspec: &glib::ParamSpec) {
             match pspec.name() {
                 "combo" => self.set_combo(value.get().unwrap()),
+                "scale" => self.set_scale(value.get().unwrap()),
                 _ => unreachable!(),
             }
         }
@@ -69,12 +88,36 @@ mod imp {
         fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
             match pspec.name() {
                 "combo" => self.combo().to_value(),
+                "scale" => self.scale().to_value(),
                 _ => unreachable!(),
             }
         }
     }
 
-    impl WidgetImpl for Combo {}
+    impl WidgetImpl for Combo {
+        fn snapshot(&self, snapshot: &gtk::Snapshot) {
+            let scale = self.scale.get();
+            if scale < 0.01 {
+                return;
+            }
+
+            let widget = self.obj();
+            let width = widget.width() as f32;
+            let height = widget.height() as f32;
+            let scaled_width = width * scale;
+            let scaled_height = height * scale;
+
+            snapshot.save();
+            snapshot.translate(&graphene::Point::new(
+                (width - scaled_width) / 2.,
+                (height - scaled_height) / 2.,
+            ));
+            snapshot.scale(scale, scale);
+            self.parent_snapshot(snapshot);
+            snapshot.restore();
+        }
+    }
+
     impl BinImpl for Combo {}
 
     impl Combo {
@@ -87,6 +130,18 @@ mod imp {
 
         pub fn combo(&self) -> u32 {
             self.combo.get()
+        }
+
+        pub fn set_scale(&self, value: f32) {
+            if self.scale.get() != value {
+                self.scale.set(value);
+                self.obj().notify("scale");
+                self.obj().queue_draw();
+            }
+        }
+
+        pub fn scale(&self) -> f32 {
+            self.scale.get()
         }
     }
 }
@@ -107,6 +162,14 @@ impl Combo {
 
     pub fn combo(&self) -> u32 {
         self.imp().combo()
+    }
+
+    pub fn set_scale(&self, value: f32) {
+        self.imp().set_scale(value);
+    }
+
+    pub fn scale(&self) -> f32 {
+        self.imp().scale()
     }
 }
 
