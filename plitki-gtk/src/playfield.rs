@@ -91,63 +91,36 @@ mod imp {
         fn properties() -> &'static [glib::ParamSpec] {
             static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
                 vec![
-                    glib::ParamSpecBoxed::new(
-                        "game-state",
-                        "",
-                        "",
-                        BoxedGameState::static_type(),
-                        glib::ParamFlags::WRITABLE | glib::ParamFlags::EXPLICIT_NOTIFY,
-                    ),
-                    glib::ParamSpecBoxed::new(
-                        "skin",
-                        "",
-                        "",
-                        Skin::static_type(),
-                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
-                    ),
-                    glib::ParamSpecUInt::new(
-                        "scroll-speed",
-                        "",
-                        "",
-                        0,
-                        255,
-                        30,
-                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
-                    ),
-                    glib::ParamSpecInt::new(
-                        "game-timestamp",
-                        "",
-                        "",
-                        -(2i32.pow(30)),
-                        2i32.pow(30) - 1,
-                        0,
-                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
-                    ),
-                    glib::ParamSpecBoolean::new(
-                        "downscroll",
-                        "",
-                        "",
-                        false,
-                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
-                    ),
-                    glib::ParamSpecInt::new(
-                        "lane-width",
-                        "",
-                        "",
-                        0,
-                        10_000,
-                        0,
-                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
-                    ),
-                    glib::ParamSpecInt::new(
-                        "hit-position",
-                        "",
-                        "",
-                        -10_000,
-                        10_000,
-                        0,
-                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
-                    ),
+                    glib::ParamSpecBoxed::builder::<BoxedGameState>("game-state")
+                        .write_only()
+                        .explicit_notify()
+                        .build(),
+                    glib::ParamSpecBoxed::builder::<Skin>("skin")
+                        .explicit_notify()
+                        .build(),
+                    glib::ParamSpecUInt::builder("scroll-speed")
+                        .maximum(255)
+                        .default_value(30)
+                        .explicit_notify()
+                        .build(),
+                    glib::ParamSpecInt::builder("game-timestamp")
+                        .minimum(-(2i32.pow(30)))
+                        .maximum(2i32.pow(30) - 1)
+                        .explicit_notify()
+                        .build(),
+                    glib::ParamSpecBoolean::builder("downscroll")
+                        .explicit_notify()
+                        .build(),
+                    glib::ParamSpecInt::builder("lane-width")
+                        .minimum(0)
+                        .maximum(10_000)
+                        .explicit_notify()
+                        .build(),
+                    glib::ParamSpecInt::builder("hit-position")
+                        .minimum(-10_000)
+                        .maximum(10_000)
+                        .explicit_notify()
+                        .build(),
                 ]
             });
             PROPERTIES.as_ref()

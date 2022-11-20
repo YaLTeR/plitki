@@ -65,36 +65,19 @@ mod imp {
         fn properties() -> &'static [glib::ParamSpec] {
             static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
                 vec![
-                    glib::ParamSpecObject::new(
-                        "head",
-                        "",
-                        "",
-                        gtk::Widget::static_type(),
-                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
-                    ),
-                    glib::ParamSpecObject::new(
-                        "tail",
-                        "",
-                        "",
-                        gtk::Widget::static_type(),
-                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
-                    ),
-                    glib::ParamSpecObject::new(
-                        "body",
-                        "",
-                        "",
-                        gtk::Widget::static_type(),
-                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
-                    ),
-                    glib::ParamSpecInt64::new(
-                        "length",
-                        "",
-                        "",
-                        0,
-                        i64::MAX,
-                        0,
-                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
-                    ),
+                    glib::ParamSpecObject::builder::<gtk::Widget>("head")
+                        .explicit_notify()
+                        .build(),
+                    glib::ParamSpecObject::builder::<gtk::Widget>("tail")
+                        .explicit_notify()
+                        .build(),
+                    glib::ParamSpecObject::builder::<gtk::Widget>("body")
+                        .explicit_notify()
+                        .build(),
+                    glib::ParamSpecInt64::builder("length")
+                        .minimum(0)
+                        .explicit_notify()
+                        .build(),
                 ]
             });
             PROPERTIES.as_ref()

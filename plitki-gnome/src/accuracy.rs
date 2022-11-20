@@ -52,15 +52,11 @@ mod imp {
 
         fn properties() -> &'static [glib::ParamSpec] {
             static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-                vec![glib::ParamSpecFloat::new(
-                    "accuracy",
-                    "",
-                    "",
-                    0.,
-                    100.,
-                    0.,
-                    glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
-                )]
+                vec![glib::ParamSpecFloat::builder("accuracy")
+                    .minimum(0.)
+                    .maximum(100.)
+                    .explicit_notify()
+                    .build()]
             });
             PROPERTIES.as_ref()
         }

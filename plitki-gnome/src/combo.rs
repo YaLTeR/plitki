@@ -52,15 +52,9 @@ mod imp {
 
         fn properties() -> &'static [glib::ParamSpec] {
             static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-                vec![glib::ParamSpecUInt::new(
-                    "combo",
-                    "",
-                    "",
-                    0,
-                    u32::MAX,
-                    0,
-                    glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
-                )]
+                vec![glib::ParamSpecUInt::builder("combo")
+                    .explicit_notify()
+                    .build()]
             });
             PROPERTIES.as_ref()
         }

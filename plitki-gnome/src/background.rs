@@ -47,22 +47,14 @@ mod imp {
         fn properties() -> &'static [glib::ParamSpec] {
             static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
                 vec![
-                    glib::ParamSpecObject::new(
-                        "paintable",
-                        "",
-                        "",
-                        gdk::Paintable::static_type(),
-                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
-                    ),
-                    glib::ParamSpecFloat::new(
-                        "dim",
-                        "",
-                        "",
-                        0.,
-                        1.,
-                        0.,
-                        glib::ParamFlags::READWRITE | glib::ParamFlags::EXPLICIT_NOTIFY,
-                    ),
+                    glib::ParamSpecObject::builder::<gdk::Paintable>("paintable")
+                        .explicit_notify()
+                        .build(),
+                    glib::ParamSpecFloat::builder("dim")
+                        .minimum(0.)
+                        .maximum(1.)
+                        .explicit_notify()
+                        .build(),
                 ]
             });
             PROPERTIES.as_ref()

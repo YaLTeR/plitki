@@ -137,13 +137,12 @@ mod imp {
 
         fn properties() -> &'static [glib::ParamSpec] {
             static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-                vec![glib::ParamSpecBoxed::new(
-                    "audio-engine",
-                    "",
-                    "",
-                    BoxedAudioEngine::static_type(),
-                    glib::ParamFlags::WRITABLE | glib::ParamFlags::CONSTRUCT_ONLY,
-                )]
+                vec![
+                    glib::ParamSpecBoxed::builder::<BoxedAudioEngine>("audio-engine")
+                        .write_only()
+                        .construct_only()
+                        .build(),
+                ]
             });
 
             PROPERTIES.as_ref()
