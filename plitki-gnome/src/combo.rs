@@ -5,10 +5,11 @@ mod imp {
     use std::cell::Cell;
 
     use adw::subclass::prelude::*;
+    use adw::traits::AnimationExt;
     use glib::closure;
     use gtk::prelude::*;
     use gtk::{graphene, CompositeTemplate};
-    use once_cell::sync::Lazy;
+    use once_cell::sync::{Lazy, OnceCell};
 
     use super::*;
 
@@ -18,6 +19,8 @@ mod imp {
         #[template_child]
         label: TemplateChild<gtk::Label>,
 
+        scale_anim: OnceCell<adw::TimedAnimation>,
+
         combo: Cell<u32>,
         scale: Cell<f32>,
     }
@@ -26,6 +29,7 @@ mod imp {
         fn default() -> Self {
             Self {
                 label: Default::default(),
+                scale_anim: Default::default(),
                 combo: Default::default(),
                 scale: Cell::new(1.),
             }
@@ -51,14 +55,19 @@ mod imp {
 
     impl ObjectImpl for Combo {
         fn constructed(&self) {
+            let obj = self.obj();
             self.parent_constructed();
 
-            self.obj()
-                .property_expression("combo")
+            obj.property_expression("combo")
                 .chain_closure::<String>(closure!(|_: Option<glib::Object>, combo: u32| {
                     format!("{combo}×")
                 }))
                 .bind(&*self.label, "label", None::<&Self::Type>);
+
+            let target = adw::PropertyAnimationTarget::new(&*obj, "scale");
+            let scale_anim = adw::TimedAnimation::new(&*obj, 1.3, 1., 200, &target);
+            scale_anim.set_easing(adw::Easing::Linear);
+            self.scale_anim.set(scale_anim).unwrap();
         }
 
         fn properties() -> &'static [glib::ParamSpec] {
@@ -125,6 +134,10 @@ mod imp {
             if self.combo.get() != value {
                 self.combo.set(value);
                 self.obj().notify("combo");
+
+                if value != 0 {
+                    self.scale_anim.get().unwrap().play();
+                }
             }
         }
 

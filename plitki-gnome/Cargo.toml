@@ -5,7 +5,7 @@ authors = ["Ivan Molodetskikh <yalterz@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-adw = { version = "0.2.0", package = "libadwaita" }
+adw = { version = "0.2.0", package = "libadwaita", features = ["v1_2"] }
 anyhow = "1.0.66"
 crossbeam-channel = "0.5.6"
 glib = { version = "0.16.3", features = ["log", "log_macros"] }
