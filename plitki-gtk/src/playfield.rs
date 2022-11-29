@@ -95,7 +95,7 @@ mod imp {
                         .write_only()
                         .explicit_notify()
                         .build(),
-                    glib::ParamSpecBoxed::builder::<Skin>("skin")
+                    glib::ParamSpecObject::builder::<Skin>("skin")
                         .explicit_notify()
                         .build(),
                     glib::ParamSpecUInt::builder("scroll-speed")
@@ -523,7 +523,8 @@ mod imp {
                 .enumerate()
                 .zip(&state.objects)
             {
-                let lane_skin = store.map(|s| s.get(lane_count, lane));
+                let lane_skin = store.as_ref().map(|s| s.get(lane_count, lane).clone());
+                let lane_skin = lane_skin.as_ref();
 
                 for (obj_state, widget) in lane_state.object_states.iter().zip(widgets) {
                     match obj_state {

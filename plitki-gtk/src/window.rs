@@ -18,7 +18,7 @@ mod imp {
     use super::*;
     use crate::long_note::LongNote;
     use crate::playfield::Playfield;
-    use crate::skin::{LaneSkin, Skin, Store};
+    use crate::skin::{LaneSkin, Skin};
 
     fn create_skin(path: &str) -> Skin {
         let load_texture = |path: &str| {
@@ -32,7 +32,8 @@ mod imp {
             )
         };
 
-        let mut store = Store::new();
+        let skin = Skin::new();
+        let mut store = skin.store_mut();
 
         let mut element = Vec::new();
         for lane in 0..4 {
@@ -60,7 +61,8 @@ mod imp {
         }
         store.insert(7, element);
 
-        Skin::new(store)
+        drop(store);
+        skin
     }
 
     #[derive(Debug, Default, CompositeTemplate)]
@@ -170,10 +172,12 @@ mod imp {
         }
 
         fn set_skin(&self, skin: Skin) {
-            let lane_skin = skin.store().get(4, 0);
+            let store = skin.store();
+            let lane_skin = store.get(4, 0);
             self.long_note.set_head_paintable(Some(&lane_skin.ln_head));
             self.long_note.set_tail_paintable(Some(&lane_skin.ln_tail));
             self.long_note.set_body_paintable(Some(&lane_skin.ln_body));
+            drop(store);
 
             self.playfield.set_skin(Some(skin));
 

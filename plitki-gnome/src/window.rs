@@ -540,7 +540,8 @@ mod imp {
             )
         };
 
-        let mut store = plitki_gtk::skin::Store::new();
+        let skin = Skin::new();
+        let mut store = skin.store_mut();
 
         let mut element = Vec::new();
         for lane in 0..4 {
@@ -568,7 +569,8 @@ mod imp {
         }
         store.insert(7, element);
 
-        Skin::new(store)
+        drop(store);
+        skin
     }
 }
 

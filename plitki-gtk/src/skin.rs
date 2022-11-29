@@ -1,6 +1,7 @@
+use std::cell::{Ref, RefMut};
 use std::collections::HashMap;
-use std::rc::Rc;
 
+use glib::subclass::prelude::*;
 use gtk::gdk;
 
 #[derive(Debug, Clone)]
@@ -48,16 +49,56 @@ impl Default for Store {
     }
 }
 
-#[derive(Debug, Clone, glib::SharedBoxed)]
-#[shared_boxed_type(nullable, name = "PlitkiSkin")]
-pub struct Skin(Rc<Store>);
+mod imp {
+    use std::cell::RefCell;
 
-impl Skin {
-    pub fn new(store: Store) -> Self {
-        Self(Rc::new(store))
+    use super::*;
+
+    #[derive(Debug, Default)]
+    pub struct Skin {
+        store: RefCell<Store>,
     }
 
-    pub fn store(&self) -> &Store {
-        &self.0
+    #[glib::object_subclass]
+    impl ObjectSubclass for Skin {
+        const NAME: &'static str = "PlitkiSkin";
+        type Type = super::Skin;
+        type ParentType = glib::Object;
+    }
+
+    impl ObjectImpl for Skin {}
+
+    impl Skin {
+        pub fn store(&self) -> Ref<'_, Store> {
+            self.store.borrow()
+        }
+
+        pub fn store_mut(&self) -> RefMut<'_, Store> {
+            self.store.borrow_mut()
+        }
+    }
+}
+
+glib::wrapper! {
+    pub struct Skin(ObjectSubclass<imp::Skin>);
+}
+
+impl Skin {
+    pub fn new() -> Self {
+        glib::Object::builder().build()
+    }
+
+    pub fn store(&self) -> Ref<'_, Store> {
+        self.imp().store()
+    }
+
+    pub fn store_mut(&self) -> RefMut<'_, Store> {
+        self.imp().store_mut()
+    }
+}
+
+impl Default for Skin {
+    fn default() -> Self {
+        Self::new()
     }
 }
