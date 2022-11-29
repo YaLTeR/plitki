@@ -540,7 +540,7 @@ mod imp {
             )
         };
 
-        let skin = Skin::new();
+        let skin = Skin::new(None);
         let mut store = skin.store_mut();
 
         let mut element = Vec::new();

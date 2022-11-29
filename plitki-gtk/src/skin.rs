@@ -52,11 +52,15 @@ impl Default for Store {
 mod imp {
     use std::cell::RefCell;
 
+    use glib::prelude::*;
+    use once_cell::sync::Lazy;
+
     use super::*;
 
     #[derive(Debug, Default)]
     pub struct Skin {
         store: RefCell<Store>,
+        name: RefCell<Option<String>>,
     }
 
     #[glib::object_subclass]
@@ -66,7 +70,33 @@ mod imp {
         type ParentType = glib::Object;
     }
 
-    impl ObjectImpl for Skin {}
+    impl ObjectImpl for Skin {
+        fn properties() -> &'static [glib::ParamSpec] {
+            static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
+                vec![glib::ParamSpecString::builder("name")
+                    .explicit_notify()
+                    .build()]
+            });
+            PROPERTIES.as_ref()
+        }
+
+        fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+            match pspec.name() {
+                "name" => self.name().to_value(),
+                _ => unreachable!(),
+            }
+        }
+
+        fn set_property(&self, _id: usize, value: &glib::Value, pspec: &glib::ParamSpec) {
+            match pspec.name() {
+                "name" => {
+                    let value: Option<String> = value.get().unwrap();
+                    self.set_name(value);
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
 
     impl Skin {
         pub fn store(&self) -> Ref<'_, Store> {
@@ -76,6 +106,19 @@ mod imp {
         pub fn store_mut(&self) -> RefMut<'_, Store> {
             self.store.borrow_mut()
         }
+
+        pub fn name(&self) -> Ref<'_, Option<String>> {
+            self.name.borrow()
+        }
+
+        pub fn set_name(&self, value: Option<String>) {
+            if *self.name.borrow() == value {
+                return;
+            }
+
+            self.name.replace(value);
+            self.obj().notify("name");
+        }
     }
 }
 
@@ -84,8 +127,8 @@ glib::wrapper! {
 }
 
 impl Skin {
-    pub fn new() -> Self {
-        glib::Object::builder().build()
+    pub fn new(name: Option<String>) -> Self {
+        glib::Object::builder().property("name", name).build()
     }
 
     pub fn store(&self) -> Ref<'_, Store> {
@@ -95,10 +138,12 @@ impl Skin {
     pub fn store_mut(&self) -> RefMut<'_, Store> {
         self.imp().store_mut()
     }
-}
 
-impl Default for Skin {
-    fn default() -> Self {
-        Self::new()
+    pub fn name(&self) -> Ref<'_, Option<String>> {
+        self.imp().name()
+    }
+
+    pub fn set_name(&self, value: Option<String>) {
+        self.imp().set_name(value)
     }
 }
