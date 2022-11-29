@@ -15,8 +15,8 @@ pub(crate) struct BoxedAudioEngine(Rc<AudioEngine>);
 mod imp {
     use std::io::Cursor;
 
+    use adw::prelude::*;
     use adw::subclass::prelude::*;
-    use gtk::prelude::*;
     use gtk::{gdk, gdk_pixbuf, CompositeTemplate};
     use once_cell::sync::Lazy;
     use once_cell::unsync::OnceCell;
@@ -63,6 +63,8 @@ mod imp {
         map_background: TemplateChild<Background>,
         #[template_child]
         global_offset_adjustment: TemplateChild<gtk::Adjustment>,
+        #[template_child]
+        skin_combo_row: TemplateChild<adw::ComboRow>,
 
         statistics: RefCell<Statistics>,
 
@@ -97,8 +99,19 @@ mod imp {
             let obj = self.obj();
             self.parent_constructed();
 
-            self.playfield
-                .set_skin(Some(create_skin("/plitki-gnome/skin/arrows")));
+            let skin_model = gio::ListStore::new(Skin::static_type());
+            skin_model.extend_from_slice(&[
+                create_skin("Arrows", "/plitki-gnome/skin/arrows"),
+                create_skin("Bars", "/plitki-gnome/skin/bars"),
+                create_skin("Circles", "/plitki-gnome/skin/circles"),
+            ]);
+            self.skin_combo_row
+                .set_expression(Some(gtk::PropertyExpression::new(
+                    Skin::static_type(),
+                    None::<&gtk::Expression>,
+                    "name",
+                )));
+            self.skin_combo_row.set_model(Some(&skin_model));
 
             self.pref_window.set_transient_for(Some(&*obj));
 
@@ -528,7 +541,7 @@ mod imp {
         }
     }
 
-    fn create_skin(path: &str) -> Skin {
+    fn create_skin(name: &str, path: &str) -> Skin {
         let load_texture = |path: &str| {
             // We're loading Quaver textures which are flipped with regards to what our widgets
             // expect.
@@ -540,7 +553,7 @@ mod imp {
             )
         };
 
-        let skin = Skin::new(None);
+        let skin = Skin::new(Some(name.to_owned()));
         let mut store = skin.store_mut();
 
         let mut element = Vec::new();

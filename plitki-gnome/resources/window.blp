@@ -81,6 +81,7 @@ template PlitkiWindow : Adw.ApplicationWindow {
                 scroll-speed: bind scroll_speed_adjustment.value bidirectional;
                 lane-width: bind lane_width_adjustment.value bidirectional;
                 hit-position: bind hit_position_adjustment.value bidirectional;
+                skin: bind skin_combo_row.selected-item;
               };
 
               [overlay]
@@ -152,6 +153,10 @@ Adw.PreferencesWindow pref_window {
   Adw.PreferencesPage {
     Adw.PreferencesGroup {
       title: "Playfield";
+
+      Adw.ComboRow skin_combo_row {
+        title: "Skin";
+      }
 
       Adw.ActionRow {
         title: "Lane Width";
