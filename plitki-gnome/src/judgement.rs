@@ -4,9 +4,9 @@ use plitki_core::state::Hit;
 use plitki_core::timing::GameTimestamp;
 
 mod imp {
-    use gtk::prelude::*;
     use std::cell::Cell;
 
+    use gtk::prelude::*;
     use gtk::{gdk, graphene};
 
     use super::*;

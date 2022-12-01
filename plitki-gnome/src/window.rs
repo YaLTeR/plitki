@@ -1,4 +1,3 @@
-use crate::audio::AudioEngine;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -7,6 +6,8 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gio, glib};
 use log::warn;
+
+use crate::audio::AudioEngine;
 
 #[derive(Debug, Clone, glib::SharedBoxed)]
 #[shared_boxed_type(name = "BoxedAudioEngine")]
@@ -29,6 +30,7 @@ mod imp {
     use plitki_gtk::playfield::Playfield;
     use plitki_gtk::skin::{LaneSkin, Skin};
 
+    use super::*;
     use crate::accuracy::Accuracy;
     use crate::background::Background;
     use crate::combo::Combo;
@@ -36,8 +38,6 @@ mod imp {
     use crate::hit_light::HitLight;
     use crate::judgement::Judgement;
     use crate::statistics::Statistics;
-
-    use super::*;
 
     #[derive(Debug, Default, CompositeTemplate)]
     #[template(resource = "/plitki-gnome/window.ui")]

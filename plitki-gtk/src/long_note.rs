@@ -11,9 +11,8 @@ mod imp {
     use once_cell::sync::Lazy;
     use plitki_core::scroll::ScreenPositionDifference;
 
-    use crate::utils::to_pixels;
-
     use super::*;
+    use crate::utils::to_pixels;
 
     #[derive(Debug)]
     pub struct LongNote {

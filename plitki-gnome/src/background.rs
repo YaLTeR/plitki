@@ -4,10 +4,10 @@ use gtk::subclass::prelude::*;
 use gtk::{gdk, glib};
 
 mod imp {
-    use once_cell::sync::Lazy;
     use std::cell::{Cell, RefCell};
 
     use gtk::graphene;
+    use once_cell::sync::Lazy;
 
     use super::*;
 

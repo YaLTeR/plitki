@@ -1,12 +1,13 @@
 use std::cell::{Ref, RefMut};
 
-use crate::skin::Skin;
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use plitki_core::scroll::ScrollSpeed;
 use plitki_core::state::GameState;
 use plitki_core::timing::GameTimestamp;
+
+use crate::skin::Skin;
 
 #[derive(Debug, Clone, glib::Boxed)]
 #[boxed_type(nullable, name = "BoxedGameState")]

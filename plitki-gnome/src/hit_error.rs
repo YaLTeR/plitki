@@ -4,11 +4,11 @@ use plitki_core::state::Hit;
 use plitki_core::timing::GameTimestamp;
 
 mod imp {
-    use gtk::prelude::*;
-    use plitki_core::timing::GameTimestampDifference;
     use std::cell::{Cell, RefCell};
 
+    use gtk::prelude::*;
     use gtk::{gdk, graphene};
+    use plitki_core::timing::GameTimestampDifference;
 
     use super::*;
 
