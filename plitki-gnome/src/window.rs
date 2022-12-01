@@ -105,8 +105,8 @@ mod imp {
 
             let skin_model = gio::ListStore::new(Skin::static_type());
             skin_model.extend_from_slice(&[
-                create_skin("Arrows", "/plitki-gnome/skin/arrows"),
                 create_skin("Bars", "/plitki-gnome/skin/bars"),
+                create_skin("Arrows", "/plitki-gnome/skin/arrows"),
                 create_skin("Circles", "/plitki-gnome/skin/circles"),
             ]);
             self.skin_combo_row
