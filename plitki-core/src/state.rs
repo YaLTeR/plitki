@@ -652,7 +652,7 @@ impl GameState {
         lane_state.first_active_object < lane_state.object_states.len()
     }
 
-    /// Updates the state.
+    /// Updates the state for all lanes.
     ///
     /// Essentially, this is a way to signal "some time has passed". Stuff like missed objects is
     /// handled here. This should be called every so often for all lanes.
@@ -698,9 +698,39 @@ impl GameState {
 
     /// Updates the state for `lane`.
     ///
+    /// Essentially, this is a way to signal "some time has passed". Stuff like missed objects is
+    /// handled here. This should be called every so often for all lanes.
+    ///
     /// This function processes and returns events one by one. To use `update_lane()` correctly, you
     /// must call it in a loop until it returns `None`.
-    fn update_lane(&mut self, lane: usize, timestamp: GameTimestamp) -> Option<Event> {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use plitki_core::map::{Lane, Map};
+    /// # use plitki_core::scroll::ScrollSpeedMultiplier;
+    /// # use plitki_core::state::GameState;
+    /// # use plitki_core::timing::{GameTimestamp, GameTimestampDifference};
+    /// # let map = Map {
+    /// #     song_artist: None,
+    /// #     song_title: None,
+    /// #     difficulty_name: None,
+    /// #     background_file: None,
+    /// #     mapper: None,
+    /// #     audio_file: None,
+    /// #     timing_points: vec![],
+    /// #     scroll_speed_changes: vec![],
+    /// #     initial_scroll_speed_multiplier: ScrollSpeedMultiplier::new(0),
+    /// #     lanes: vec![Lane { objects: vec![] }],
+    /// # };
+    /// # let mut state = GameState::new(map, GameTimestampDifference::from_millis(0)).unwrap();
+    /// # let timestamp = GameTimestamp::from_millis(0);
+    /// # let lane = 0;
+    /// while let Some(event) = state.update_lane(lane, timestamp) {
+    ///     // Handle event.
+    /// }
+    /// ```
+    pub fn update_lane(&mut self, lane: usize, timestamp: GameTimestamp) -> Option<Event> {
         if !self.has_active_objects(lane) {
             return None;
         }
