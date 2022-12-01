@@ -31,6 +31,7 @@ mod imp {
         game: GameState,
         objects: Vec<Vec<gtk::Widget>>,
         timing_lines: Vec<gtk::Separator>,
+        hit_lights: Vec<gtk::Widget>,
         map_position: Position,
 
         /// Cached min and nat widths for each lane.
@@ -48,6 +49,7 @@ mod imp {
         downscroll: Cell<bool>,
         lane_width: Cell<i32>,
         hit_position: Cell<i32>,
+        hit_light_widget_type: Cell<glib::Type>,
     }
 
     impl Default for Playfield {
@@ -60,6 +62,7 @@ mod imp {
                 downscroll: Default::default(),
                 lane_width: Cell::new(0),
                 hit_position: Cell::new(0),
+                hit_light_widget_type: Cell::new(gtk::Picture::static_type()),
             }
         }
     }
@@ -121,6 +124,10 @@ mod imp {
                         .maximum(10_000)
                         .explicit_notify()
                         .build(),
+                    glib::ParamSpecGType::builder("hit-light-widget-type")
+                        .is_a_type(gtk::Widget::static_type())
+                        .explicit_notify()
+                        .build(),
                 ]
             });
             PROPERTIES.as_ref()
@@ -146,6 +153,7 @@ mod imp {
                 "downscroll" => self.set_downscroll(value.get().unwrap()),
                 "lane-width" => self.set_lane_width(value.get().unwrap()),
                 "hit-position" => self.set_hit_position(value.get().unwrap()),
+                "hit-light-widget-type" => self.set_hit_light_widget_type(value.get().unwrap()),
                 _ => unimplemented!(),
             }
         }
@@ -161,6 +169,7 @@ mod imp {
                 "skin" => self.skin.borrow().to_value(),
                 "lane-width" => self.lane_width.get().to_value(),
                 "hit-position" => self.hit_position.get().to_value(),
+                "hit-light-widget-type" => self.hit_light_widget_type.get().to_value(),
                 _ => unimplemented!(),
             }
         }
@@ -269,13 +278,14 @@ mod imp {
             let mut x = 0;
             let lane_widths = compute_lane_widths(state, width);
 
-            for (((cache, lane_state), widgets), lane_width) in state
+            for ((((cache, lane_state), widgets), hit_light), lane_width) in state
                 .game
                 .immutable
                 .lane_caches
                 .iter()
                 .zip(&state.game.lane_states)
                 .zip(&state.objects)
+                .zip(&state.hit_lights)
                 .zip(lane_widths)
             {
                 for ((cache, obj_state), widget) in cache
@@ -320,6 +330,29 @@ mod imp {
                     }
 
                     widget.allocate(lane_width, widget_height, -1, Some(&transform));
+                }
+
+                // Allocate the hit light.
+                {
+                    // Our width is guaranteed to fit the hit lights because we considered them in
+                    // measure().
+                    let hit_light_height =
+                        hit_light.measure(gtk::Orientation::Vertical, lane_width).1;
+
+                    let mut y = hit_position - hit_light_height;
+                    if downscroll {
+                        y = height - y - hit_light_height;
+                    }
+
+                    let mut transform =
+                        gsk::Transform::new().translate(&graphene::Point::new(x as f32, y as f32));
+                    if downscroll {
+                        transform = transform
+                            .translate(&graphene::Point::new(0., hit_light_height as f32))
+                            .scale(1., -1.)
+                    }
+
+                    hit_light.allocate(lane_width, hit_light_height, -1, Some(&transform));
                 }
 
                 x += lane_width;
@@ -447,6 +480,23 @@ mod imp {
                 })
                 .collect();
 
+            let hit_lights = game
+                .immutable
+                .lane_caches
+                .iter()
+                .map(|_| {
+                    let hit_light_type = self.hit_light_widget_type.get();
+                    let widget: gtk::Widget = glib::Object::builder_with_type(hit_light_type)
+                        .build()
+                        .downcast()
+                        .expect(
+                            "hit-light-widget-type must prevent non-Widget types from being set",
+                        );
+                    widget.set_parent(&*obj);
+                    widget
+                })
+                .collect();
+
             let map_position =
                 game.position_at_time(self.game_timestamp.get().to_map(&game.timestamp_converter));
 
@@ -455,6 +505,7 @@ mod imp {
                 game,
                 objects,
                 timing_lines,
+                hit_lights,
                 map_position,
             };
 
@@ -471,6 +522,14 @@ mod imp {
             if self.skin.replace(value).is_some() || value_is_some {
                 self.update_skin();
                 self.obj().notify("skin");
+            }
+        }
+
+        pub fn set_hit_light_widget_type(&self, value: glib::Type) {
+            if self.hit_light_widget_type.get() != value {
+                self.hit_light_widget_type.set(value);
+                self.obj().notify("hit-light-widget-type");
+                // TODO: rebuild hit light widgets.
             }
         }
 
@@ -502,6 +561,10 @@ mod imp {
             } else {
                 None
             }
+        }
+
+        pub fn hit_light_for_lane(&self, column: usize) -> gtk::Widget {
+            self.state.borrow().as_ref().unwrap().hit_lights[column].clone()
         }
 
         fn update_skin(&self) {
@@ -590,7 +653,18 @@ mod imp {
                     })
             });
 
-            for (place, value) in state.lane_sizes.iter_mut().zip(lane_sizes) {
+            let hit_light_sizes = state
+                .hit_lights
+                .iter()
+                .map(|widget| widget.measure(gtk::Orientation::Horizontal, -1).0);
+
+            let sizes = lane_sizes
+                .zip(hit_light_sizes)
+                .map(|((min_lane, nat_lane), min_light)| {
+                    (min_lane.max(min_light), nat_lane.max(min_light))
+                });
+
+            for (place, value) in state.lane_sizes.iter_mut().zip(sizes) {
                 *place = value;
             }
 
@@ -728,12 +802,20 @@ impl Playfield {
         self.imp().set_lane_width(value);
     }
 
+    pub fn set_hit_light_widget_type(&self, value: glib::Type) {
+        self.imp().set_hit_light_widget_type(value);
+    }
+
     pub fn state(&self) -> Option<Ref<GameState>> {
         self.imp().game_state()
     }
 
     pub fn state_mut(&self) -> Option<RefMut<GameState>> {
         self.imp().game_state_mut()
+    }
+
+    pub fn hit_light_for_lane(&self, lane: usize) -> gtk::Widget {
+        self.imp().hit_light_for_lane(lane)
     }
 
     pub fn update_ln_lengths(&self) {
