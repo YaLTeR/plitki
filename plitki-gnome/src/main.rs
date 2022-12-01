@@ -13,6 +13,7 @@ mod audio;
 mod background;
 mod combo;
 mod hit_error;
+mod hit_light;
 mod judgement;
 mod statistics;
 mod window;

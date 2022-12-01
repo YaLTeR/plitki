@@ -33,6 +33,7 @@ mod imp {
     use crate::background::Background;
     use crate::combo::Combo;
     use crate::hit_error::HitError;
+    use crate::hit_light::HitLight;
     use crate::judgement::Judgement;
     use crate::statistics::Statistics;
 
@@ -98,6 +99,9 @@ mod imp {
         fn constructed(&self) {
             let obj = self.obj();
             self.parent_constructed();
+
+            self.playfield
+                .set_hit_light_widget_type(HitLight::static_type());
 
             let skin_model = gio::ListStore::new(Skin::static_type());
             skin_model.extend_from_slice(&[
@@ -496,6 +500,8 @@ mod imp {
                 None => return gtk::Inhibit(false),
             };
 
+            let hit_light: HitLight = self.playfield.hit_light_for_lane(lane).downcast().unwrap();
+
             let mut state = match self.playfield.state_mut() {
                 Some(x) => x,
                 None => return gtk::Inhibit(false),
@@ -511,6 +517,23 @@ mod imp {
             self.update_state(&mut *state, timestamp);
             if let Some(event) = state.key_press(lane, timestamp) {
                 self.process_event(event);
+
+                let css_class = match event {
+                    Event::Miss => "judge-miss",
+                    Event::Hit(Hit { difference, .. }) => {
+                        match difference.into_milli_hundredths().abs() / 100 {
+                            0..=18 => "judge-marv",
+                            19..=43 => "judge-perf",
+                            44..=76 => "judge-great",
+                            77..=106 => "judge-good",
+                            107..=127 => "judge-okay",
+                            128..=164 => "judge-miss",
+                            _ => "",
+                        }
+                    }
+                };
+                hit_light.set_css_classes(&[css_class]);
+                hit_light.fire();
             };
 
             gtk::Inhibit(true)

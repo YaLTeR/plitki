@@ -24,7 +24,36 @@ plitki-judgement {
     margin-bottom: 100px;
 }
 
+plitki-hit-light {
+    min-height: 200px;
+    background: linear-gradient(to top, currentcolor 0%, transparent 100%);
+}
+
 .hit-position {
     min-height: 5px;
     background-color: gray;
+}
+
+.judge-marv {
+    color: rgb(250, 255, 181);
+}
+
+.judge-perf {
+    color: rgb(255, 232, 107);
+}
+
+.judge-great {
+    color: rgb(87, 255, 110);
+}
+
+.judge-good {
+    color: rgb(0, 209, 255);
+}
+
+.judge-okay {
+    color: rgb(217, 107, 207);
+}
+
+.judge-miss {
+    color: rgb(250, 99, 92);
 }
