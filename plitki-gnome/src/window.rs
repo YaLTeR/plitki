@@ -318,9 +318,21 @@ mod imp {
             self.accuracy.set_accuracy(statistics.accuracy());
         }
 
-        fn update_state(&self, state: &mut GameState, timestamp: GameTimestamp) {
-            while let Some(event) = state.update(timestamp) {
-                self.process_event(event);
+        fn update_state(&self, timestamp: GameTimestamp) {
+            let Some(lane_count) = self.playfield.state().map(|s| s.lane_count()) else { return };
+
+            for lane in 0..lane_count {
+                let hit_light: HitLight =
+                    self.playfield.hit_light_for_lane(lane).downcast().unwrap();
+
+                let Some(mut state) = self.playfield.state_mut() else { return };
+                while let Some(event) = state.update_lane(lane, timestamp) {
+                    self.process_event(event);
+
+                    let css_class = hit_light_css_class(event);
+                    hit_light.set_css_classes(&[css_class]);
+                    hit_light.fire();
+                }
             }
         }
 
@@ -328,10 +340,9 @@ mod imp {
             let game_timestamp = self.game_timestamp();
 
             self.playfield.set_game_timestamp(game_timestamp);
+            self.update_state(game_timestamp);
 
-            if let Some(mut state) = self.playfield.state_mut() {
-                self.update_state(&mut *state, game_timestamp);
-
+            if let Some(state) = self.playfield.state_mut() {
                 self.hit_error
                     .update(game_timestamp, state.last_hits.iter().copied().collect());
 
@@ -500,13 +511,6 @@ mod imp {
                 None => return gtk::Inhibit(false),
             };
 
-            let hit_light: HitLight = self.playfield.hit_light_for_lane(lane).downcast().unwrap();
-
-            let mut state = match self.playfield.state_mut() {
-                Some(x) => x,
-                None => return gtk::Inhibit(false),
-            };
-
             let mut is_lane_pressed = self.is_lane_pressed.borrow_mut();
             if is_lane_pressed[lane] {
                 return gtk::Inhibit(false);
@@ -514,7 +518,15 @@ mod imp {
             is_lane_pressed[lane] = true;
 
             let timestamp = self.game_timestamp();
-            self.update_state(&mut *state, timestamp);
+            self.update_state(timestamp);
+
+            let hit_light: HitLight = self.playfield.hit_light_for_lane(lane).downcast().unwrap();
+
+            let mut state = match self.playfield.state_mut() {
+                Some(x) => x,
+                None => return gtk::Inhibit(false),
+            };
+
             if let Some(event) = state.key_press(lane, timestamp) {
                 self.process_event(event);
 
@@ -532,11 +544,6 @@ mod imp {
                 None => return,
             };
 
-            let mut state = match self.playfield.state_mut() {
-                Some(x) => x,
-                None => return,
-            };
-
             let mut is_lane_pressed = self.is_lane_pressed.borrow_mut();
             if !is_lane_pressed[lane] {
                 return;
@@ -544,9 +551,21 @@ mod imp {
             is_lane_pressed[lane] = false;
 
             let timestamp = self.game_timestamp();
-            self.update_state(&mut *state, timestamp);
+            self.update_state(timestamp);
+
+            let hit_light: HitLight = self.playfield.hit_light_for_lane(lane).downcast().unwrap();
+
+            let mut state = match self.playfield.state_mut() {
+                Some(x) => x,
+                None => return,
+            };
+
             if let Some(event) = state.key_release(lane, timestamp) {
                 self.process_event(event);
+
+                let css_class = hit_light_css_class(event);
+                hit_light.set_css_classes(&[css_class]);
+                hit_light.fire();
             };
         }
     }
