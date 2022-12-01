@@ -518,20 +518,7 @@ mod imp {
             if let Some(event) = state.key_press(lane, timestamp) {
                 self.process_event(event);
 
-                let css_class = match event {
-                    Event::Miss => "judge-miss",
-                    Event::Hit(Hit { difference, .. }) => {
-                        match difference.into_milli_hundredths().abs() / 100 {
-                            0..=18 => "judge-marv",
-                            19..=43 => "judge-perf",
-                            44..=76 => "judge-great",
-                            77..=106 => "judge-good",
-                            107..=127 => "judge-okay",
-                            128..=164 => "judge-miss",
-                            _ => "",
-                        }
-                    }
-                };
+                let css_class = hit_light_css_class(event);
                 hit_light.set_css_classes(&[css_class]);
                 hit_light.fire();
             };
@@ -607,6 +594,23 @@ mod imp {
 
         drop(store);
         skin
+    }
+
+    fn hit_light_css_class(event: Event) -> &'static str {
+        match event {
+            Event::Miss => "judge-miss",
+            Event::Hit(Hit { difference, .. }) => {
+                match difference.into_milli_hundredths().abs() / 100 {
+                    0..=18 => "judge-marv",
+                    19..=43 => "judge-perf",
+                    44..=76 => "judge-great",
+                    77..=106 => "judge-good",
+                    107..=127 => "judge-okay",
+                    128..=164 => "judge-miss",
+                    _ => "",
+                }
+            }
+        }
     }
 }
 
