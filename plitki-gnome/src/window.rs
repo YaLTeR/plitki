@@ -29,6 +29,7 @@ mod imp {
     };
     use plitki_gtk::playfield::Playfield;
     use plitki_gtk::skin::{LaneSkin, Skin};
+    use plitki_gtk::state::State;
 
     use super::*;
     use crate::accuracy::Accuracy;
@@ -190,8 +191,10 @@ mod imp {
 
         #[template_callback]
         fn on_global_offset_changed(&self) {
-            if let Some(mut state) = self.playfield.state_mut() {
-                state.timestamp_converter.global_offset = GameTimestampDifference::from_millis(
+            if let Some(state) = self.playfield.state() {
+                let mut game_state = state.game_state_mut();
+
+                game_state.timestamp_converter.global_offset = GameTimestampDifference::from_millis(
                     self.global_offset_adjustment.value() as i32,
                 );
                 self.playfield.queue_allocate();
@@ -249,15 +252,16 @@ mod imp {
                 None
             };
 
-            let mut state = match GameState::new(map, GameTimestampDifference::from_millis(164)) {
-                Ok(x) => x,
-                Err(err) => {
-                    warn!("map is invalid: {err:?}");
-                    return;
-                }
-            };
+            let mut game_state =
+                match GameState::new(map, GameTimestampDifference::from_millis(164)) {
+                    Ok(x) => x,
+                    Err(err) => {
+                        warn!("map is invalid: {err:?}");
+                        return;
+                    }
+                };
 
-            let map = &state.immutable.map;
+            let map = &game_state.immutable.map;
             let title = match (&map.song_artist, &map.song_title) {
                 (None, None) => "Plitki".to_owned(),
                 (None, Some(title)) => title.clone(),
@@ -277,10 +281,11 @@ mod imp {
             self.gameplay_window_title
                 .set_subtitle(map.difficulty_name.as_deref().unwrap_or(""));
 
-            state.timestamp_converter.global_offset =
+            game_state.timestamp_converter.global_offset =
                 GameTimestampDifference::from_millis(self.global_offset_adjustment.value() as i32);
 
-            self.playfield.set_game_state(Some(state));
+            let state = State::new(game_state);
+            self.playfield.set_state(Some(state));
 
             self.stack.set_visible_child_name("gameplay");
 
@@ -325,8 +330,9 @@ mod imp {
                 let hit_light: HitLight =
                     self.playfield.hit_light_for_lane(lane).downcast().unwrap();
 
-                let Some(mut state) = self.playfield.state_mut() else { return };
-                while let Some(event) = state.update_lane(lane, timestamp) {
+                let Some(state) = self.playfield.state() else { return };
+                let mut game_state = state.game_state_mut();
+                while let Some(event) = game_state.update_lane(lane, timestamp) {
                     self.process_event(event);
 
                     let css_class = hit_light_css_class(event);
@@ -342,12 +348,16 @@ mod imp {
             self.playfield.set_game_timestamp(game_timestamp);
             self.update_state(game_timestamp);
 
-            if let Some(state) = self.playfield.state_mut() {
-                self.hit_error
-                    .update(game_timestamp, state.last_hits.iter().copied().collect());
+            if let Some(state) = self.playfield.state() {
+                let game_state = state.game_state();
+
+                self.hit_error.update(
+                    game_timestamp,
+                    game_state.last_hits.iter().copied().collect(),
+                );
 
                 self.judgement
-                    .update(game_timestamp, state.last_hits.iter().next().copied());
+                    .update(game_timestamp, game_state.last_hits.iter().next().copied());
             }
 
             // TODO: it's very inefficient to loop over all objects here.
@@ -360,10 +370,12 @@ mod imp {
         }
 
         fn show_local_offset_toast(&self) {
-            let offset = match self.playfield.state() {
-                Some(state) => state.timestamp_converter.local_offset.as_millis(),
-                None => return,
-            };
+            let Some(state) = self.playfield.state() else { return };
+            let offset = state
+                .game_state()
+                .timestamp_converter
+                .local_offset
+                .as_millis();
 
             let title =
                 format!("Map offset set to <span font_features='tnum=1'>{offset}</span> ms");
@@ -417,10 +429,8 @@ mod imp {
         }
 
         fn maybe_adjust_local_offset(&self, key: gdk::Key, modifier: gdk::ModifierType) -> bool {
-            let mut state = match self.playfield.state_mut() {
-                Some(x) => x,
-                None => return false,
-            };
+            let Some(state) = self.playfield.state() else { return false };
+            let mut game_state = state.game_state_mut();
 
             let diff = MapTimestampDifference::from_millis(
                 if modifier.contains(gdk::ModifierType::CONTROL_MASK) {
@@ -432,13 +442,17 @@ mod imp {
 
             match key {
                 gdk::Key::plus | gdk::Key::equal => {
-                    state.timestamp_converter.local_offset =
-                        state.timestamp_converter.local_offset.saturating_add(diff);
+                    game_state.timestamp_converter.local_offset = game_state
+                        .timestamp_converter
+                        .local_offset
+                        .saturating_add(diff);
                     true
                 }
                 gdk::Key::minus => {
-                    state.timestamp_converter.local_offset =
-                        state.timestamp_converter.local_offset.saturating_sub(diff);
+                    game_state.timestamp_converter.local_offset = game_state
+                        .timestamp_converter
+                        .local_offset
+                        .saturating_sub(diff);
                     true
                 }
                 _ => false,
@@ -469,7 +483,14 @@ mod imp {
         }
 
         fn lane_for_key(&self, key: gdk::Key) -> Option<usize> {
-            let lane = match self.playfield.state()?.immutable.lane_caches.len() {
+            let lane = match self
+                .playfield
+                .state()?
+                .game_state()
+                .immutable
+                .lane_caches
+                .len()
+            {
                 4 => match key {
                     gdk::Key::s => 0,
                     gdk::Key::d => 1,
@@ -522,12 +543,10 @@ mod imp {
 
             let hit_light: HitLight = self.playfield.hit_light_for_lane(lane).downcast().unwrap();
 
-            let mut state = match self.playfield.state_mut() {
-                Some(x) => x,
-                None => return gtk::Inhibit(false),
-            };
+            let Some(state) = self.playfield.state() else { return gtk::Inhibit(false) };
+            let mut game_state = state.game_state_mut();
 
-            if let Some(event) = state.key_press(lane, timestamp) {
+            if let Some(event) = game_state.key_press(lane, timestamp) {
                 self.process_event(event);
 
                 let css_class = hit_light_css_class(event);
@@ -539,10 +558,7 @@ mod imp {
         }
 
         fn on_key_released(&self, key: gdk::Key) {
-            let lane = match self.lane_for_key(key) {
-                Some(x) => x,
-                None => return,
-            };
+            let Some(lane) = self.lane_for_key(key) else { return };
 
             let mut is_lane_pressed = self.is_lane_pressed.borrow_mut();
             if !is_lane_pressed[lane] {
@@ -555,12 +571,10 @@ mod imp {
 
             let hit_light: HitLight = self.playfield.hit_light_for_lane(lane).downcast().unwrap();
 
-            let mut state = match self.playfield.state_mut() {
-                Some(x) => x,
-                None => return,
-            };
+            let Some(state) = self.playfield.state() else { return };
+            let mut game_state = state.game_state_mut();
 
-            if let Some(event) = state.key_release(lane, timestamp) {
+            if let Some(event) = game_state.key_release(lane, timestamp) {
                 self.process_event(event);
 
                 let css_class = hit_light_css_class(event);

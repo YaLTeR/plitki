@@ -1,17 +1,11 @@
-use std::cell::{Ref, RefMut};
-
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use plitki_core::scroll::ScrollSpeed;
-use plitki_core::state::GameState;
 use plitki_core::timing::GameTimestamp;
 
 use crate::skin::Skin;
-
-#[derive(Debug, Clone, glib::Boxed)]
-#[boxed_type(nullable, name = "BoxedGameState")]
-pub(crate) struct BoxedGameState(GameState);
+use crate::state::State;
 
 mod imp {
     use std::cell::{Cell, RefCell};
@@ -28,8 +22,8 @@ mod imp {
     use crate::utils::to_pixels;
 
     #[derive(Debug)]
-    struct State {
-        game: GameState,
+    struct Data {
+        state: State,
         objects: Vec<Vec<gtk::Widget>>,
         timing_lines: Vec<gtk::Separator>,
         hit_lights: Vec<gtk::Widget>,
@@ -43,7 +37,7 @@ mod imp {
 
     #[derive(Debug)]
     pub struct Playfield {
-        state: RefCell<Option<State>>,
+        data: RefCell<Option<Data>>,
         skin: RefCell<Option<Skin>>,
         scroll_speed: Cell<ScrollSpeed>,
         game_timestamp: Cell<GameTimestamp>,
@@ -56,7 +50,7 @@ mod imp {
     impl Default for Playfield {
         fn default() -> Self {
             Self {
-                state: Default::default(),
+                data: Default::default(),
                 skin: Default::default(),
                 scroll_speed: Cell::new(ScrollSpeed(30)),
                 game_timestamp: Cell::new(GameTimestamp::zero()),
@@ -95,8 +89,7 @@ mod imp {
         fn properties() -> &'static [glib::ParamSpec] {
             static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
                 vec![
-                    glib::ParamSpecBoxed::builder::<BoxedGameState>("game-state")
-                        .write_only()
+                    glib::ParamSpecObject::builder::<State>("state")
                         .explicit_notify()
                         .build(),
                     glib::ParamSpecObject::builder::<Skin>("skin")
@@ -136,10 +129,7 @@ mod imp {
 
         fn set_property(&self, _id: usize, value: &glib::Value, pspec: &glib::ParamSpec) {
             match pspec.name() {
-                "game-state" => {
-                    let value = value.get::<Option<BoxedGameState>>().unwrap();
-                    self.set_game_state(value.map(|x| x.0));
-                }
+                "state" => self.set_state(value.get().unwrap()),
                 "skin" => self.set_skin(value.get().unwrap()),
                 "scroll-speed" => {
                     let speed = value.get::<u32>().expect("wrong property type");
@@ -161,6 +151,7 @@ mod imp {
 
         fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
             match pspec.name() {
+                "state" => self.state().to_value(),
                 "scroll-speed" => {
                     let speed: u32 = self.scroll_speed().0.into();
                     speed.to_value()
@@ -186,16 +177,13 @@ mod imp {
 
             match orientation {
                 gtk::Orientation::Horizontal => {
-                    let mut state = self.state.borrow_mut();
-                    let state = match &mut *state {
-                        Some(x) => x,
-                        None => return (0, 0, -1, -1),
-                    };
+                    let mut data = self.data.borrow_mut();
+                    let Some(data) = &mut *data else { return (0, 0, -1, -1) };
 
-                    self.refresh_lane_sizes(state);
+                    self.refresh_lane_sizes(data);
 
                     // Min and nat widths are the sum of lanes' widths.
-                    let (min, nat) = state
+                    let (min, nat) = data
                         .lane_sizes
                         .iter()
                         .fold((0, 0), |(min, nat), (min_lane, nat_lane)| {
@@ -203,7 +191,7 @@ mod imp {
                         });
 
                     // Also take the timing lines into account.
-                    let min_tl = state
+                    let min_tl = data
                         .timing_lines
                         .iter()
                         .map(|widget| widget.measure(gtk::Orientation::Horizontal, -1).0)
@@ -227,27 +215,24 @@ mod imp {
         fn size_allocate(&self, width: i32, height: i32, _baseline: i32) {
             trace!("Playfield::size_allocate({}, {})", width, height);
 
-            let state = self.state.borrow();
-            let state = match &*state {
-                Some(x) => x,
-                None => return,
-            };
+            let data = self.data.borrow();
+            let Some(data) = &*data else { return };
+            let game_state = data.state.game_state();
 
             let scroll_speed = self.scroll_speed.get();
             let downscroll = self.downscroll.get();
             let hit_position = self.hit_position.get();
 
-            for (line, widget) in state
-                .game
+            for (line, widget) in game_state
                 .immutable
                 .timing_lines
                 .iter()
-                .zip(&state.timing_lines)
+                .zip(&data.timing_lines)
             {
                 // Our width is guaranteed to fit the timing lines because we considered them in
                 // measure().
 
-                let difference = line.position - state.map_position;
+                let difference = line.position - data.map_position;
                 let mut y = to_pixels(difference * scroll_speed) + hit_position;
                 if y >= height {
                     widget.set_child_visible(false);
@@ -277,16 +262,15 @@ mod imp {
             }
 
             let mut x = 0;
-            let lane_widths = compute_lane_widths(state, width);
+            let lane_widths = compute_lane_widths(data, width);
 
-            for ((((cache, lane_state), widgets), hit_light), lane_width) in state
-                .game
+            for ((((cache, lane_state), widgets), hit_light), lane_width) in game_state
                 .immutable
                 .lane_caches
                 .iter()
-                .zip(&state.game.lane_states)
-                .zip(&state.objects)
-                .zip(&state.hit_lights)
+                .zip(&game_state.lane_states)
+                .zip(&data.objects)
+                .zip(&data.hit_lights)
                 .zip(lane_widths)
             {
                 for ((cache, obj_state), widget) in cache
@@ -301,10 +285,8 @@ mod imp {
                     }
 
                     let position =
-                        state
-                            .game
-                            .object_start_position(*obj_state, *cache, state.map_position);
-                    let difference = position - state.map_position;
+                        game_state.object_start_position(*obj_state, *cache, data.map_position);
+                    let difference = position - data.map_position;
                     let mut y = to_pixels(difference * scroll_speed) + hit_position;
                     if y >= height {
                         widget.set_child_visible(false);
@@ -417,19 +399,24 @@ mod imp {
                 let obj = self.obj();
                 obj.notify("game-timestamp");
 
-                let mut state = self.state.borrow_mut();
-                if let Some(state) = &mut *state {
-                    let map_timestamp = value.to_map(&state.game.timestamp_converter);
-                    let position = state.game.position_at_time(map_timestamp);
-                    if state.map_position != position {
-                        state.map_position = position;
+                let mut data = self.data.borrow_mut();
+                if let Some(data) = &mut *data {
+                    let game_state = data.state.game_state();
+                    let map_timestamp = value.to_map(&game_state.timestamp_converter);
+                    let position = game_state.position_at_time(map_timestamp);
+                    if data.map_position != position {
+                        data.map_position = position;
                         obj.queue_allocate();
                     }
                 }
             }
         }
 
-        pub fn set_game_state(&self, value: Option<GameState>) {
+        pub fn set_state(&self, value: Option<State>) {
+            if self.data.borrow().as_ref().map(|d| &d.state) == value.as_ref() {
+                return;
+            }
+
             let obj = self.obj();
             obj.queue_resize();
 
@@ -437,17 +424,15 @@ mod imp {
                 child.unparent();
             }
 
-            let game = match value {
-                Some(x) => x,
-                None => {
-                    if self.state.replace(None).is_some() {
-                        obj.notify("game-state");
-                    }
-                    return;
+            let Some(state) = value else {
+                if self.data.replace(None).is_some() {
+                    obj.notify("state");
                 }
+                return;
             };
+            let game_state = state.game_state();
 
-            let timing_lines = game
+            let timing_lines = game_state
                 .immutable
                 .timing_lines
                 .iter()
@@ -458,7 +443,7 @@ mod imp {
                 })
                 .collect();
 
-            let objects = game
+            let objects = game_state
                 .immutable
                 .lane_caches
                 .iter()
@@ -481,7 +466,7 @@ mod imp {
                 })
                 .collect();
 
-            let hit_lights = game
+            let hit_lights = game_state
                 .immutable
                 .lane_caches
                 .iter()
@@ -498,24 +483,30 @@ mod imp {
                 })
                 .collect();
 
-            let map_position =
-                game.position_at_time(self.game_timestamp.get().to_map(&game.timestamp_converter));
+            let map_position = game_state.position_at_time(
+                self.game_timestamp
+                    .get()
+                    .to_map(&game_state.timestamp_converter),
+            );
 
-            let state = State {
-                lane_sizes: vec![(0, 0); game.lane_count()],
-                game,
+            let lane_sizes = vec![(0, 0); game_state.lane_count()];
+            drop(game_state);
+
+            let data = Data {
+                lane_sizes,
+                state,
                 objects,
                 timing_lines,
                 hit_lights,
                 map_position,
             };
 
-            self.state.replace(Some(state));
+            self.data.replace(Some(data));
 
             self.update_ln_lengths();
             self.update_skin();
 
-            obj.notify("game-state");
+            obj.notify("state");
         }
 
         pub fn set_skin(&self, value: Option<Skin>) {
@@ -534,58 +525,28 @@ mod imp {
             }
         }
 
-        pub fn game_state(&self) -> Option<Ref<GameState>> {
-            let state = self.state.borrow();
-            if state.is_some() {
-                Some(Ref::map(state, |state| {
-                    if let Some(state) = state {
-                        &state.game
-                    } else {
-                        unreachable!()
-                    }
-                }))
-            } else {
-                None
-            }
-        }
-
-        pub fn game_state_mut(&self) -> Option<RefMut<GameState>> {
-            let state = self.state.borrow_mut();
-            if state.is_some() {
-                Some(RefMut::map(state, |state| {
-                    if let Some(state) = state {
-                        &mut state.game
-                    } else {
-                        unreachable!()
-                    }
-                }))
-            } else {
-                None
-            }
+        pub fn state(&self) -> Option<State> {
+            self.data.borrow().as_ref().map(|d| &d.state).cloned()
         }
 
         pub fn hit_light_for_lane(&self, column: usize) -> gtk::Widget {
-            self.state.borrow().as_ref().unwrap().hit_lights[column].clone()
+            self.data.borrow().as_ref().unwrap().hit_lights[column].clone()
         }
 
         fn update_skin(&self) {
-            let state = self.state.borrow();
-            let state = match &*state {
-                Some(x) => x,
-                None => return,
+            let data = self.data.borrow();
+            let Some(data) = &*data else {
+                return
             };
+            let game_state = data.state.game_state();
 
             let skin = self.skin.borrow();
             let store = skin.as_ref().map(|s| s.store());
 
-            let lane_count = state.game.lane_count();
+            let lane_count = game_state.lane_count();
 
-            for ((lane, lane_state), widgets) in state
-                .game
-                .lane_states
-                .iter()
-                .enumerate()
-                .zip(&state.objects)
+            for ((lane, lane_state), widgets) in
+                game_state.lane_states.iter().enumerate().zip(&data.objects)
             {
                 let lane_skin = store.as_ref().map(|s| s.get(lane_count, lane).clone());
                 let lane_skin = lane_skin.as_ref();
@@ -608,19 +569,18 @@ mod imp {
         }
 
         pub fn update_ln_lengths(&self) {
-            let state = self.state.borrow();
-            let state = match &*state {
-                Some(x) => x,
-                None => return,
+            let data = self.data.borrow();
+            let Some(data) = &*data else {
+                return
             };
+            let game_state = data.state.game_state();
 
-            for ((cache, lane_state), widgets) in state
-                .game
+            for ((cache, lane_state), widgets) in game_state
                 .immutable
                 .lane_caches
                 .iter()
-                .zip(&state.game.lane_states)
-                .zip(&state.objects)
+                .zip(&game_state.lane_states)
+                .zip(&data.objects)
             {
                 for ((cache, obj_state), widget) in cache
                     .object_caches
@@ -630,11 +590,8 @@ mod imp {
                 {
                     if let ObjectCache::LongNote(_) = cache {
                         let long_note: &LongNote = widget.downcast_ref().unwrap();
-                        let start_position = state.game.object_start_position(
-                            *obj_state,
-                            *cache,
-                            state.map_position,
-                        );
+                        let start_position =
+                            game_state.object_start_position(*obj_state, *cache, data.map_position);
                         long_note.set_length(
                             (cache.end_position() - start_position) * self.scroll_speed.get(),
                         );
@@ -643,8 +600,8 @@ mod imp {
             }
         }
 
-        fn refresh_lane_sizes(&self, state: &mut State) {
-            let lane_sizes = state.objects.iter().map(|lane| {
+        fn refresh_lane_sizes(&self, data: &mut Data) {
+            let lane_sizes = data.objects.iter().map(|lane| {
                 // Min and nat width for a lane is the maximum across objects.
                 // TODO: handle empty lanes better.
                 lane.iter()
@@ -654,7 +611,7 @@ mod imp {
                     })
             });
 
-            let hit_light_sizes = state
+            let hit_light_sizes = data
                 .hit_lights
                 .iter()
                 .map(|widget| widget.measure(gtk::Orientation::Horizontal, -1).0);
@@ -665,14 +622,14 @@ mod imp {
                     (min_lane.max(min_light), nat_lane.max(min_light))
                 });
 
-            for (place, value) in state.lane_sizes.iter_mut().zip(sizes) {
+            for (place, value) in data.lane_sizes.iter_mut().zip(sizes) {
                 *place = value;
             }
 
-            self.scale_lane_nat_sizes(state);
+            self.scale_lane_nat_sizes(data);
         }
 
-        fn scale_lane_nat_sizes(&self, state: &mut State) {
+        fn scale_lane_nat_sizes(&self, data: &mut Data) {
             let lane_width = self.lane_width.get();
             if lane_width == 0 {
                 // Lane width not set.
@@ -680,8 +637,8 @@ mod imp {
             }
 
             // Count the number of lanes sized the same.
-            let mut nat_sizes = HashMap::with_capacity(state.lane_sizes.len());
-            for &(_, nat) in &state.lane_sizes {
+            let mut nat_sizes = HashMap::with_capacity(data.lane_sizes.len());
+            for &(_, nat) in &data.lane_sizes {
                 *nat_sizes.entry(nat).or_insert(0) += 1;
             }
 
@@ -693,13 +650,13 @@ mod imp {
                 Some((most_common, _)) => {
                     // Compute scale based on the most common nat lane size.
                     let scale = lane_width as f64 / most_common as f64;
-                    for (min, nat) in &mut state.lane_sizes {
+                    for (min, nat) in &mut data.lane_sizes {
                         *nat = ((*nat as f64 * scale).round() as i32).max(*min);
                     }
                 }
                 None => {
                     // All nat sizes were zero.
-                    for (min, nat) in &mut state.lane_sizes {
+                    for (min, nat) in &mut data.lane_sizes {
                         *nat = lane_width.max(*min);
                     }
                 }
@@ -707,7 +664,7 @@ mod imp {
         }
     }
 
-    fn compute_lane_widths(state: &State, width: i32) -> impl Iterator<Item = i32> + '_ {
+    fn compute_lane_widths(data: &Data, width: i32) -> impl Iterator<Item = i32> + '_ {
         // When the playfield is smaller or bigger than its natural size, we want all lanes to be
         // smaller or bigger in the same proportion. However, when making the playfield smaller, the
         // desired width for some lanes might end up below their min width. In this case these lanes
@@ -716,14 +673,14 @@ mod imp {
         //
         // This loop iteratively reduces the scale until all lanes would fit.
         let mut remaining_width = width;
-        let mut remaining_nat = state.lane_sizes.iter().map(|(_, nat)| nat).sum::<i32>();
-        let mut at_min_width = vec![false; state.game.lane_count()];
+        let mut remaining_nat = data.lane_sizes.iter().map(|(_, nat)| nat).sum::<i32>();
+        let mut at_min_width = vec![false; data.state.game_state().lane_count()];
 
         loop {
             let scale = remaining_width as f64 / remaining_nat as f64;
 
             let mut nothing_changed = true;
-            for (&(min, nat), at_min) in state.lane_sizes.iter().zip(&mut at_min_width) {
+            for (&(min, nat), at_min) in data.lane_sizes.iter().zip(&mut at_min_width) {
                 if !*at_min && (nat as f64 * scale).floor() as i32 <= min {
                     nothing_changed = false;
                     *at_min = true;
@@ -746,7 +703,7 @@ mod imp {
             remaining_width as f64 / remaining_nat as f64
         };
 
-        let widths = state
+        let widths = data
             .lane_sizes
             .iter()
             .zip(at_min_width)
@@ -775,8 +732,12 @@ impl Playfield {
         glib::Object::builder().build()
     }
 
-    pub fn set_game_state(&self, value: Option<GameState>) {
-        self.imp().set_game_state(value);
+    pub fn state(&self) -> Option<State> {
+        self.imp().state()
+    }
+
+    pub fn set_state(&self, value: Option<State>) {
+        self.imp().set_state(value);
     }
 
     pub fn set_skin(&self, value: Option<Skin>) {
@@ -805,14 +766,6 @@ impl Playfield {
 
     pub fn set_hit_light_widget_type(&self, value: glib::Type) {
         self.imp().set_hit_light_widget_type(value);
-    }
-
-    pub fn state(&self) -> Option<Ref<GameState>> {
-        self.imp().game_state()
-    }
-
-    pub fn state_mut(&self) -> Option<RefMut<GameState>> {
-        self.imp().game_state_mut()
     }
 
     pub fn hit_light_for_lane(&self, lane: usize) -> gtk::Widget {

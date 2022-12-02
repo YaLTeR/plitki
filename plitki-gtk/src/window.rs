@@ -19,6 +19,7 @@ mod imp {
     use crate::long_note::LongNote;
     use crate::playfield::Playfield;
     use crate::skin::{LaneSkin, Skin};
+    use crate::state::State;
 
     fn create_skin(path: &str) -> Skin {
         let load_texture = |path: &str| {
@@ -142,21 +143,21 @@ mod imp {
             let map: Map = qua
                 .try_into()
                 .with_context(|| "couldn't convert the map to plitki's format")?;
-            let state = GameState::new(map, GameTimestampDifference::from_millis(0))
+            let game_state = GameState::new(map, GameTimestampDifference::from_millis(0))
                 .map_err(|_| anyhow!("map has invalid objects"))?;
 
             self.adjustment_timestamp.configure(
-                state
+                game_state
                     .first_timestamp()
                     .unwrap()
                     .into_milli_hundredths()
                     .into(),
-                state
+                game_state
                     .first_timestamp()
                     .unwrap()
                     .into_milli_hundredths()
                     .into(),
-                state
+                game_state
                     .last_timestamp()
                     .unwrap()
                     .into_milli_hundredths()
@@ -166,7 +167,8 @@ mod imp {
                 10.,
             );
 
-            self.playfield.set_game_state(Some(state));
+            let state = State::new(game_state);
+            self.playfield.set_state(Some(state));
 
             Ok(())
         }

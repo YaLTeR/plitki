@@ -6,6 +6,7 @@ use log::info;
 mod long_note;
 mod playfield;
 mod skin;
+mod state;
 mod utils;
 mod window;
 
