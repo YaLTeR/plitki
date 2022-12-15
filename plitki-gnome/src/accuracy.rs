@@ -12,11 +12,65 @@ mod imp {
 
     use super::*;
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum Grade {
+        X,
+        S,
+        A,
+        B,
+        C,
+        D,
+    }
+
+    impl Grade {
+        fn from_acc(accuracy: f32) -> Self {
+            assert!((0. ..=100.).contains(&accuracy));
+
+            if accuracy == 100. {
+                Grade::X
+            } else if accuracy >= 95. {
+                Grade::S
+            } else if accuracy >= 90. {
+                Grade::A
+            } else if accuracy >= 80. {
+                Grade::B
+            } else if accuracy >= 70. {
+                Grade::C
+            } else {
+                Grade::D
+            }
+        }
+
+        fn css_class(self) -> &'static str {
+            match self {
+                Grade::X => "grade-x",
+                Grade::S => "grade-s",
+                Grade::A => "grade-a",
+                Grade::B => "grade-b",
+                Grade::C => "grade-c",
+                Grade::D => "grade-d",
+            }
+        }
+
+        fn label(self) -> &'static str {
+            match self {
+                Grade::X => "X",
+                Grade::S => "S",
+                Grade::A => "A",
+                Grade::B => "B",
+                Grade::C => "C",
+                Grade::D => "D",
+            }
+        }
+    }
+
     #[derive(Debug, Default, CompositeTemplate)]
     #[template(resource = "/plitki-gnome/accuracy.ui")]
     pub struct Accuracy {
         #[template_child]
         label: TemplateChild<gtk::Label>,
+        #[template_child]
+        grade_label: TemplateChild<gtk::Label>,
 
         accuracy: Cell<f32>,
     }
@@ -83,6 +137,11 @@ mod imp {
         pub fn set_accuracy(&self, value: f32) {
             if self.accuracy.get() != value {
                 self.accuracy.set(value);
+
+                let grade = Grade::from_acc(value);
+                self.grade_label.set_label(grade.label());
+                self.grade_label.set_css_classes(&[grade.css_class()]);
+
                 self.obj().notify("accuracy");
             }
         }

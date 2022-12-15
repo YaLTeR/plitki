@@ -2,7 +2,15 @@ using Gtk 4.0;
 using Adw 1;
 
 template PlitkiAccuracy : Adw.Bin {
-    child: Label label {
-        styles ["numeric"]
+    child: Box {
+        spacing: 12;
+
+        Label grade_label {
+            name: "grade";
+        }
+
+        Label label {
+            styles ["numeric"]
+        }
     };
 }
