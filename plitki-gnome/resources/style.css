@@ -9,11 +9,13 @@ plitki-playfield {
 }
 
 plitki-accuracy {
+    font-family: "Noto Sans";
     font-size: 50px;
     margin: 12px;
 }
 
 plitki-combo {
+    font-family: "Noto Sans";
     font-size: 80px;
     margin: 12px;
 }
