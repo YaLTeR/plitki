@@ -12,6 +12,10 @@ pub struct LaneSkin {
     pub ln_tail: gdk::Texture,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, glib::Boxed)]
+#[boxed_type(name = "BoxedLaneSkin")]
+pub struct BoxedLaneSkin(pub Option<LaneSkin>);
+
 #[derive(Debug, Clone)]
 pub struct Store {
     elements: HashMap<usize, Vec<LaneSkin>>,
