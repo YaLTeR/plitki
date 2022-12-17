@@ -188,7 +188,7 @@ mod imp {
                 .zip(&game_state.immutable.lane_caches[lane].object_caches)
                 .zip(&game_state.lane_states[lane].object_states)
             {
-                if obj_state.is_hidden() {
+                if obj_state.is_hit() {
                     if *is_visible {
                         widget.set_child_visible(false);
                         *is_visible = false;

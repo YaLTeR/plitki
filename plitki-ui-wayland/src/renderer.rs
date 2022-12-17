@@ -561,7 +561,7 @@ impl<'a> SingleFrameRenderer<'a> {
                 .zip(object_states[range.clone()].iter())
                 .zip(object_caches[range].iter())
                 .rev()
-                .filter(|((_, s), _)| !s.is_hidden())
+                .filter(|((_, s), _)| !s.is_hit())
             {
                 self.renderer.sprites.push(self.object_sprite(
                     lane,

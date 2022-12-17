@@ -1045,11 +1045,11 @@ impl ImmutableGameState {
 }
 
 impl ObjectState {
-    /// Returns `true` if the object should be hidden (i.e. it's been hit or missed).
-    pub fn is_hidden(&self) -> bool {
+    /// Returns `true` if the object was hit.
+    pub fn is_hit(&self) -> bool {
         matches!(
             self,
-            Self::Regular(RegularObjectState::Hit { .. } | RegularObjectState::Missed)
+            Self::Regular(RegularObjectState::Hit { .. })
                 | Self::LongNote(LongNoteState::Hit { .. })
         )
     }
