@@ -25,6 +25,7 @@ mod imp {
     struct Data {
         state: State,
         widgets: Vec<gtk::Widget>,
+        is_visible: Vec<bool>,
         map_position: Position,
     }
 
@@ -172,7 +173,7 @@ mod imp {
         fn size_allocate(&self, width: i32, height: i32, _baseline: i32) {
             trace!("LaneConveyor::size_allocate({}, {})", width, height);
 
-            let Some(data) = &*self.data.borrow() else { return };
+            let Some(data) = &mut *self.data.borrow_mut() else { return };
             let game_state = data.state.game_state();
 
             let scroll_speed = self.scroll_speed.get();
@@ -180,14 +181,18 @@ mod imp {
             let hit_position = self.hit_position.get();
 
             let lane: usize = self.lane.get().try_into().unwrap();
-            for ((widget, obj_cache), obj_state) in data
+            for (((widget, is_visible), obj_cache), obj_state) in data
                 .widgets
                 .iter()
+                .zip(&mut data.is_visible)
                 .zip(&game_state.immutable.lane_caches[lane].object_caches)
                 .zip(&game_state.lane_states[lane].object_states)
             {
                 if obj_state.is_hidden() {
-                    widget.set_child_visible(false);
+                    if *is_visible {
+                        widget.set_child_visible(false);
+                        *is_visible = false;
+                    }
                     continue;
                 }
 
@@ -196,16 +201,26 @@ mod imp {
                 let difference = position - data.map_position;
                 let mut y = to_pixels(difference * scroll_speed) + hit_position;
                 if y >= height {
-                    widget.set_child_visible(false);
+                    if *is_visible {
+                        widget.set_child_visible(false);
+                        *is_visible = false;
+                    }
                     continue;
                 }
 
                 let widget_height = widget.measure(gtk::Orientation::Vertical, width).1;
                 if y + widget_height <= 0 {
-                    widget.set_child_visible(false);
+                    if *is_visible {
+                        widget.set_child_visible(false);
+                        *is_visible = false;
+                    }
                     continue;
                 }
-                widget.set_child_visible(true);
+
+                if !*is_visible {
+                    widget.set_child_visible(true);
+                    *is_visible = true;
+                }
 
                 if downscroll {
                     y = height - y - widget_height;
@@ -220,6 +235,17 @@ mod imp {
                 }
 
                 widget.allocate(width, widget_height, -1, Some(&transform));
+            }
+        }
+
+        fn snapshot(&self, snapshot: &gtk::Snapshot) {
+            let Some(data) = &*self.data.borrow_mut() else { return };
+            let obj = self.obj();
+
+            for (widget, is_visible) in data.widgets.iter().zip(&data.is_visible) {
+                if *is_visible {
+                    obj.snapshot_child(widget, snapshot);
+                }
             }
         }
     }
@@ -241,8 +267,12 @@ mod imp {
 
             // Set parent in reverse to get the right draw order.
             for widget in widgets.iter().rev() {
+                // Default to invisible.
+                widget.set_child_visible(false);
                 widget.set_parent(&*obj);
             }
+
+            let is_visible = vec![false; widgets.len()];
 
             let map_position = game_state.position_at_time(
                 self.game_timestamp()
@@ -253,6 +283,7 @@ mod imp {
             Data {
                 state,
                 widgets,
+                is_visible,
                 map_position,
             }
         }
