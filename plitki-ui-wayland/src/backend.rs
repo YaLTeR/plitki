@@ -22,7 +22,7 @@ impl Deref for GlutinRawBackend {
     type Target = RefCell<GlutinRawBackendInner>;
 
     fn deref(&self) -> &Self::Target {
-        &*self.0
+        &self.0
     }
 }
 

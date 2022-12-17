@@ -585,7 +585,7 @@ impl<'a> SingleFrameRenderer<'a> {
                 Object::Regular { .. } => object.start_timestamp(),
                 Object::LongNote { start, end } => match *object_state {
                     ObjectState::LongNote(LongNoteState::Held { .. }) => {
-                        self.map_timestamp.min(end).max(start)
+                        self.map_timestamp.clamp(start, end)
                     }
 
                     ObjectState::LongNote(LongNoteState::Missed {
@@ -618,7 +618,7 @@ impl<'a> SingleFrameRenderer<'a> {
                     ObjectState::LongNote(LongNoteState::Held { .. }) => self
                         .state
                         .game_state
-                        .position_at_time(self.map_timestamp.min(end).max(start)),
+                        .position_at_time(self.map_timestamp.clamp(start, end)),
 
                     ObjectState::LongNote(LongNoteState::Missed {
                         held_until: Some(held_until),
@@ -769,7 +769,7 @@ impl<'a> SingleFrameRenderer<'a> {
 
         let total_difference = last_timestamp - first_timestamp;
         let current_difference =
-            self.map_timestamp.max(first_timestamp).min(last_timestamp) - first_timestamp;
+            self.map_timestamp.clamp(first_timestamp, last_timestamp) - first_timestamp;
 
         let total_width = self.width();
         let width = f64::from(current_difference.into_milli_hundredths())

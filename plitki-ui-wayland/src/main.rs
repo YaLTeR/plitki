@@ -129,6 +129,7 @@ fn main() {
     let mut opt = Opt::from_args();
 
     let instance = HawktracerInstance::new();
+    #[allow(clippy::let_unit_value)]
     let _listener = instance.create_listener(HawktracerListenerType::ToFile {
         file_path: "trace.bin".into(),
         buffer_size: 4096,

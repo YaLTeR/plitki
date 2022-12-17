@@ -246,6 +246,7 @@ impl core::fmt::Debug for GameStateCreationError {
 
 impl GameState {
     /// Creates a new `GameState` given a map and a hit window.
+    #[allow(clippy::result_large_err)]
     pub fn new(
         mut map: Map,
         hit_window: GameTimestampDifference,
@@ -476,8 +477,7 @@ impl GameState {
 
             let step = (i64::from(timing_point.signature.beat_count)
                 * i64::from(timing_point.beat_duration.into_milli_hundredths()))
-            .max(0)
-            .min(i64::from(i32::max_value())) as i32;
+            .clamp(0, i64::from(i32::max_value())) as i32;
 
             let mut timestamp = timing_point.timestamp.into_milli_hundredths();
             while timestamp < end {
