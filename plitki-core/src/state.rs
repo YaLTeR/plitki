@@ -1053,6 +1053,15 @@ impl ObjectState {
                 | Self::LongNote(LongNoteState::Hit { .. })
         )
     }
+
+    /// Returns `true` if the object was missed.
+    pub fn is_missed(&self) -> bool {
+        matches!(
+            self,
+            Self::Regular(RegularObjectState::Missed)
+                | Self::LongNote(LongNoteState::Missed { .. })
+        )
+    }
 }
 
 impl ObjectCache {
