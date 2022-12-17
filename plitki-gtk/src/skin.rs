@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use glib::subclass::prelude::*;
 use gtk::gdk;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LaneSkin {
     pub object: gdk::Texture,
     pub ln_head: gdk::Texture,
