@@ -11,20 +11,19 @@ mod imp {
     use std::cell::{Cell, RefCell};
     use std::collections::HashMap;
 
-    use gtk::{graphene, gsk};
+    use gtk::{gdk, graphene, gsk};
     use log::trace;
     use once_cell::sync::Lazy;
     use plitki_core::scroll::{Position, ScrollSpeed};
-    use plitki_core::state::{ObjectCache, ObjectState};
 
     use super::*;
-    use crate::long_note::LongNote;
+    use crate::lane_conveyor::LaneConveyor;
     use crate::utils::to_pixels;
 
     #[derive(Debug)]
     struct Data {
         state: State,
-        objects: Vec<Vec<gtk::Widget>>,
+        conveyors: Vec<LaneConveyor>,
         timing_lines: Vec<gtk::Separator>,
         hit_lights: Vec<gtk::Widget>,
         map_position: Position,
@@ -264,56 +263,14 @@ mod imp {
             let mut x = 0;
             let lane_widths = compute_lane_widths(data, width);
 
-            for ((((cache, lane_state), widgets), hit_light), lane_width) in game_state
-                .immutable
-                .lane_caches
-                .iter()
-                .zip(&game_state.lane_states)
-                .zip(&data.objects)
-                .zip(&data.hit_lights)
-                .zip(lane_widths)
+            for ((conveyor, hit_light), lane_width) in
+                data.conveyors.iter().zip(&data.hit_lights).zip(lane_widths)
             {
-                for ((cache, obj_state), widget) in cache
-                    .object_caches
-                    .iter()
-                    .zip(&lane_state.object_states)
-                    .zip(widgets)
-                {
-                    if obj_state.is_hidden() {
-                        widget.set_child_visible(false);
-                        continue;
-                    }
-
-                    let position =
-                        game_state.object_start_position(*obj_state, *cache, data.map_position);
-                    let difference = position - data.map_position;
-                    let mut y = to_pixels(difference * scroll_speed) + hit_position;
-                    if y >= height {
-                        widget.set_child_visible(false);
-                        continue;
-                    }
-
-                    let widget_height = widget.measure(gtk::Orientation::Vertical, lane_width).1;
-                    if y + widget_height <= 0 {
-                        widget.set_child_visible(false);
-                        continue;
-                    }
-                    widget.set_child_visible(true);
-
-                    if downscroll {
-                        y = height - y - widget_height;
-                    }
-
-                    let mut transform =
-                        gsk::Transform::new().translate(&graphene::Point::new(x as f32, y as f32));
-                    if downscroll {
-                        transform = transform
-                            .translate(&graphene::Point::new(0., widget_height as f32))
-                            .scale(1., -1.)
-                    }
-
-                    widget.allocate(lane_width, widget_height, -1, Some(&transform));
-                }
+                let conveyor_height = conveyor.measure(gtk::Orientation::Vertical, lane_width).0;
+                conveyor.size_allocate(
+                    &gdk::Rectangle::new(x, 0, lane_width, height.max(conveyor_height)),
+                    -1,
+                );
 
                 // Allocate the hit light.
                 {
@@ -443,26 +400,27 @@ mod imp {
                 })
                 .collect();
 
-            let objects = game_state
-                .immutable
-                .lane_caches
-                .iter()
+            let conveyors = (0..game_state.lane_count())
                 .map(|lane| {
-                    let widgets: Vec<gtk::Widget> = lane
-                        .object_caches
-                        .iter()
-                        .map(|object| match object {
-                            ObjectCache::Regular { .. } => gtk::Picture::new().upcast(),
-                            ObjectCache::LongNote { .. } => LongNote::new().upcast(),
-                        })
-                        .collect();
+                    let conveyor = LaneConveyor::new();
+                    conveyor.set_lane(lane.try_into().unwrap());
+                    conveyor.set_parent(&*obj);
 
-                    // Set parent in reverse to get the right draw order.
-                    for widget in widgets.iter().rev() {
-                        widget.set_parent(&*obj);
+                    for name in [
+                        "scroll-speed",
+                        "game-timestamp",
+                        "downscroll",
+                        "hit-position",
+                    ] {
+                        obj.bind_property(name, &conveyor, name)
+                            .sync_create()
+                            .build();
                     }
 
-                    widgets
+                    // We haven't updated the state yet, so no sync-create.
+                    obj.bind_property("state", &conveyor, "state").build();
+
+                    conveyor
                 })
                 .collect();
 
@@ -495,7 +453,7 @@ mod imp {
             let data = Data {
                 lane_sizes,
                 state,
-                objects,
+                conveyors,
                 timing_lines,
                 hit_lights,
                 map_position,
@@ -542,73 +500,27 @@ mod imp {
 
             let skin = self.skin.borrow();
             let store = skin.as_ref().map(|s| s.store());
+            let store = store.as_ref();
 
             let lane_count = game_state.lane_count();
 
-            for ((lane, lane_state), widgets) in
-                game_state.lane_states.iter().enumerate().zip(&data.objects)
-            {
-                let lane_skin = store.as_ref().map(|s| s.get(lane_count, lane).clone());
-                let lane_skin = lane_skin.as_ref();
-
-                for (obj_state, widget) in lane_state.object_states.iter().zip(widgets) {
-                    match obj_state {
-                        ObjectState::Regular(_) => {
-                            let picture = widget.downcast_ref::<gtk::Picture>().unwrap();
-                            picture.set_paintable(lane_skin.map(|s| &s.object));
-                        }
-                        ObjectState::LongNote(_) => {
-                            let long_note = widget.downcast_ref::<LongNote>().unwrap();
-                            long_note.set_head_paintable(lane_skin.map(|s| &s.ln_head));
-                            long_note.set_tail_paintable(lane_skin.map(|s| &s.ln_tail));
-                            long_note.set_body_paintable(lane_skin.map(|s| &s.ln_body));
-                        }
-                    }
-                }
+            for (lane, conveyor) in data.conveyors.iter().enumerate() {
+                let lane_skin = store.map(|s| s.get(lane_count, lane).clone());
+                conveyor.set_skin(lane_skin);
             }
         }
 
         pub fn update_ln_lengths(&self) {
-            let data = self.data.borrow();
-            let Some(data) = &*data else {
-                return
-            };
-            let game_state = data.state.game_state();
-
-            for ((cache, lane_state), widgets) in game_state
-                .immutable
-                .lane_caches
-                .iter()
-                .zip(&game_state.lane_states)
-                .zip(&data.objects)
-            {
-                for ((cache, obj_state), widget) in cache
-                    .object_caches
-                    .iter()
-                    .zip(&lane_state.object_states)
-                    .zip(widgets)
-                {
-                    if let ObjectCache::LongNote(_) = cache {
-                        let long_note: &LongNote = widget.downcast_ref().unwrap();
-                        let start_position =
-                            game_state.object_start_position(*obj_state, *cache, data.map_position);
-                        long_note.set_length(
-                            (cache.end_position() - start_position) * self.scroll_speed.get(),
-                        );
-                    }
-                }
+            let Some(data) = &*self.data.borrow() else { return };
+            for conveyor in &data.conveyors {
+                conveyor.update_ln_lengths();
             }
         }
 
         fn refresh_lane_sizes(&self, data: &mut Data) {
-            let lane_sizes = data.objects.iter().map(|lane| {
-                // Min and nat width for a lane is the maximum across objects.
-                // TODO: handle empty lanes better.
-                lane.iter()
-                    .map(|widget| widget.measure(gtk::Orientation::Horizontal, -1))
-                    .fold((0, 0), |(min, nat), (min_w, nat_w, _, _)| {
-                        (min.max(min_w), nat.max(nat_w))
-                    })
+            let lane_sizes = data.conveyors.iter().map(|lane| {
+                let (min, nat, _, _) = lane.measure(gtk::Orientation::Horizontal, -1);
+                (min, nat)
             });
 
             let hit_light_sizes = data

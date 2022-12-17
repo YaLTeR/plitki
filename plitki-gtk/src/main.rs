@@ -3,6 +3,7 @@ use glib::{GlibLogger, GlibLoggerDomain, GlibLoggerFormat};
 use gtk::{gdk, gio};
 use log::info;
 
+mod lane_conveyor;
 mod long_note;
 mod playfield;
 mod skin;
