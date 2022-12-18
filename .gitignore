@@ -1,2 +1,6 @@
 target/
 Cargo.lock
+.fenv/
+.flatpak-builder/
+_build/
+_repo/

@@ -1,0 +1,65 @@
+{
+    "app-id": "rs.bxt.Plitki.Devel",
+    "runtime": "org.gnome.Platform",
+    "runtime-version": "43",
+    "sdk": "org.gnome.Sdk",
+    "sdk-extensions": ["org.freedesktop.Sdk.Extension.rust-stable"],
+    "command": "plitki-gnome",
+    "tags": [
+        "nightly"
+    ],
+    "desktop-file-name-suffix": " (Devel)",
+    "finish-args" : [
+        "--filesystem=host",
+        "--share=ipc",
+        "--socket=fallback-x11",
+        "--socket=wayland",
+        "--socket=pulseaudio",
+        "--device=dri",
+        "--env=RUST_BACKTRACE=1"
+    ],
+    "build-options" : {
+        "append-path" : "/usr/lib/sdk/rust-stable/bin",
+        "build-args" : [
+            "--share=network"
+        ],
+        "env" : {
+            "CARGO_HOME" : ".cargo-home"
+        }
+    },
+    "modules": [
+        {
+            "name" : "blueprint",
+            "buildsystem" : "meson",
+            "sources" : [
+                {
+                    "type" : "git",
+                    "url" : "https://gitlab.gnome.org/jwestman/blueprint-compiler.git",
+                    "commit" : "9adcab2d225fd6435edc85c72a0b67e33880e00b"
+                }
+            ]
+        },
+        {
+            "name": "plitki",
+            "buildsystem": "simple",
+            "build-commands": [
+                "cargo build --workspace --release"
+            ],
+            "post-install": [
+                "install -Dt $FLATPAK_DEST/bin target/release/plitki-{gtk,gnome}",
+                "install -Dm0644 -t $FLATPAK_DEST/share/applications rs.bxt.Plitki.Devel.desktop"
+            ],
+            "test-commands": [
+                "cargo clippy --all-targets --workspace --release",
+                "cargo test --no-run --workspace --release",
+                "cargo test --workspace --release"
+            ],
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": "."
+                }
+            ]
+        }
+    ]
+}

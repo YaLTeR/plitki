@@ -8,76 +8,27 @@ on:
     - cron: '0 0 1 * *' # Monthly
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-
-      matrix:
-        rust: [stable, beta]
-        configuration: [debug, release]
-
-        exclude:
-          - configuration: release
-            rust: beta
-
-        include:
-          - configuration: release
-            release-flag: '--release'
-
-    name: ${{ matrix.rust }} - ${{ matrix.configuration }}
-    runs-on: ubuntu-20.04
+  flatpak:
+    name: Build on Flatpak
+    runs-on: ubuntu-22.04
+    container:
+      image: bilelmoussaoui/flatpak-github-actions:gnome-43
+      options: --privileged
 
     steps:
       - uses: actions/checkout@v3
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install libasound2-dev libxxf86vm-dev libosmesa6-dev libssl-dev
-
-      - name: Install Rust
-        run: |
-          rustup toolchain install ${{ matrix.rust }} --profile minimal
-          rustup override set ${{ matrix.rust }}
-
-      - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.configuration }}
+          lfs: true
 
-      - name: Build
-        run: cargo build ${{ matrix.release-flag }} --workspace --exclude plitki-gtk --exclude plitki-gnome --exclude plitki-ui-wayland
-
-      - name: Build Tests
-        run: cargo test --no-run ${{ matrix.release-flag }} --workspace --exclude plitki-gtk --exclude plitki-gnome --exclude plitki-ui-wayland
-
-      - name: Test
-        run: cargo test ${{ matrix.release-flag }} --workspace --exclude plitki-gtk --exclude plitki-gnome --exclude plitki-ui-wayland -- --nocapture
-
-  clippy:
-    strategy:
-      fail-fast: false
-
-    name: clippy
-    runs-on: ubuntu-20.04
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install libasound2-dev libxxf86vm-dev libosmesa6-dev libssl-dev
-
-      - name: Install Rust
-        run: rustup toolchain install stable --profile minimal --component clippy
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Run clippy
-        run: cargo clippy --all-targets --workspace --exclude plitki-gtk --exclude plitki-gnome --exclude plitki-ui-wayland
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v5
+        with:
+          manifest-path: rs.bxt.Plitki.Devel.json
+          bundle: plitki.flatpak
+          run-tests: true
+          cache: false
 
   rustfmt:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v3
