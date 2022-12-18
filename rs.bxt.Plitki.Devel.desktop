@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Plitki
+Comment=Play Quaver charts
+Type=Application
+Exec=plitki-gnome
+Terminal=false
+Categories=GNOME;GTK;Game;
+Keywords=VSRG;Rhythm;
+StartupNotify=true
