@@ -1,4 +1,4 @@
-![Build Status](https://img.shields.io/github/workflow/status/YaLTeR/plitki/CI/master?style=flat-square)
+![Build Status](https://img.shields.io/github/actions/workflow/status/YaLTeR/plitki/ci.yml?branch=master&style=flat-square)
 <!-- [![Coverage (Codecov)](https://img.shields.io/codecov/c/github/YaLTeR/plitki?logo=codecov&style=flat-square)](https://codecov.io/gh/YaLTeR/plitki) -->
 
 Plitki is an experimental vertical scrolling rhythm game engine. I wrote it to get a better understanding of the underlying systems and to test a few design ideas I had.
