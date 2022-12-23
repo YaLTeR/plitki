@@ -14,6 +14,7 @@ use crate::audio::AudioEngine;
 pub(crate) struct BoxedAudioEngine(Rc<AudioEngine>);
 
 mod imp {
+    use std::cell::Cell;
     use std::io::Cursor;
 
     use adw::prelude::*;
@@ -60,6 +61,8 @@ mod imp {
         #[template_child]
         pref_window: TemplateChild<adw::PreferencesWindow>,
         #[template_child]
+        gameplay_header_bar: TemplateChild<adw::HeaderBar>,
+        #[template_child]
         gameplay_window_title: TemplateChild<adw::WindowTitle>,
         #[template_child]
         map_background: TemplateChild<Background>,
@@ -77,6 +80,9 @@ mod imp {
 
         // GTK key events have key repeat, so filter that out manually using this array.
         is_lane_pressed: RefCell<[bool; 7]>,
+
+        // Timestamp, in milliseconds, of the last mouse movement.
+        last_mouse_movement_timestamp: Cell<i64>,
     }
 
     #[glib::object_subclass]
@@ -146,9 +152,25 @@ mod imp {
             }));
             obj.add_controller(&controller);
 
+            // Set up mouse movement tracking.
+            let controller = gtk::EventControllerMotion::new();
+            controller.connect_enter(clone!(@weak self as imp => move |controller, _, _| {
+                let time = controller.current_event_time();
+                if time != 0 {
+                    imp.on_mouse_moved(time.into());
+                }
+            }));
+            controller.connect_motion(clone!(@weak self as imp => move |controller, _, _| {
+                let time = controller.current_event_time();
+                if time != 0 {
+                    imp.on_mouse_moved(time.into());
+                }
+            }));
+            obj.add_controller(&controller);
+
             // Set up playfield scrolling.
-            obj.add_tick_callback(move |obj, _clock| {
-                obj.imp().on_tick_callback();
+            obj.add_tick_callback(move |obj, clock| {
+                obj.imp().on_tick_callback(clock);
                 glib::Continue(true)
             });
         }
@@ -342,7 +364,39 @@ mod imp {
             }
         }
 
-        fn on_tick_callback(&self) {
+        fn update_mouse_inactivity(&self, clock: &gdk::FrameClock) {
+            let current_time = clock.frame_time() / 1000;
+            let last_mouse_movement_time: i64 = self.last_mouse_movement_timestamp.get();
+            let time_since_last_mouse_movement =
+                current_time.saturating_sub(last_mouse_movement_time);
+
+            if self.stack.visible_child_name().as_deref() != Some("gameplay")
+                || self.pref_window.is_visible()
+                || last_mouse_movement_time == 0
+            {
+                self.gameplay_header_bar.set_opacity(1.);
+                self.obj().set_cursor_from_name(None);
+
+                // Reset the timestamp so that we don't get instant fade-out if, for example, the
+                // user did not move the cursor to close the preferences window, letting the idle
+                // time build up.
+                self.last_mouse_movement_timestamp.set(current_time);
+                return;
+            }
+
+            let opacity = (3000 - time_since_last_mouse_movement.clamp(1000, 3000)) as f64 / 2000.;
+            self.gameplay_header_bar.set_opacity(opacity);
+
+            if opacity == 0. {
+                self.obj().set_cursor_from_name(Some("none"));
+            } else {
+                self.obj().set_cursor_from_name(None);
+            }
+        }
+
+        fn on_tick_callback(&self, clock: &gdk::FrameClock) {
+            self.update_mouse_inactivity(clock);
+
             let game_timestamp = self.game_timestamp();
 
             self.playfield.set_game_timestamp(game_timestamp);
@@ -581,6 +635,10 @@ mod imp {
                 hit_light.set_css_classes(&[css_class]);
                 hit_light.fire();
             };
+        }
+
+        fn on_mouse_moved(&self, timestamp: i64) {
+            self.last_mouse_movement_timestamp.set(timestamp);
         }
     }
 

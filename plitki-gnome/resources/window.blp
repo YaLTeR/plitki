@@ -46,20 +46,7 @@ template PlitkiWindow : Adw.ApplicationWindow {
       StackPage {
         name: "gameplay";
 
-        child: Box {
-          orientation: vertical;
-
-          Adw.HeaderBar {
-            title-widget: Adw.WindowTitle gameplay_window_title {};
-
-            [end]
-            Button {
-              can-focus: false; // Don't steal spacebar from the playfield...
-              icon-name: "document-properties-symbolic";
-              clicked => open_preferences() swapped;
-            }
-          }
-
+        child: WindowHandle {
           Overlay {
             vexpand: true;
 
@@ -137,6 +124,24 @@ template PlitkiWindow : Adw.ApplicationWindow {
 
               layout {
                 measure: true;
+              }
+            }
+
+            [overlay]
+            Adw.HeaderBar gameplay_header_bar {
+              valign: start;
+
+              layout {
+                measure: true;
+              }
+
+              title-widget: Adw.WindowTitle gameplay_window_title {};
+
+              [end]
+              Button {
+                can-focus: false; // Don't steal spacebar from the playfield...
+                icon-name: "document-properties-symbolic";
+                clicked => open_preferences() swapped;
               }
             }
           }
