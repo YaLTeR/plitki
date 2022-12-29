@@ -14,17 +14,53 @@ mod imp {
     use gtk::{gdk, graphene, gsk};
     use log::trace;
     use once_cell::sync::Lazy;
+    use once_cell::unsync::OnceCell;
     use plitki_core::scroll::{Position, ScrollSpeed};
+    use plitki_core::state::{LongNoteCache, ObjectCache, RegularObjectCache};
 
     use super::*;
-    use crate::lane_conveyor::LaneConveyor;
-    use crate::utils::to_pixels;
+    use crate::conveyor::Conveyor;
+    use crate::conveyor_widget::{ConveyorWidget, ConveyorWidgetExt};
+    use crate::long_note::LongNote;
+    use crate::regular_note::RegularNote;
+    use crate::skin::LaneSkin;
+    use crate::timing_line::TimingLine;
+
+    #[derive(Debug)]
+    enum NoteWidget {
+        Regular(RegularNote),
+        Long(LongNote),
+    }
+
+    impl NoteWidget {
+        fn as_conveyor_widget(&self) -> &ConveyorWidget {
+            match self {
+                NoteWidget::Regular(regular) => regular.upcast_ref(),
+                NoteWidget::Long(long) => long.upcast_ref(),
+            }
+        }
+
+        fn set_skin(&self, skin: Option<&LaneSkin>) {
+            match self {
+                NoteWidget::Regular(regular) => regular.set_skin(skin),
+                NoteWidget::Long(long) => long.set_skin(skin),
+            }
+        }
+
+        fn as_long(&self) -> Option<&LongNote> {
+            if let Self::Long(v) = self {
+                Some(v)
+            } else {
+                None
+            }
+        }
+    }
 
     #[derive(Debug)]
     struct Data {
         state: State,
-        conveyors: Vec<LaneConveyor>,
-        timing_lines: Vec<gtk::Separator>,
+        notes: Vec<Vec<NoteWidget>>,
+        conveyors: Vec<Conveyor>,
         hit_lights: Vec<gtk::Widget>,
         map_position: Position,
 
@@ -37,6 +73,7 @@ mod imp {
     #[derive(Debug)]
     pub struct Playfield {
         data: RefCell<Option<Data>>,
+        timing_line_conveyor: OnceCell<Conveyor>,
         skin: RefCell<Option<Skin>>,
         scroll_speed: Cell<ScrollSpeed>,
         game_timestamp: Cell<GameTimestamp>,
@@ -50,6 +87,7 @@ mod imp {
         fn default() -> Self {
             Self {
                 data: Default::default(),
+                timing_line_conveyor: Default::default(),
                 skin: Default::default(),
                 scroll_speed: Cell::new(ScrollSpeed(30)),
                 game_timestamp: Cell::new(GameTimestamp::zero()),
@@ -78,6 +116,15 @@ mod imp {
             self.parent_constructed();
 
             obj.set_overflow(gtk::Overflow::Hidden);
+
+            let timing_line_conveyor = Conveyor::new();
+            timing_line_conveyor.set_parent(&*obj);
+            for name in ["scroll-speed", "downscroll", "hit-position"] {
+                obj.bind_property(name, &timing_line_conveyor, name)
+                    .sync_create()
+                    .build();
+            }
+            self.timing_line_conveyor.set(timing_line_conveyor).unwrap();
         }
 
         fn dispose(&self) {
@@ -191,12 +238,12 @@ mod imp {
                         });
 
                     // Also take the timing lines into account.
-                    let min_tl = data
-                        .timing_lines
-                        .iter()
-                        .map(|widget| widget.measure(gtk::Orientation::Horizontal, -1).0)
-                        .max()
-                        .unwrap_or(0);
+                    let min_tl = self
+                        .timing_line_conveyor
+                        .get()
+                        .unwrap()
+                        .measure(gtk::Orientation::Horizontal, -1)
+                        .0;
 
                     let min = min.max(min_tl);
                     let nat = nat.max(min_tl);
@@ -217,49 +264,20 @@ mod imp {
 
             let data = self.data.borrow();
             let Some(data) = &*data else { return };
-            let game_state = data.state.game_state();
 
-            let scroll_speed = self.scroll_speed.get();
             let downscroll = self.downscroll.get();
             let hit_position = self.hit_position.get();
 
-            for (line, widget) in game_state
-                .immutable
-                .timing_lines
-                .iter()
-                .zip(&data.timing_lines)
-            {
-                // Our width is guaranteed to fit the timing lines because we considered them in
-                // measure().
-
-                let difference = line.position - data.map_position;
-                let mut y = to_pixels(difference * scroll_speed) + hit_position;
-                if y >= height {
-                    widget.set_child_visible(false);
-                    continue;
-                }
-
-                let widget_height = widget.measure(gtk::Orientation::Vertical, width).1;
-                if y + widget_height <= 0 {
-                    widget.set_child_visible(false);
-                    continue;
-                }
-                widget.set_child_visible(true);
-
-                if downscroll {
-                    y = height - y - widget_height;
-                }
-
-                let mut transform =
-                    gsk::Transform::new().translate(&graphene::Point::new(0., y as f32));
-                if downscroll {
-                    transform = transform
-                        .translate(&graphene::Point::new(0., widget_height as f32))
-                        .scale(1., -1.)
-                }
-
-                widget.allocate(width, widget_height, -1, Some(&transform));
-            }
+            // Our width is guaranteed to fit the timing lines because we considered them in
+            // measure().
+            let timing_line_conveyor = self.timing_line_conveyor.get().unwrap();
+            let conveyor_height = timing_line_conveyor
+                .measure(gtk::Orientation::Vertical, width)
+                .0;
+            timing_line_conveyor.size_allocate(
+                &gdk::Rectangle::new(0, 0, width, height.max(conveyor_height)),
+                -1,
+            );
 
             let mut x = 0;
             let lane_widths = compute_lane_widths(data, width);
@@ -322,11 +340,10 @@ mod imp {
             if self.scroll_speed.get() != value {
                 self.scroll_speed.set(value);
 
-                self.update_ln_lengths();
+                self.update_object_states();
 
                 let obj = self.obj();
                 obj.notify("scroll-speed");
-                obj.queue_allocate();
             }
         }
 
@@ -364,7 +381,13 @@ mod imp {
                     let position = game_state.position_at_time(map_timestamp);
                     if data.map_position != position {
                         data.map_position = position;
-                        obj.queue_allocate();
+                        self.timing_line_conveyor
+                            .get()
+                            .unwrap()
+                            .set_map_position(position);
+                        for conveyor in &data.conveyors {
+                            conveyor.set_map_position(position);
+                        }
                     }
                 }
             }
@@ -378,7 +401,22 @@ mod imp {
             let obj = self.obj();
             obj.queue_resize();
 
-            while let Some(child) = obj.first_child() {
+            for child in self
+                .data
+                .borrow()
+                .as_ref()
+                .iter()
+                .flat_map(|d| d.conveyors.iter())
+            {
+                child.unparent();
+            }
+            for child in self
+                .data
+                .borrow()
+                .as_ref()
+                .iter()
+                .flat_map(|d| d.hit_lights.iter())
+            {
                 child.unparent();
             }
 
@@ -394,32 +432,47 @@ mod imp {
                 .immutable
                 .timing_lines
                 .iter()
-                .map(|_| {
-                    let widget = gtk::Separator::new(gtk::Orientation::Horizontal);
-                    widget.set_parent(&*obj);
-                    widget
-                })
+                .map(|timing_line| TimingLine::new(timing_line.position).upcast())
                 .collect();
+            self.timing_line_conveyor
+                .get()
+                .unwrap()
+                .set_widgets(timing_lines);
 
-            let conveyors = (0..game_state.lane_count())
+            let mut notes = Vec::new();
+
+            let conveyors: Vec<Conveyor> = (0..game_state.lane_count())
                 .map(|lane| {
-                    let conveyor = LaneConveyor::new();
-                    conveyor.set_lane(lane.try_into().unwrap());
+                    let conveyor = Conveyor::new();
                     conveyor.set_parent(&*obj);
 
-                    for name in [
-                        "scroll-speed",
-                        "game-timestamp",
-                        "downscroll",
-                        "hit-position",
-                    ] {
+                    for name in ["scroll-speed", "downscroll", "hit-position"] {
                         obj.bind_property(name, &conveyor, name)
                             .sync_create()
                             .build();
                     }
 
-                    // We haven't updated the state yet, so no sync-create.
-                    obj.bind_property("state", &conveyor, "state").build();
+                    let lane_notes: Vec<NoteWidget> = game_state.immutable.lane_caches[lane]
+                        .object_caches
+                        .iter()
+                        .map(|&object| match object {
+                            ObjectCache::Regular(RegularObjectCache { position }) => {
+                                NoteWidget::Regular(RegularNote::new(position))
+                            }
+                            ObjectCache::LongNote(LongNoteCache { start_position, .. }) => {
+                                NoteWidget::Long(LongNote::new(start_position))
+                            }
+                        })
+                        .collect();
+
+                    let widgets = lane_notes
+                        .iter()
+                        .map(NoteWidget::as_conveyor_widget)
+                        .cloned()
+                        .collect();
+                    conveyor.set_widgets(widgets);
+
+                    notes.push(lane_notes);
 
                     conveyor
                 })
@@ -447,6 +500,13 @@ mod imp {
                     .get()
                     .to_map(&game_state.timestamp_converter),
             );
+            self.timing_line_conveyor
+                .get()
+                .unwrap()
+                .set_map_position(map_position);
+            for conveyor in &conveyors {
+                conveyor.set_map_position(map_position);
+            }
 
             let lane_sizes = vec![(0, 0); game_state.lane_count()];
             drop(game_state);
@@ -454,8 +514,8 @@ mod imp {
             let data = Data {
                 lane_sizes,
                 state,
+                notes,
                 conveyors,
-                timing_lines,
                 hit_lights,
                 map_position,
             };
@@ -505,16 +565,41 @@ mod imp {
 
             let lane_count = game_state.lane_count();
 
-            for (lane, conveyor) in data.conveyors.iter().enumerate() {
-                let lane_skin = store.map(|s| s.get(lane_count, lane).clone());
-                conveyor.set_skin(lane_skin);
+            for (lane, lane_notes) in data.notes.iter().enumerate() {
+                let lane_skin = store.map(|s| s.get(lane_count, lane));
+                for widget in lane_notes {
+                    widget.set_skin(lane_skin);
+                }
             }
         }
 
         pub fn update_object_states(&self) {
             let Some(data) = &*self.data.borrow() else { return };
-            for conveyor in &data.conveyors {
-                conveyor.update_ln_lengths();
+            let game_state = data.state.game_state();
+
+            for (lane, lane_notes) in data.notes.iter().enumerate() {
+                for ((widget, obj_cache), obj_state) in lane_notes
+                    .iter()
+                    .zip(&game_state.immutable.lane_caches[lane].object_caches)
+                    .zip(&game_state.lane_states[lane].object_states)
+                {
+                    if let ObjectCache::LongNote(_) = obj_cache {
+                        let long_note = widget.as_long().unwrap();
+                        let start_position = game_state.object_start_position(
+                            *obj_state,
+                            *obj_cache,
+                            data.map_position,
+                        );
+                        long_note.set_position(start_position);
+                        long_note.set_length(
+                            (obj_cache.end_position() - start_position) * self.scroll_speed.get(),
+                        );
+                    }
+
+                    let conveyor_widget = widget.as_conveyor_widget();
+                    conveyor_widget.set_hit(obj_state.is_hit());
+                    conveyor_widget.set_missed(obj_state.is_missed());
+                }
             }
         }
 

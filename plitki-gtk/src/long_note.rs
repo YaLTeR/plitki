@@ -1,7 +1,10 @@
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gdk, glib};
-use plitki_core::scroll::ScreenPositionDifference;
+use plitki_core::scroll::{Position, ScreenPositionDifference};
+
+use crate::conveyor_widget::{ConveyorWidget, ConveyorWidgetExt};
+use crate::skin::LaneSkin;
 
 mod imp {
     use std::cell::{Cell, RefCell};
@@ -12,6 +15,7 @@ mod imp {
     use plitki_core::scroll::ScreenPositionDifference;
 
     use super::*;
+    use crate::conveyor_widget::ConveyorWidgetImpl;
     use crate::utils::to_pixels;
 
     #[derive(Debug)]
@@ -37,7 +41,7 @@ mod imp {
     impl ObjectSubclass for LongNote {
         const NAME: &'static str = "PlitkiLongNote";
         type Type = super::LongNote;
-        type ParentType = gtk::Widget;
+        type ParentType = ConveyorWidget;
 
         fn class_init(klass: &mut Self::Class) {
             klass.set_css_name("plitki-long-note");
@@ -278,6 +282,8 @@ mod imp {
         }
     }
 
+    impl ConveyorWidgetImpl for LongNote {}
+
     impl LongNote {
         pub fn head(&self) -> gtk::Widget {
             self.head.borrow().clone()
@@ -388,20 +394,23 @@ mod imp {
 
 glib::wrapper! {
     pub struct LongNote(ObjectSubclass<imp::LongNote>)
-        @extends gtk::Widget;
+        @extends ConveyorWidget, gtk::Widget;
 }
 
 impl LongNote {
-    pub fn new() -> Self {
-        glib::Object::builder().build()
+    pub fn new(position: Position) -> Self {
+        let widget: Self = glib::Object::builder().build();
+        widget.set_position(position);
+        widget
     }
 
     pub fn with_paintables(
+        position: Position,
         head: &impl IsA<gdk::Paintable>,
         tail: &impl IsA<gdk::Paintable>,
         body: &impl IsA<gdk::Paintable>,
     ) -> Self {
-        glib::Object::builder()
+        let widget: Self = glib::Object::builder()
             .property("head", &gtk::Picture::for_paintable(head))
             .property("tail", &gtk::Picture::for_paintable(tail))
             .property("body", &{
@@ -409,19 +418,24 @@ impl LongNote {
                 picture.set_keep_aspect_ratio(false);
                 picture
             })
-            .build()
+            .build();
+        widget.set_position(position);
+        widget
     }
 
     pub fn with_widgets(
+        position: Position,
         head: &impl IsA<gtk::Widget>,
         tail: &impl IsA<gtk::Widget>,
         body: &impl IsA<gtk::Widget>,
     ) -> Self {
-        glib::Object::builder()
+        let widget: Self = glib::Object::builder()
             .property("head", head)
             .property("tail", tail)
             .property("body", body)
-            .build()
+            .build();
+        widget.set_position(position);
+        widget
     }
 
     pub fn head(&self) -> gtk::Widget {
@@ -471,10 +485,14 @@ impl LongNote {
     pub fn set_length(&self, length: ScreenPositionDifference) {
         self.imp().set_length(length);
     }
-}
 
-impl Default for LongNote {
-    fn default() -> Self {
-        Self::new()
+    pub fn set_skin(&self, skin: Option<&LaneSkin>) {
+        let ln_head = skin.map(|s| &s.ln_head);
+        let ln_tail = skin.map(|s| &s.ln_tail);
+        let ln_body = skin.map(|s| &s.ln_body);
+
+        self.set_head_paintable(ln_head);
+        self.set_tail_paintable(ln_tail);
+        self.set_body_paintable(ln_body);
     }
 }
