@@ -415,7 +415,7 @@ mod imp {
             }
 
             // TODO: it's very inefficient to loop over all objects here.
-            self.playfield.update_ln_lengths();
+            self.playfield.update_object_states();
         }
 
         fn game_timestamp(&self) -> GameTimestamp {

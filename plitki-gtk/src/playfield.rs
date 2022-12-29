@@ -461,7 +461,7 @@ mod imp {
 
             self.data.replace(Some(data));
 
-            self.update_ln_lengths();
+            self.update_object_states();
             self.update_skin();
 
             obj.notify("state");
@@ -510,7 +510,7 @@ mod imp {
             }
         }
 
-        pub fn update_ln_lengths(&self) {
+        pub fn update_object_states(&self) {
             let Some(data) = &*self.data.borrow() else { return };
             for conveyor in &data.conveyors {
                 conveyor.update_ln_lengths();
@@ -684,8 +684,8 @@ impl Playfield {
         self.imp().hit_light_for_lane(lane)
     }
 
-    pub fn update_ln_lengths(&self) {
-        self.imp().update_ln_lengths();
+    pub fn update_object_states(&self) {
+        self.imp().update_object_states();
     }
 }
 
