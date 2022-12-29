@@ -74,9 +74,10 @@ mod imp {
 
     impl ObjectImpl for Playfield {
         fn constructed(&self) {
+            let obj = self.obj();
             self.parent_constructed();
 
-            self.obj().set_overflow(gtk::Overflow::Hidden);
+            obj.set_overflow(gtk::Overflow::Hidden);
         }
 
         fn dispose(&self) {
