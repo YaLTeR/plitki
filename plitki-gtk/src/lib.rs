@@ -1,9 +1,9 @@
-mod conveyor;
-mod conveyor_widget;
-mod long_note;
+pub mod conveyor;
+pub mod conveyor_widget;
+pub mod long_note;
 pub mod playfield;
-mod regular_note;
+pub mod regular_note;
 pub mod skin;
 pub mod state;
-mod timing_line;
+pub mod timing_line;
 mod utils;
