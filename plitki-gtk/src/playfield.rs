@@ -573,6 +573,29 @@ mod imp {
             }
         }
 
+        pub fn update_object_state(&self, lane: usize, index: usize) {
+            let Some(data) = &*self.data.borrow() else { return };
+            let game_state = data.state.game_state();
+
+            let widget = &data.notes[lane][index];
+            let obj_cache = &game_state.immutable.lane_caches[lane].object_caches[index];
+            let obj_state = &game_state.lane_states[lane].object_states[index];
+
+            if let ObjectCache::LongNote(_) = obj_cache {
+                let long_note = widget.as_long().unwrap();
+                let start_position =
+                    game_state.object_start_position(*obj_state, *obj_cache, data.map_position);
+                long_note.set_position(start_position);
+                long_note.set_length(
+                    (obj_cache.end_position() - start_position) * self.scroll_speed.get(),
+                );
+            }
+
+            let conveyor_widget = widget.as_conveyor_widget();
+            conveyor_widget.set_hit(obj_state.is_hit());
+            conveyor_widget.set_missed(obj_state.is_missed());
+        }
+
         pub fn update_object_states(&self) {
             let Some(data) = &*self.data.borrow() else { return };
             let game_state = data.state.game_state();
@@ -768,6 +791,10 @@ impl Playfield {
 
     pub fn hit_light_for_lane(&self, lane: usize) -> gtk::Widget {
         self.imp().hit_light_for_lane(lane)
+    }
+
+    pub fn update_object_state(&self, lane: usize, index: usize) {
+        self.imp().update_object_state(lane, index);
     }
 
     pub fn update_object_states(&self) {
