@@ -24,7 +24,7 @@ mod imp {
     use once_cell::unsync::OnceCell;
     use plitki_core::map::Map;
     use plitki_core::scroll::ScrollSpeed;
-    use plitki_core::state::{Event, GameState, Hit};
+    use plitki_core::state::{Event, EventKind, GameState, Hit};
     use plitki_core::timing::{
         GameTimestamp, GameTimestampDifference, MapTimestampDifference, Timestamp,
     };
@@ -328,10 +328,12 @@ mod imp {
             }
         }
 
-        fn process_event(&self, event: Event) {
-            match event {
-                Event::Miss => self.combo.set_combo(0),
-                Event::Hit(Hit { difference, .. }) => {
+        fn process_event(&self, lane: usize, event: Event) {
+            match event.kind {
+                EventKind::Miss => {
+                    self.combo.set_combo(0);
+                }
+                EventKind::Hit(Hit { difference, .. }) => {
                     if difference.into_milli_hundredths().abs() / 100 <= 127 {
                         self.combo.set_combo(self.combo.combo() + 1);
                     } else {
@@ -340,8 +342,10 @@ mod imp {
                 }
             }
 
+            self.playfield.update_object_state(lane, event.object_index);
+
             let mut statistics = self.statistics.borrow_mut();
-            statistics.process_event(event);
+            statistics.process_event(event.kind);
             self.accuracy.set_accuracy(statistics.accuracy());
         }
 
@@ -353,13 +357,21 @@ mod imp {
                     self.playfield.hit_light_for_lane(lane).downcast().unwrap();
 
                 let Some(state) = self.playfield.state() else { return };
-                let mut game_state = state.game_state_mut();
-                while let Some(event) = game_state.update_lane(lane, timestamp) {
-                    self.process_event(event);
+                while let Some(event) = {
+                    let mut game_state = state.game_state_mut();
+                    game_state.update_lane(lane, timestamp)
+                } {
+                    self.process_event(lane, event);
 
-                    let css_class = hit_light_css_class(event);
+                    let css_class = hit_light_css_class(event.kind);
                     hit_light.set_css_classes(&[css_class]);
                     hit_light.fire();
+                }
+
+                // If we're holding a long note, update its length.
+                let first_active_object = state.game_state().first_active_object(lane);
+                if let Some(index) = first_active_object {
+                    self.playfield.update_object_state(lane, index);
                 }
             }
         }
@@ -413,9 +425,6 @@ mod imp {
                 self.judgement
                     .update(game_timestamp, game_state.last_hits.iter().next().copied());
             }
-
-            // TODO: it's very inefficient to loop over all objects here.
-            self.playfield.update_object_states();
         }
 
         fn game_timestamp(&self) -> GameTimestamp {
@@ -598,12 +607,14 @@ mod imp {
             let hit_light: HitLight = self.playfield.hit_light_for_lane(lane).downcast().unwrap();
 
             let Some(state) = self.playfield.state() else { return gtk::Inhibit(false) };
-            let mut game_state = state.game_state_mut();
 
-            if let Some(event) = game_state.key_press(lane, timestamp) {
-                self.process_event(event);
+            if let Some(event) = {
+                let mut game_state = state.game_state_mut();
+                game_state.key_press(lane, timestamp)
+            } {
+                self.process_event(lane, event);
 
-                let css_class = hit_light_css_class(event);
+                let css_class = hit_light_css_class(event.kind);
                 hit_light.set_css_classes(&[css_class]);
                 hit_light.fire();
             };
@@ -626,12 +637,14 @@ mod imp {
             let hit_light: HitLight = self.playfield.hit_light_for_lane(lane).downcast().unwrap();
 
             let Some(state) = self.playfield.state() else { return };
-            let mut game_state = state.game_state_mut();
 
-            if let Some(event) = game_state.key_release(lane, timestamp) {
-                self.process_event(event);
+            if let Some(event) = {
+                let mut game_state = state.game_state_mut();
+                game_state.key_release(lane, timestamp)
+            } {
+                self.process_event(lane, event);
 
-                let css_class = hit_light_css_class(event);
+                let css_class = hit_light_css_class(event.kind);
                 hit_light.set_css_classes(&[css_class]);
                 hit_light.fire();
             };
@@ -687,10 +700,10 @@ mod imp {
         skin
     }
 
-    fn hit_light_css_class(event: Event) -> &'static str {
-        match event {
-            Event::Miss => "judge-miss",
-            Event::Hit(Hit { difference, .. }) => {
+    fn hit_light_css_class(event_kind: EventKind) -> &'static str {
+        match event_kind {
+            EventKind::Miss => "judge-miss",
+            EventKind::Hit(Hit { difference, .. }) => {
                 match difference.into_milli_hundredths().abs() / 100 {
                     0..=18 => "judge-marv",
                     19..=43 => "judge-perf",

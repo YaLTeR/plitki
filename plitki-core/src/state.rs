@@ -208,9 +208,9 @@ pub struct Hit {
     pub difference: GameTimestampDifference,
 }
 
-/// An event that can occur as the result of an gameplay update.
+/// Type of an event that can occur as the result of an gameplay update.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum Event {
+pub enum EventKind {
     /// An object was missed.
     ///
     /// This is both the usual misses and a long note being released way too early.
@@ -220,6 +220,16 @@ pub enum Event {
     ///
     /// Long notes usually produce more than one hit (for press and for release).
     Hit(Hit),
+}
+
+/// An event that can occur as the result of an gameplay update.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct Event {
+    /// Index of the object that this event corresponds to.
+    pub object_index: usize,
+
+    /// Kind of the event.
+    pub kind: EventKind,
 }
 
 /// An error returned from [`GameState::new()`].
@@ -652,6 +662,22 @@ impl GameState {
         lane_state.first_active_object < lane_state.object_states.len()
     }
 
+    /// Returns the index of the first object in the lane the state of which can still change.
+    ///
+    /// If this method returns `None`, then there are no more active objects in this lane. For
+    /// example, this happens in the end of the map after the last object in the lane has been hit
+    /// or missed.
+    #[inline]
+    pub fn first_active_object(&self, lane: usize) -> Option<usize> {
+        let lane_state = &self.lane_states[lane];
+        let index = lane_state.first_active_object;
+        if index < lane_state.object_states.len() {
+            Some(index)
+        } else {
+            None
+        }
+    }
+
     /// Updates the state for all lanes.
     ///
     /// Essentially, this is a way to signal "some time has passed". Stuff like missed objects is
@@ -739,8 +765,9 @@ impl GameState {
         let map_hit_window = self.hit_window.to_map(&self.timestamp_converter);
 
         let lane_state = &mut self.lane_states[lane];
-        let object = &self.immutable.map.lanes[lane].objects[lane_state.first_active_object];
-        let state = &mut lane_state.object_states[lane_state.first_active_object];
+        let object_index = lane_state.first_active_object;
+        let object = &self.immutable.map.lanes[lane].objects[object_index];
+        let state = &mut lane_state.object_states[object_index];
 
         // We want to increase first_active_object on every early return.
         lane_state.first_active_object += 1;
@@ -752,7 +779,10 @@ impl GameState {
                     if let RegularObjectState::NotHit = state {
                         *state = RegularObjectState::Missed;
 
-                        return Some(Event::Miss);
+                        return Some(Event {
+                            object_index,
+                            kind: EventKind::Miss,
+                        });
                     } else {
                         unreachable!()
                     }
@@ -771,7 +801,10 @@ impl GameState {
                         };
                         self.last_hits.push(hit);
 
-                        return Some(Event::Hit(hit));
+                        return Some(Event {
+                            object_index,
+                            kind: EventKind::Hit(hit),
+                        });
                     } else if *state == LongNoteState::NotHit {
                         // I kind of dislike how this branch exists both here and in the condition
                         // below...
@@ -780,7 +813,10 @@ impl GameState {
                             press_difference: None,
                         };
 
-                        return Some(Event::Miss);
+                        return Some(Event {
+                            object_index,
+                            kind: EventKind::Miss,
+                        });
                     } else {
                         unreachable!()
                     }
@@ -798,7 +834,10 @@ impl GameState {
                         press_difference: None,
                     };
 
-                    return Some(Event::Miss);
+                    return Some(Event {
+                        object_index,
+                        kind: EventKind::Miss,
+                    });
                 }
 
                 if let LongNoteState::Held { .. } = state {
@@ -865,8 +904,9 @@ impl GameState {
         let map_hit_window = self.hit_window.to_map(&self.timestamp_converter);
 
         let lane_state = &mut self.lane_states[lane];
-        let object = &self.immutable.map.lanes[lane].objects[lane_state.first_active_object];
-        let state = &mut lane_state.object_states[lane_state.first_active_object];
+        let object_index = lane_state.first_active_object;
+        let object = &self.immutable.map.lanes[lane].objects[object_index];
+        let state = &mut lane_state.object_states[object_index];
 
         if map_timestamp >= object.start_timestamp().saturating_sub(map_hit_window) {
             // The object can be hit.
@@ -893,7 +933,10 @@ impl GameState {
             };
             self.last_hits.push(hit);
 
-            Some(Event::Hit(hit))
+            Some(Event {
+                object_index,
+                kind: EventKind::Hit(hit),
+            })
         } else {
             None
         }
@@ -946,8 +989,9 @@ impl GameState {
         let map_hit_window = self.hit_window.to_map(&self.timestamp_converter);
 
         let lane_state = &mut self.lane_states[lane];
-        let object = &self.immutable.map.lanes[lane].objects[lane_state.first_active_object];
-        let state = &mut lane_state.object_states[lane_state.first_active_object];
+        let object_index = lane_state.first_active_object;
+        let object = &self.immutable.map.lanes[lane].objects[object_index];
+        let state = &mut lane_state.object_states[object_index];
 
         if let ObjectState::LongNote(state) = state {
             if let LongNoteState::Held { press_difference } = *state {
@@ -969,7 +1013,10 @@ impl GameState {
                     };
                     self.last_hits.push(hit);
 
-                    return Some(Event::Hit(hit));
+                    return Some(Event {
+                        object_index,
+                        kind: EventKind::Hit(hit),
+                    });
                 } else {
                     // Released too early.
                     *state = LongNoteState::Missed {
@@ -977,7 +1024,10 @@ impl GameState {
                         press_difference: Some(press_difference),
                     };
 
-                    return Some(Event::Miss);
+                    return Some(Event {
+                        object_index,
+                        kind: EventKind::Miss,
+                    });
                 }
             }
         }

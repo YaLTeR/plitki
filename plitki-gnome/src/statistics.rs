@@ -1,4 +1,4 @@
-use plitki_core::state::{Event, Hit};
+use plitki_core::state::{EventKind, Hit};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Statistics {
@@ -10,9 +10,9 @@ impl Statistics {
         Self { hits: vec![0; 6] }
     }
 
-    pub fn process_event(&mut self, event: Event) {
-        let index = match event {
-            Event::Hit(Hit { difference, .. }) => {
+    pub fn process_event(&mut self, kind: EventKind) {
+        let index = match kind {
+            EventKind::Hit(Hit { difference, .. }) => {
                 // Quaver Standard judgements.
                 match difference.into_milli_hundredths().abs() / 100 {
                     0..=18 => 0,
@@ -23,7 +23,7 @@ impl Statistics {
                     _ => 5,
                 }
             }
-            Event::Miss => 5,
+            EventKind::Miss => 5,
         };
 
         self.hits[index] += 1;
