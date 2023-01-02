@@ -377,6 +377,8 @@ mod imp {
         }
 
         fn update_mouse_inactivity(&self, clock: &gdk::FrameClock) {
+            let obj = self.obj();
+
             let current_time = clock.frame_time() / 1000;
             let last_mouse_movement_time: i64 = self.last_mouse_movement_timestamp.get();
             let time_since_last_mouse_movement =
@@ -387,7 +389,7 @@ mod imp {
                 || last_mouse_movement_time == 0
             {
                 self.gameplay_header_bar.set_opacity(1.);
-                self.obj().set_cursor_from_name(None);
+                obj.set_cursor_from_name(None);
 
                 // Reset the timestamp so that we don't get instant fade-out if, for example, the
                 // user did not move the cursor to close the preferences window, letting the idle
@@ -400,9 +402,12 @@ mod imp {
             self.gameplay_header_bar.set_opacity(opacity);
 
             if opacity == 0. {
-                self.obj().set_cursor_from_name(Some("none"));
+                // If the cursor is already hidden, avoid a costly creation within.
+                if obj.cursor().is_none() {
+                    obj.set_cursor_from_name(Some("none"));
+                }
             } else {
-                self.obj().set_cursor_from_name(None);
+                obj.set_cursor_from_name(None);
             }
         }
 
