@@ -14,7 +14,6 @@ mod imp {
 
     use gtk::prelude::*;
     use gtk::{graphene, gsk};
-    use log::trace;
     use once_cell::sync::Lazy;
     use widget::ConveyorWidgetExt;
 

@@ -2,7 +2,6 @@ use anyhow::Context;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gio, glib};
-use log::info;
 
 mod imp {
     use std::cell::{Cell, RefCell};

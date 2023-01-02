@@ -5,7 +5,6 @@ use glib::clone;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gio, glib};
-use log::warn;
 
 use crate::audio::AudioEngine;
 

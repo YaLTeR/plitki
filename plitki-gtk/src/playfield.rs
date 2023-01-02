@@ -12,7 +12,6 @@ mod imp {
     use std::collections::HashMap;
 
     use gtk::{gdk, graphene, gsk};
-    use log::trace;
     use once_cell::sync::Lazy;
     use once_cell::unsync::OnceCell;
     use plitki_core::scroll::{Position, ScrollSpeed};

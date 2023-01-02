@@ -1,9 +1,10 @@
+#[macro_use]
+extern crate tracing;
+
 use std::rc::Rc;
 
 use adw::prelude::*;
-use glib::{GlibLogger, GlibLoggerDomain, GlibLoggerFormat};
 use gtk::{gdk, gio};
-use log::info;
 use window::Window;
 
 use crate::audio::AudioEngine;
@@ -19,10 +20,9 @@ mod statistics;
 mod window;
 
 fn main() {
-    static GLIB_LOGGER: GlibLogger =
-        GlibLogger::new(GlibLoggerFormat::LineAndFile, GlibLoggerDomain::CrateTarget);
-    let _ = log::set_logger(&GLIB_LOGGER);
-    log::set_max_level(log::LevelFilter::Debug);
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
 
     info!(
         "{} version {}",

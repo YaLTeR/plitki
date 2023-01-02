@@ -10,7 +10,6 @@ mod imp {
     use std::cell::{Cell, RefCell};
 
     use gtk::{gdk, graphene};
-    use log::trace;
     use once_cell::sync::Lazy;
     use plitki_core::scroll::ScreenPositionDifference;
 

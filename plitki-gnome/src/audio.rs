@@ -6,7 +6,6 @@ use std::time::{Duration, Instant};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{OutputCallbackInfo, SampleFormat, Stream};
 use crossbeam_channel::{Receiver, Sender};
-use log::{debug, error};
 use rodio::cpal::StreamConfig;
 use rodio::source::UniformSourceIterator;
 use rodio::{cpal, Sample, Source};
