@@ -3,7 +3,7 @@ use gtk::subclass::prelude::*;
 use gtk::{gdk, glib};
 use plitki_core::scroll::{Position, ScreenPositionDifference};
 
-use crate::conveyor_widget::{ConveyorWidget, ConveyorWidgetExt};
+use crate::conveyor::widget::{ConveyorWidget, ConveyorWidgetExt};
 use crate::skin::LaneSkin;
 
 mod imp {
@@ -15,7 +15,7 @@ mod imp {
     use plitki_core::scroll::ScreenPositionDifference;
 
     use super::*;
-    use crate::conveyor_widget::ConveyorWidgetImpl;
+    use crate::conveyor::widget::ConveyorWidgetImpl;
     use crate::utils::to_pixels;
 
     #[derive(Debug)]

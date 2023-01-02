@@ -19,12 +19,12 @@ mod imp {
     use plitki_core::state::{LongNoteCache, ObjectCache, RegularObjectCache};
 
     use super::*;
+    use crate::conveyor::long_note::LongNote;
+    use crate::conveyor::regular_note::RegularNote;
+    use crate::conveyor::timing_line::TimingLine;
+    use crate::conveyor::widget::{ConveyorWidget, ConveyorWidgetExt};
     use crate::conveyor::Conveyor;
-    use crate::conveyor_widget::{ConveyorWidget, ConveyorWidgetExt};
-    use crate::long_note::LongNote;
-    use crate::regular_note::RegularNote;
     use crate::skin::LaneSkin;
-    use crate::timing_line::TimingLine;
 
     #[derive(Debug)]
     enum NoteWidget {

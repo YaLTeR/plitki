@@ -16,7 +16,7 @@ mod imp {
     use plitki_core::timing::{GameTimestampDifference, Timestamp};
 
     use super::*;
-    use crate::long_note::LongNote;
+    use crate::conveyor::long_note::LongNote;
     use crate::playfield::Playfield;
     use crate::skin::{LaneSkin, Skin};
     use crate::state::State;

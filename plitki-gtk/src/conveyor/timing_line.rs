@@ -2,14 +2,14 @@ use gtk::glib;
 use gtk::subclass::prelude::*;
 use plitki_core::scroll::Position;
 
-use crate::conveyor_widget::{ConveyorWidget, ConveyorWidgetExt};
+use crate::conveyor::widget::{ConveyorWidget, ConveyorWidgetExt};
 
 mod imp {
     use gtk::prelude::*;
     use once_cell::unsync::OnceCell;
 
     use super::*;
-    use crate::conveyor_widget::ConveyorWidgetImpl;
+    use crate::conveyor::widget::ConveyorWidgetImpl;
 
     #[derive(Debug, Default)]
     pub struct TimingLine {

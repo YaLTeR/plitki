@@ -2,7 +2,12 @@ use gtk::glib;
 use gtk::subclass::prelude::*;
 use plitki_core::scroll::{Position, ScrollSpeed};
 
-use crate::conveyor_widget::ConveyorWidget;
+pub mod long_note;
+pub mod regular_note;
+pub mod timing_line;
+pub mod widget;
+
+use widget::ConveyorWidget;
 
 mod imp {
     use std::cell::{Cell, RefCell};
@@ -11,9 +16,9 @@ mod imp {
     use gtk::{graphene, gsk};
     use log::trace;
     use once_cell::sync::Lazy;
+    use widget::ConveyorWidgetExt;
 
     use super::*;
-    use crate::conveyor_widget::ConveyorWidgetExt;
     use crate::utils::to_pixels;
 
     #[derive(Debug)]

@@ -2,7 +2,7 @@ use gtk::glib;
 use gtk::subclass::prelude::*;
 use plitki_core::scroll::Position;
 
-use crate::conveyor_widget::{ConveyorWidget, ConveyorWidgetExt};
+use crate::conveyor::widget::{ConveyorWidget, ConveyorWidgetExt};
 use crate::skin::LaneSkin;
 
 mod imp {
@@ -10,7 +10,7 @@ mod imp {
     use once_cell::unsync::OnceCell;
 
     use super::*;
-    use crate::conveyor_widget::ConveyorWidgetImpl;
+    use crate::conveyor::widget::ConveyorWidgetImpl;
 
     #[derive(Debug, Default)]
     pub struct RegularNote {
