@@ -218,9 +218,8 @@ mod imp {
             gtk::SizeRequestMode::ConstantSize
         }
 
+        #[instrument("Playfield::measure", skip(self))]
         fn measure(&self, orientation: gtk::Orientation, for_size: i32) -> (i32, i32, i32, i32) {
-            trace!("Playfield::measure({}, {})", orientation, for_size);
-
             match orientation {
                 gtk::Orientation::Horizontal => {
                     let mut data = self.data.borrow_mut();
@@ -258,9 +257,8 @@ mod imp {
             }
         }
 
+        #[instrument("Playfield::size_allocate", skip(self))]
         fn size_allocate(&self, width: i32, height: i32, _baseline: i32) {
-            trace!("Playfield::size_allocate({}, {})", width, height);
-
             let data = self.data.borrow();
             let Some(data) = &*data else { return };
 
@@ -625,6 +623,7 @@ mod imp {
             }
         }
 
+        #[instrument("Playfield::refresh_lane_sizes", skip(self, data))]
         fn refresh_lane_sizes(&self, data: &mut Data) {
             let lane_sizes = data.conveyors.iter().map(|lane| {
                 let (min, nat, _, _) = lane.measure(gtk::Orientation::Horizontal, -1);

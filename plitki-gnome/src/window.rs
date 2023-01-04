@@ -348,6 +348,7 @@ mod imp {
             self.accuracy.set_accuracy(statistics.accuracy());
         }
 
+        #[instrument(skip(self))]
         fn update_state(&self, timestamp: GameTimestamp) {
             let Some(lane_count) = self.playfield.state().map(|s| s.lane_count()) else { return };
 
@@ -410,6 +411,7 @@ mod imp {
             }
         }
 
+        #[instrument(skip(self, clock))]
         fn on_tick_callback(&self, clock: &gdk::FrameClock) {
             self.update_mouse_inactivity(clock);
 
