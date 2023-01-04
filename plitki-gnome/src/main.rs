@@ -1,10 +1,12 @@
 #[macro_use]
 extern crate tracing;
 
+use std::env;
 use std::rc::Rc;
 
 use adw::prelude::*;
 use gtk::{gdk, gio};
+use tracing_subscriber::prelude::*;
 use window::Window;
 
 use crate::audio::AudioEngine;
@@ -20,8 +22,21 @@ mod statistics;
 mod window;
 
 fn main() {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+    let (chrome_layer, _guard) = if env::var_os("PLITKI_PROFILE").is_some() {
+        let (layer, guard) = tracing_chrome::ChromeLayerBuilder::new()
+            .file("trace.json")
+            .include_args(true)
+            .include_locations(false)
+            .build();
+        (Some(layer), Some(guard))
+    } else {
+        (None, None)
+    };
+
+    tracing_subscriber::registry()
+        .with(chrome_layer)
+        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::filter::LevelFilter::DEBUG)
         .init();
 
     info!(

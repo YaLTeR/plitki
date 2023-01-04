@@ -15,6 +15,7 @@ plitki-gtk = { path = "../plitki-gtk" }
 plitki-map-qua = { path = "../plitki-map-qua" }
 rodio = { version = "0.16.0", features = ["symphonia-all"], default-features = false }
 tracing = "0.1.37"
+tracing-chrome = "0.7.0"
 tracing-subscriber = "0.3.16"
 triple_buffer = "6.2.0"
 
