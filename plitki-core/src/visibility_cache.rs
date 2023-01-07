@@ -4,6 +4,19 @@ use alloc::{vec, vec::Vec};
 use core::ops::Range;
 
 /// Incrementally updated object visibility cache with overlap support.
+///
+/// This cache computes visibility using two binary searches plus, rarely, a small linear scan. This
+/// makes it much faster than the naive approach of looping over all objects in a lane.
+///
+/// The cache assumes that:
+/// 1. overlapping objects are rare and are grouped in small chunks (i.e. one negative or zero SV
+///    puts a few objects fully on top of each other, or tall LN tail image fully covers a
+///    subsequent very close note),
+/// 2. most frequently, positions change for a single or few objects (i.e. one held LN is changing
+///    its start position every frame in a lane, and nothing else).
+///
+/// If those assumptions don't hold, the cache will still work correctly, but updates or full
+/// rebuilds might end up slower than just computing visibility using a naive approach.
 #[derive(Debug, Clone)]
 pub struct VisibilityCache<T: Ord + Copy> {
     // Object start positions, in the original object order.
