@@ -14,3 +14,4 @@ pub mod object;
 pub mod scroll;
 pub mod state;
 pub mod timing;
+pub mod visibility_cache;
