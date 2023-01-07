@@ -5,6 +5,8 @@
 //! [`ConveyorWidget`]s have a position, which tells [`Conveyor`] where to draw them. They also know
 //! whether they are hit (in which case they should be hidden) and whether they are missed (which
 //! they track to set a `missed` CSS class on themselves).
+//!
+//! [`Conveyor`]: crate::conveyor::Conveyor
 
 use glib::prelude::*;
 use gtk::glib;

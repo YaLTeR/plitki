@@ -141,18 +141,18 @@ struct AudioTimestamp {
 struct AudioThreadState {
     config: StreamConfig,
 
-    /// Source providing silent samples according to [`config`].
+    /// Source providing silent samples according to [`AudioThreadState::config`].
     silence: rodio::source::Zero<f32>,
 
     /// Audio that's currently playing.
     ///
-    /// Should have the same sample rate and channel count as [`config`].
+    /// Should have the same sample rate and channel count as [`AudioThreadState::config`].
     track: Box<dyn Source<Item = f32> + Send>,
 
     /// Identifier of the track that's currently playing.
     track_id: usize,
 
-    /// Total number of samples taken from [`source`].
+    /// Total number of samples taken from [`AudioThreadState::track`].
     samples_taken: usize,
 
     timestamp_producer: triple_buffer::Input<Option<AudioTimestamp>>,
