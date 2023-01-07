@@ -124,8 +124,8 @@ mod imp {
             gtk::SizeRequestMode::ConstantSize
         }
 
-        #[instrument("Conveyor::measure", skip(self))]
-        fn measure(&self, orientation: gtk::Orientation, for_size: i32) -> (i32, i32, i32, i32) {
+        #[instrument("Conveyor::measure", skip_all)]
+        fn measure(&self, orientation: gtk::Orientation, _for_size: i32) -> (i32, i32, i32, i32) {
             match orientation {
                 gtk::Orientation::Horizontal => {
                     let Some(data) = &*self.data.borrow() else { return (0, 0, -1, -1) };
@@ -150,7 +150,7 @@ mod imp {
             }
         }
 
-        #[instrument("Conveyor::size_allocate", skip(self))]
+        #[instrument("Conveyor::size_allocate", skip_all)]
         fn size_allocate(&self, width: i32, height: i32, _baseline: i32) {
             let Some(data) = &mut *self.data.borrow_mut() else { return };
 
