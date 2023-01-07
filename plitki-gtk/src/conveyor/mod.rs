@@ -11,10 +11,12 @@ use widget::ConveyorWidget;
 
 mod imp {
     use std::cell::{Cell, RefCell};
+    use std::collections::HashSet;
 
     use gtk::prelude::*;
     use gtk::{graphene, gsk};
     use once_cell::sync::Lazy;
+    use plitki_core::visibility_cache::VisibilityCache;
     use widget::ConveyorWidgetExt;
 
     use super::*;
@@ -24,6 +26,8 @@ mod imp {
     struct Data {
         widgets: Vec<ConveyorWidget>,
         is_visible: Vec<bool>,
+        was_visible: HashSet<usize>,
+        cache: Option<(i32, VisibilityCache<i32>)>,
     }
 
     #[derive(Debug)]
@@ -128,7 +132,7 @@ mod imp {
         fn measure(&self, orientation: gtk::Orientation, _for_size: i32) -> (i32, i32, i32, i32) {
             match orientation {
                 gtk::Orientation::Horizontal => {
-                    let Some(data) = &*self.data.borrow() else { return (0, 0, -1, -1) };
+                    let Some(data) = &mut *self.data.borrow_mut() else { return (0, 0, -1, -1) };
 
                     // Min and nat width for a lane is the maximum across objects.
                     let (min, nat) = data
@@ -139,6 +143,9 @@ mod imp {
                         .reduce(|(min, nat), (min_w, nat_w)| (min.max(min_w), nat.max(nat_w)))
                         // TODO: figure out better handling for empty lanes.
                         .unwrap_or((0, 0));
+
+                    // TODO: update incrementally when only a single object updates.
+                    data.cache = None;
 
                     (min, nat, -1, -1)
                 }
@@ -159,45 +166,50 @@ mod imp {
             let hit_position = self.hit_position.get();
             let map_position = self.map_position.get();
 
-            for (widget, is_visible) in data.widgets.iter().zip(&mut data.is_visible) {
-                // Hide the widget if it was hit.
+            // Invalidate the cache if our width changed.
+            if matches!(data.cache, Some((cache_width, _)) if cache_width != width) {
+                data.cache = None;
+            }
+
+            let cache = data.cache.get_or_insert_with(|| {
+                let objects = data
+                    .widgets
+                    .iter()
+                    .map(|widget| {
+                        // We're using the width here, so we need to make sure to invalidate the
+                        // cache on width changes.
+                        let widget_height = widget.measure(gtk::Orientation::Vertical, width).1;
+                        let position = widget.position();
+                        let difference = position - Position::zero();
+                        let y = to_pixels(difference * scroll_speed);
+
+                        (y, y + widget_height)
+                    })
+                    .collect();
+                (width, VisibilityCache::new(objects))
+            });
+            let cache = &cache.1;
+
+            let mut visible = HashSet::new();
+            let first_y =
+                to_pixels((map_position - Position::zero()) * scroll_speed) - hit_position;
+            for idx in cache.visible_objects(first_y..first_y + height) {
+                let widget = &data.widgets[idx];
+
+                // Hide widgets that have been hit.
                 if widget.is_hit() {
-                    if *is_visible {
-                        widget.set_child_visible(false);
-                        *is_visible = false;
-                    }
                     continue;
                 }
 
-                let position = widget.position();
-                let difference = position - map_position;
-                let mut y = to_pixels(difference * scroll_speed) + hit_position;
-
-                // Hide the widget if it is too far down to appear on the screen.
-                if y >= height {
-                    if *is_visible {
-                        widget.set_child_visible(false);
-                        *is_visible = false;
-                    }
-                    continue;
-                }
-
-                let widget_height = widget.measure(gtk::Orientation::Vertical, width).1;
-
-                // Hide the widget if it is too far up to appear on the screen.
-                if y + widget_height <= 0 {
-                    if *is_visible {
-                        widget.set_child_visible(false);
-                        *is_visible = false;
-                    }
-                    continue;
-                }
-
-                // The widget should be visible, show it.
-                if !*is_visible {
+                visible.insert(idx);
+                if !data.is_visible[idx] {
                     widget.set_child_visible(true);
-                    *is_visible = true;
+                    data.is_visible[idx] = true;
                 }
+
+                let start_pos = cache.start_position(idx);
+                let mut y = start_pos - first_y;
+                let widget_height = cache.end_position(idx) - start_pos;
 
                 if downscroll {
                     y = height - y - widget_height;
@@ -213,6 +225,13 @@ mod imp {
 
                 widget.allocate(width, widget_height, -1, Some(&transform));
             }
+
+            // Hide widgets that were visible last time but are no longer visible.
+            for &idx in data.was_visible.difference(&visible) {
+                data.widgets[idx].set_child_visible(false);
+                data.is_visible[idx] = false;
+            }
+            data.was_visible = visible;
         }
 
         fn snapshot(&self, snapshot: &gtk::Snapshot) {
@@ -243,6 +262,8 @@ mod imp {
             let prev_data = self.data.replace(Some(Data {
                 widgets,
                 is_visible,
+                was_visible: HashSet::new(),
+                cache: None,
             }));
             if let Some(prev_data) = prev_data {
                 for widget in prev_data.widgets {
@@ -261,6 +282,10 @@ mod imp {
             }
 
             self.scroll_speed.set(value);
+            if let Some(data) = &mut *self.data.borrow_mut() {
+                // Scroll speed changes cause object positions to shift, invalidating the cahce.
+                data.cache = None;
+            }
             self.obj().queue_allocate();
             self.obj().notify("scroll-speed");
         }
