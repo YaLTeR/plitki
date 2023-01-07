@@ -4,7 +4,7 @@ use alloc::{vec, vec::Vec};
 use core::ops::Range;
 
 /// Incrementally updated object visibility cache with overlap support.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VisibilityCache<T: Ord + Copy> {
     // Object start positions, in the original object order.
     start_pos: Vec<T>,
