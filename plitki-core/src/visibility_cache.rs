@@ -84,6 +84,18 @@ impl<T: Ord + Copy> VisibilityCache<T> {
         rv
     }
 
+    /// Returns the stored start position for an object index.
+    #[inline]
+    pub fn start_position(&self, object: usize) -> T {
+        self.start_pos[object]
+    }
+
+    /// Returns the stored end position for an object index.
+    #[inline]
+    pub fn end_position(&self, object: usize) -> T {
+        self.end_pos[object]
+    }
+
     fn recompute_overlap(&mut self, Range { mut start, mut end }: Range<usize>) {
         if start >= end {
             // Early return for empty ranges.
@@ -328,6 +340,7 @@ impl<T: Ord + Copy> VisibilityCache<T> {
     /// # Panics
     ///
     /// Panics if `new_start > new_end`.
+    #[inline]
     pub fn update(&mut self, object_idx: usize, new_start: T, new_end: T) {
         assert!(
             new_start <= new_end,
