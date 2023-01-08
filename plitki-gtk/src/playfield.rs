@@ -589,7 +589,7 @@ mod imp {
             }
 
             let conveyor_widget = widget.as_conveyor_widget();
-            conveyor_widget.set_hit(obj_state.is_hit());
+            conveyor_widget.set_hidden(obj_state.is_hit());
             conveyor_widget.set_missed(obj_state.is_missed());
         }
 
@@ -617,7 +617,7 @@ mod imp {
                     }
 
                     let conveyor_widget = widget.as_conveyor_widget();
-                    conveyor_widget.set_hit(obj_state.is_hit());
+                    conveyor_widget.set_hidden(obj_state.is_hit());
                     conveyor_widget.set_missed(obj_state.is_missed());
                 }
             }

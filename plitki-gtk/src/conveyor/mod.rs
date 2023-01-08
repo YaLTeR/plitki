@@ -192,8 +192,7 @@ mod imp {
             for idx in cache.visible_objects(first_y..first_y + height) {
                 let widget = &data.widgets[idx];
 
-                // Hide widgets that have been hit.
-                if widget.is_hit() {
+                if widget.is_hidden() {
                     continue;
                 }
 

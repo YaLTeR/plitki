@@ -3,8 +3,8 @@
 //! Examples are regular and long notes and timing lines.
 //!
 //! [`ConveyorWidget`]s have a position, which tells [`Conveyor`] where to draw them. They also know
-//! whether they are hit (in which case they should be hidden) and whether they are missed (which
-//! they track to set a `missed` CSS class on themselves).
+//! whether they are hidden and whether they are missed (which they track to set a `missed` CSS
+//! class on themselves).
 //!
 //! [`Conveyor`]: crate::conveyor::Conveyor
 
@@ -23,7 +23,7 @@ mod imp {
     #[derive(Debug)]
     pub struct ConveyorWidget {
         position: Cell<Position>,
-        is_hit: Cell<bool>,
+        is_hidden: Cell<bool>,
         is_missed: Cell<bool>,
     }
 
@@ -31,7 +31,7 @@ mod imp {
         fn default() -> Self {
             Self {
                 position: Cell::new(Position::zero()),
-                is_hit: Cell::new(false),
+                is_hidden: Cell::new(false),
                 is_missed: Cell::new(false),
             }
         }
@@ -56,12 +56,12 @@ mod imp {
             self.position.set(value);
         }
 
-        pub fn is_hit(&self) -> bool {
-            self.is_hit.get()
+        pub fn is_hidden(&self) -> bool {
+            self.is_hidden.get()
         }
 
-        pub fn set_hit(&self, value: bool) {
-            self.is_hit.set(value);
+        pub fn set_hidden(&self, value: bool) {
+            self.is_hidden.set(value);
         }
 
         pub fn is_missed(&self) -> bool {
@@ -92,8 +92,8 @@ glib::wrapper! {
 pub trait ConveyorWidgetExt {
     fn position(&self) -> Position;
     fn set_position(&self, value: Position);
-    fn is_hit(&self) -> bool;
-    fn set_hit(&self, value: bool);
+    fn is_hidden(&self) -> bool;
+    fn set_hidden(&self, value: bool);
     fn is_missed(&self) -> bool;
     fn set_missed(&self, value: bool);
 }
@@ -107,12 +107,12 @@ impl<T: IsA<ConveyorWidget>> ConveyorWidgetExt for T {
         self.as_ref().imp().set_position(value);
     }
 
-    fn is_hit(&self) -> bool {
-        self.as_ref().imp().is_hit()
+    fn is_hidden(&self) -> bool {
+        self.as_ref().imp().is_hidden()
     }
 
-    fn set_hit(&self, value: bool) {
-        self.as_ref().imp().set_hit(value);
+    fn set_hidden(&self, value: bool) {
+        self.as_ref().imp().set_hidden(value);
     }
 
     fn is_missed(&self) -> bool {
