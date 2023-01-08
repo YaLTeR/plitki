@@ -19,9 +19,10 @@ mod imp {
 
     use super::*;
     use crate::conveyor::long_note::LongNote;
+    use crate::conveyor::note::{Note, NoteExt};
     use crate::conveyor::regular_note::RegularNote;
     use crate::conveyor::timing_line::TimingLine;
-    use crate::conveyor::widget::{ConveyorWidget, ConveyorWidgetExt};
+    use crate::conveyor::widget::ConveyorWidgetExt;
     use crate::conveyor::Conveyor;
     use crate::skin::LaneSkin;
 
@@ -32,7 +33,7 @@ mod imp {
     }
 
     impl NoteWidget {
-        fn as_conveyor_widget(&self) -> &ConveyorWidget {
+        fn as_note(&self) -> &Note {
             match self {
                 NoteWidget::Regular(regular) => regular.upcast_ref(),
                 NoteWidget::Long(long) => long.upcast_ref(),
@@ -464,7 +465,7 @@ mod imp {
 
                     let widgets = lane_notes
                         .iter()
-                        .map(NoteWidget::as_conveyor_widget)
+                        .map(|w| w.as_note().upcast_ref())
                         .cloned()
                         .collect();
                     conveyor.set_widgets(widgets);
@@ -588,9 +589,9 @@ mod imp {
                 );
             }
 
-            let conveyor_widget = widget.as_conveyor_widget();
-            conveyor_widget.set_hidden(obj_state.is_hit());
-            conveyor_widget.set_missed(obj_state.is_missed());
+            let note = widget.as_note();
+            note.set_hidden(obj_state.is_hit());
+            note.set_missed(obj_state.is_missed());
         }
 
         pub fn update_object_states(&self) {
@@ -616,9 +617,9 @@ mod imp {
                         );
                     }
 
-                    let conveyor_widget = widget.as_conveyor_widget();
-                    conveyor_widget.set_hidden(obj_state.is_hit());
-                    conveyor_widget.set_missed(obj_state.is_missed());
+                    let note = widget.as_note();
+                    note.set_hidden(obj_state.is_hit());
+                    note.set_missed(obj_state.is_missed());
                 }
             }
         }

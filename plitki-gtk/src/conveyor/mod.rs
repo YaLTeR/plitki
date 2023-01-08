@@ -3,6 +3,7 @@ use gtk::subclass::prelude::*;
 use plitki_core::scroll::{Position, ScrollSpeed};
 
 pub mod long_note;
+pub mod note;
 pub mod regular_note;
 pub mod timing_line;
 pub mod widget;

@@ -2,6 +2,7 @@ use gtk::glib;
 use gtk::subclass::prelude::*;
 use plitki_core::scroll::Position;
 
+use super::note::Note;
 use crate::conveyor::widget::{ConveyorWidget, ConveyorWidgetExt};
 use crate::skin::LaneSkin;
 
@@ -10,6 +11,7 @@ mod imp {
     use once_cell::unsync::OnceCell;
 
     use super::*;
+    use crate::conveyor::note::NoteImpl;
     use crate::conveyor::widget::ConveyorWidgetImpl;
 
     #[derive(Debug, Default)]
@@ -21,7 +23,7 @@ mod imp {
     impl ObjectSubclass for RegularNote {
         const NAME: &'static str = "PlitkiRegularNote";
         type Type = super::RegularNote;
-        type ParentType = ConveyorWidget;
+        type ParentType = Note;
 
         fn class_init(klass: &mut Self::Class) {
             klass.set_layout_manager_type::<gtk::BinLayout>();
@@ -46,6 +48,7 @@ mod imp {
 
     impl WidgetImpl for RegularNote {}
     impl ConveyorWidgetImpl for RegularNote {}
+    impl NoteImpl for RegularNote {}
 
     impl RegularNote {
         pub fn set_skin(&self, skin: Option<&LaneSkin>) {
@@ -57,7 +60,7 @@ mod imp {
 
 glib::wrapper! {
     pub struct RegularNote(ObjectSubclass<imp::RegularNote>)
-        @extends ConveyorWidget, gtk::Widget;
+        @extends Note, ConveyorWidget, gtk::Widget;
 }
 
 impl RegularNote {

@@ -3,8 +3,7 @@
 //! Examples are regular and long notes and timing lines.
 //!
 //! [`ConveyorWidget`]s have a position, which tells [`Conveyor`] where to draw them. They also know
-//! whether they are hidden and whether they are missed (which they track to set a `missed` CSS
-//! class on themselves).
+//! whether they are hidden.
 //!
 //! [`Conveyor`]: crate::conveyor::Conveyor
 
@@ -16,15 +15,12 @@ use plitki_core::scroll::Position;
 mod imp {
     use std::cell::Cell;
 
-    use gtk::prelude::*;
-
     use super::*;
 
     #[derive(Debug)]
     pub struct ConveyorWidget {
         position: Cell<Position>,
         is_hidden: Cell<bool>,
-        is_missed: Cell<bool>,
     }
 
     impl Default for ConveyorWidget {
@@ -32,7 +28,6 @@ mod imp {
             Self {
                 position: Cell::new(Position::zero()),
                 is_hidden: Cell::new(false),
-                is_missed: Cell::new(false),
             }
         }
     }
@@ -63,24 +58,6 @@ mod imp {
         pub fn set_hidden(&self, value: bool) {
             self.is_hidden.set(value);
         }
-
-        pub fn is_missed(&self) -> bool {
-            self.is_missed.get()
-        }
-
-        pub fn set_missed(&self, value: bool) {
-            if self.is_missed.get() == value {
-                return;
-            }
-
-            self.is_missed.set(value);
-
-            if value {
-                self.obj().add_css_class("missed");
-            } else {
-                self.obj().remove_css_class("missed");
-            }
-        }
     }
 }
 
@@ -94,8 +71,6 @@ pub trait ConveyorWidgetExt {
     fn set_position(&self, value: Position);
     fn is_hidden(&self) -> bool;
     fn set_hidden(&self, value: bool);
-    fn is_missed(&self) -> bool;
-    fn set_missed(&self, value: bool);
 }
 
 impl<T: IsA<ConveyorWidget>> ConveyorWidgetExt for T {
@@ -113,14 +88,6 @@ impl<T: IsA<ConveyorWidget>> ConveyorWidgetExt for T {
 
     fn set_hidden(&self, value: bool) {
         self.as_ref().imp().set_hidden(value);
-    }
-
-    fn is_missed(&self) -> bool {
-        self.as_ref().imp().is_missed()
-    }
-
-    fn set_missed(&self, value: bool) {
-        self.as_ref().imp().set_missed(value);
     }
 }
 

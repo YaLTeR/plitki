@@ -3,6 +3,7 @@ use gtk::subclass::prelude::*;
 use gtk::{gdk, glib};
 use plitki_core::scroll::{Position, ScreenPositionDifference};
 
+use super::note::Note;
 use crate::conveyor::widget::{ConveyorWidget, ConveyorWidgetExt};
 use crate::skin::LaneSkin;
 
@@ -14,6 +15,7 @@ mod imp {
     use plitki_core::scroll::ScreenPositionDifference;
 
     use super::*;
+    use crate::conveyor::note::NoteImpl;
     use crate::conveyor::widget::ConveyorWidgetImpl;
     use crate::utils::to_pixels;
 
@@ -40,7 +42,7 @@ mod imp {
     impl ObjectSubclass for LongNote {
         const NAME: &'static str = "PlitkiLongNote";
         type Type = super::LongNote;
-        type ParentType = ConveyorWidget;
+        type ParentType = Note;
 
         fn class_init(klass: &mut Self::Class) {
             klass.set_css_name("plitki-long-note");
@@ -282,6 +284,7 @@ mod imp {
     }
 
     impl ConveyorWidgetImpl for LongNote {}
+    impl NoteImpl for LongNote {}
 
     impl LongNote {
         pub fn head(&self) -> gtk::Widget {
@@ -393,7 +396,7 @@ mod imp {
 
 glib::wrapper! {
     pub struct LongNote(ObjectSubclass<imp::LongNote>)
-        @extends ConveyorWidget, gtk::Widget;
+        @extends Note, ConveyorWidget, gtk::Widget;
 }
 
 impl LongNote {
