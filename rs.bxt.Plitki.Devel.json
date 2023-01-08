@@ -11,6 +11,7 @@
     "desktop-file-name-suffix": " (Devel)",
     "finish-args" : [
         "--filesystem=host",
+        "--filesystem=~/.var/app/com.valvesoftware.Steam",
         "--share=ipc",
         "--socket=fallback-x11",
         "--socket=wayland",
