@@ -172,20 +172,16 @@ mod imp {
             }
 
             let cache = data.cache.get_or_insert_with(|| {
-                let objects = data
-                    .widgets
-                    .iter()
-                    .map(|widget| {
-                        // We're using the width here, so we need to make sure to invalidate the
-                        // cache on width changes.
-                        let widget_height = widget.measure(gtk::Orientation::Vertical, width).1;
-                        let position = widget.position();
-                        let difference = position - Position::zero();
-                        let y = to_pixels(difference * scroll_speed);
+                let objects = data.widgets.iter().map(|widget| {
+                    // We're using the width here, so we need to make sure to invalidate the cache
+                    // on width changes.
+                    let widget_height = widget.measure(gtk::Orientation::Vertical, width).1;
+                    let position = widget.position();
+                    let difference = position - Position::zero();
+                    let y = to_pixels(difference * scroll_speed);
 
-                        (y, y + widget_height)
-                    })
-                    .collect();
+                    (y, y + widget_height)
+                });
                 (width, VisibilityCache::new(objects))
             });
             let cache = &cache.1;

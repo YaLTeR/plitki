@@ -53,18 +53,18 @@ pub struct VisibilityCache<T: Ord + Copy> {
 impl<T: Ord + Copy> VisibilityCache<T> {
     /// Creates a new visibility cache.
     ///
-    /// `objects` is a vector of start and end positions.
+    /// `objects` is an iterator of start and end positions.
     ///
     /// # Panics
     ///
     /// Panics if any object starts after it ends.
-    pub fn new(objects: Vec<(T, T)>) -> Self {
-        for (start, end) in &objects {
-            assert!(start <= end, "an object must not end before it starts");
-        }
-
-        let start_pos: Vec<T> = objects.iter().map(|&(start, _)| start).collect();
-        let end_pos: Vec<T> = objects.iter().map(|&(_, end)| end).collect();
+    pub fn new(objects: impl IntoIterator<Item = (T, T)>) -> Self {
+        let (start_pos, end_pos): (Vec<T>, Vec<T>) = objects
+            .into_iter()
+            .inspect(|(start, end)| {
+                assert!(start <= end, "an object must not end before it starts")
+            })
+            .unzip();
 
         let mut sorted_by_start: Vec<usize> = (0..start_pos.len()).collect();
         sorted_by_start.sort_by_key(|&idx| start_pos[idx]);
@@ -454,8 +454,7 @@ mod tests {
             objects
                 .iter()
                 .copied()
-                .map(|(start, end, _, _)| (start, end))
-                .collect(),
+                .map(|(start, end, _, _)| (start, end)),
         );
 
         for (idx, (start, end, d_start, d_end)) in objects.iter_mut().enumerate() {
