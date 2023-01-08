@@ -22,7 +22,7 @@ jobs:
 
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v5
         with:
-          manifest-path: rs.bxt.Plitki.Devel.json
+          manifest-path: rs.bxt.Plitki.json
           bundle: plitki.flatpak
           run-tests: true
           cache: false

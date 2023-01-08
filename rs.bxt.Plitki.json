@@ -1,5 +1,5 @@
 {
-    "app-id": "rs.bxt.Plitki.Devel",
+    "app-id": "rs.bxt.Plitki",
     "runtime": "org.gnome.Platform",
     "runtime-version": "43",
     "sdk": "org.gnome.Sdk",
@@ -8,7 +8,6 @@
     "tags": [
         "nightly"
     ],
-    "desktop-file-name-suffix": " (Devel)",
     "finish-args" : [
         "--filesystem=host",
         "--filesystem=~/.var/app/com.valvesoftware.Steam",
@@ -48,7 +47,7 @@
             ],
             "post-install": [
                 "install -Dt $FLATPAK_DEST/bin target/release/plitki-{gtk,gnome}",
-                "install -Dm0644 -t $FLATPAK_DEST/share/applications rs.bxt.Plitki.Devel.desktop"
+                "install -Dm0644 -t $FLATPAK_DEST/share/applications rs.bxt.Plitki.desktop"
             ],
             "test-commands": [
                 "cargo clippy --all-targets --workspace --release",
