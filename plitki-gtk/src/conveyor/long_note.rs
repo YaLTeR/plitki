@@ -1,7 +1,7 @@
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gdk, glib};
-use plitki_core::scroll::{Position, ScreenPositionDifference};
+use plitki_core::scroll::Position;
 
 use super::note::Note;
 use crate::conveyor::widget::{ConveyorWidget, ConveyorWidgetExt};
@@ -12,19 +12,17 @@ mod imp {
 
     use gtk::{gdk, graphene};
     use once_cell::sync::Lazy;
-    use plitki_core::scroll::ScreenPositionDifference;
 
     use super::*;
     use crate::conveyor::note::NoteImpl;
     use crate::conveyor::widget::ConveyorWidgetImpl;
-    use crate::utils::to_pixels;
 
     #[derive(Debug)]
     pub struct LongNote {
         head: RefCell<gtk::Widget>,
         tail: RefCell<gtk::Widget>,
         body: RefCell<gtk::Widget>,
-        length: Cell<ScreenPositionDifference>,
+        length: Cell<i32>,
     }
 
     impl Default for LongNote {
@@ -78,7 +76,7 @@ mod imp {
                     glib::ParamSpecObject::builder::<gtk::Widget>("body")
                         .explicit_notify()
                         .build(),
-                    glib::ParamSpecInt64::builder("length")
+                    glib::ParamSpecInt::builder("length")
                         .minimum(0)
                         .explicit_notify()
                         .build(),
@@ -92,7 +90,7 @@ mod imp {
                 "head" => self.head().to_value(),
                 "tail" => self.tail().to_value(),
                 "body" => self.body().to_value(),
-                "length" => self.length().0.to_value(),
+                "length" => self.length().to_value(),
                 _ => unimplemented!(),
             }
         }
@@ -102,7 +100,7 @@ mod imp {
                 "head" => self.set_head(value.get().unwrap()),
                 "tail" => self.set_tail(value.get().unwrap()),
                 "body" => self.set_body(value.get().unwrap()),
-                "length" => self.set_length(ScreenPositionDifference(value.get().unwrap())),
+                "length" => self.set_length(value.get().unwrap()),
                 _ => unimplemented!(),
             }
         }
@@ -205,7 +203,7 @@ mod imp {
             let tail = &*tail;
             let body = self.body.borrow();
             let body = &*body;
-            let length = to_pixels(self.length.get());
+            let length = self.length.get();
 
             // We really want to allocate natural heights. Find the largest width that we can use
             // within the given allocation that still lets us use natural heights. Otherwise bail
@@ -359,12 +357,12 @@ mod imp {
             obj.queue_resize();
         }
 
-        pub fn length(&self) -> ScreenPositionDifference {
+        pub fn length(&self) -> i32 {
             self.length.get()
         }
 
-        pub fn set_length(&self, length: ScreenPositionDifference) {
-            if self.length.get().0 != length.0 {
+        pub fn set_length(&self, length: i32) {
+            if self.length.get() != length {
                 self.length.set(length);
 
                 let obj = self.obj();
@@ -378,7 +376,7 @@ mod imp {
             let head = &*head;
             let tail = self.tail.borrow();
             let tail = &*tail;
-            let length = to_pixels(self.length.get());
+            let length = self.length.get();
 
             let (min_head, nat_head, _, _) = head.measure(gtk::Orientation::Vertical, width);
             let (min_tail, nat_tail, _, _) = tail.measure(gtk::Orientation::Vertical, width);
@@ -480,11 +478,11 @@ impl LongNote {
         }));
     }
 
-    pub fn length(&self) -> ScreenPositionDifference {
+    pub fn length(&self) -> i32 {
         self.imp().length()
     }
 
-    pub fn set_length(&self, length: ScreenPositionDifference) {
+    pub fn set_length(&self, length: i32) {
         self.imp().set_length(length);
     }
 

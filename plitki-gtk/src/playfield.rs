@@ -25,6 +25,7 @@ mod imp {
     use crate::conveyor::widget::ConveyorWidgetExt;
     use crate::conveyor::Conveyor;
     use crate::skin::LaneSkin;
+    use crate::utils::to_pixels;
 
     #[derive(Debug)]
     enum NoteWidget {
@@ -584,9 +585,8 @@ mod imp {
                 let start_position =
                     game_state.object_start_position(*obj_state, *obj_cache, data.map_position);
                 long_note.set_position(start_position);
-                long_note.set_length(
-                    (obj_cache.end_position() - start_position) * self.scroll_speed.get(),
-                );
+                let length = (obj_cache.end_position() - start_position) * self.scroll_speed.get();
+                long_note.set_length(to_pixels(length));
             }
 
             let note = widget.as_note();
@@ -612,9 +612,9 @@ mod imp {
                             data.map_position,
                         );
                         long_note.set_position(start_position);
-                        long_note.set_length(
-                            (obj_cache.end_position() - start_position) * self.scroll_speed.get(),
-                        );
+                        let length =
+                            (obj_cache.end_position() - start_position) * self.scroll_speed.get();
+                        long_note.set_length(to_pixels(length));
                     }
 
                     let note = widget.as_note();
