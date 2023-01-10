@@ -309,15 +309,16 @@ mod imp {
             self.playfield.set_state(Some(state));
 
             for (i, lane) in self.playfield.lanes().unwrap().iter().enumerate() {
-                lane.set_below_hit_pos_widget(Some(HitLight::new().upcast()));
+                lane.set_below_hit_pos_widget(Some(&HitLight::new()));
 
                 let accelerator = match lane_count {
                     4 => ["s", "d", "l", "semicolon"][i],
                     7 => ["a", "s", "d", "space", "l", "semicolon", "apostrophe"][i],
                     _ => unimplemented!(),
                 };
-                let indicator = KeyBindingIndicator::new(Some(accelerator.to_string()));
-                lane.set_above_hit_pos_widget(Some(indicator.upcast()));
+                lane.set_above_hit_pos_widget(Some(&KeyBindingIndicator::new(Some(
+                    accelerator.to_string(),
+                ))));
             }
 
             // Fire indicators in an idle when they are mapped so the animation isn't skipped.

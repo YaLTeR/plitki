@@ -1,3 +1,4 @@
+use glib::prelude::*;
 use gtk::glib;
 use gtk::subclass::prelude::*;
 use plitki_core::scroll::{Position, ScrollSpeed};
@@ -395,16 +396,18 @@ impl Lane {
         self.imp().below_hit_pos_widget()
     }
 
-    pub fn set_below_hit_pos_widget(&self, value: Option<gtk::Widget>) {
-        self.imp().set_below_hit_pos_widget(value);
+    pub fn set_below_hit_pos_widget(&self, value: Option<&impl IsA<gtk::Widget>>) {
+        self.imp()
+            .set_below_hit_pos_widget(value.map(|w| w.clone().upcast()));
     }
 
     pub fn above_hit_pos_widget(&self) -> Option<gtk::Widget> {
         self.imp().above_hit_pos_widget()
     }
 
-    pub fn set_above_hit_pos_widget(&self, value: Option<gtk::Widget>) {
-        self.imp().set_above_hit_pos_widget(value);
+    pub fn set_above_hit_pos_widget(&self, value: Option<&impl IsA<gtk::Widget>>) {
+        self.imp()
+            .set_above_hit_pos_widget(value.map(|w| w.clone().upcast()));
     }
 
     pub fn set_notes(&self, notes: Vec<ConveyorWidget>) {
