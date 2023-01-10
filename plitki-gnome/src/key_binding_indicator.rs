@@ -51,6 +51,7 @@ mod imp {
                 5000,
                 &adw::PropertyAnimationTarget::new(&*obj, "opacity"),
             );
+            opacity_animation.set_easing(adw::Easing::EaseInCubic);
             self.opacity_animation
                 .set(opacity_animation.upcast())
                 .unwrap();
