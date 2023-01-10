@@ -176,7 +176,7 @@ mod imp {
                 let objects = data.widgets.iter().map(|widget| {
                     // We're using the width here, so we need to make sure to invalidate the cache
                     // on width changes.
-                    let widget_height = widget.natural_height_for_width(width);
+                    let widget_height = widget.measure(gtk::Orientation::Vertical, width).1;
                     let position = widget.position();
                     let difference = position - Position::zero();
                     let y = to_pixels(difference * scroll_speed);

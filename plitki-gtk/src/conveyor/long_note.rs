@@ -281,12 +281,7 @@ mod imp {
         }
     }
 
-    impl ConveyorWidgetImpl for LongNote {
-        fn natural_height_for_width(&self, width: i32) -> i32 {
-            self.height_for_width(width).1
-        }
-    }
-
+    impl ConveyorWidgetImpl for LongNote {}
     impl NoteImpl for LongNote {}
 
     impl LongNote {
