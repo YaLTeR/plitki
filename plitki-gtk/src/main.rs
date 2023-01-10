@@ -5,6 +5,7 @@ use adw::prelude::*;
 use gtk::{gdk, gio};
 
 mod conveyor;
+mod lane;
 mod playfield;
 mod skin;
 mod state;

@@ -38,7 +38,7 @@ plitki-judgement {
 
 plitki-hit-light {
     min-height: 200px;
-    background: linear-gradient(to top, currentcolor 0%, transparent 100%);
+    background: linear-gradient(to bottom, currentcolor 0%, transparent 100%);
 }
 
 .hit-position {

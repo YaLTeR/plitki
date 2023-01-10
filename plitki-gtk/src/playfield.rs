@@ -1,9 +1,12 @@
+use std::cell::Ref;
+
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use plitki_core::scroll::ScrollSpeed;
 use plitki_core::timing::GameTimestamp;
 
+use crate::lane::Lane;
 use crate::skin::Skin;
 use crate::state::State;
 
@@ -11,7 +14,7 @@ mod imp {
     use std::cell::{Cell, RefCell};
     use std::collections::HashMap;
 
-    use gtk::{gdk, graphene, gsk};
+    use gtk::gdk;
     use once_cell::sync::Lazy;
     use once_cell::unsync::OnceCell;
     use plitki_core::scroll::{Position, ScrollSpeed};
@@ -61,8 +64,7 @@ mod imp {
     struct Data {
         state: State,
         notes: Vec<Vec<NoteWidget>>,
-        conveyors: Vec<Conveyor>,
-        hit_lights: Vec<gtk::Widget>,
+        lanes: Vec<Lane>,
         map_position: Position,
 
         /// Cached min and nat widths for each lane.
@@ -81,7 +83,6 @@ mod imp {
         downscroll: Cell<bool>,
         lane_width: Cell<i32>,
         hit_position: Cell<i32>,
-        hit_light_widget_type: Cell<glib::Type>,
     }
 
     impl Default for Playfield {
@@ -95,7 +96,6 @@ mod imp {
                 downscroll: Default::default(),
                 lane_width: Cell::new(0),
                 hit_position: Cell::new(0),
-                hit_light_widget_type: Cell::new(gtk::Picture::static_type()),
             }
         }
     }
@@ -166,10 +166,6 @@ mod imp {
                         .maximum(10_000)
                         .explicit_notify()
                         .build(),
-                    glib::ParamSpecGType::builder("hit-light-widget-type")
-                        .is_a_type(gtk::Widget::static_type())
-                        .explicit_notify()
-                        .build(),
                 ]
             });
             PROPERTIES.as_ref()
@@ -192,7 +188,6 @@ mod imp {
                 "downscroll" => self.set_downscroll(value.get().unwrap()),
                 "lane-width" => self.set_lane_width(value.get().unwrap()),
                 "hit-position" => self.set_hit_position(value.get().unwrap()),
-                "hit-light-widget-type" => self.set_hit_light_widget_type(value.get().unwrap()),
                 _ => unimplemented!(),
             }
         }
@@ -209,7 +204,6 @@ mod imp {
                 "skin" => self.skin.borrow().to_value(),
                 "lane-width" => self.lane_width.get().to_value(),
                 "hit-position" => self.hit_position.get().to_value(),
-                "hit-light-widget-type" => self.hit_light_widget_type.get().to_value(),
                 _ => unimplemented!(),
             }
         }
@@ -264,9 +258,6 @@ mod imp {
             let data = self.data.borrow();
             let Some(data) = &*data else { return };
 
-            let downscroll = self.downscroll.get();
-            let hit_position = self.hit_position.get();
-
             // Our width is guaranteed to fit the timing lines because we considered them in
             // measure().
             let timing_line_conveyor = self.timing_line_conveyor.get().unwrap();
@@ -281,37 +272,12 @@ mod imp {
             let mut x = 0;
             let lane_widths = compute_lane_widths(data, width);
 
-            for ((conveyor, hit_light), lane_width) in
-                data.conveyors.iter().zip(&data.hit_lights).zip(lane_widths)
-            {
-                let conveyor_height = conveyor.measure(gtk::Orientation::Vertical, lane_width).0;
-                conveyor.size_allocate(
-                    &gdk::Rectangle::new(x, 0, lane_width, height.max(conveyor_height)),
+            for (lane, lane_width) in data.lanes.iter().zip(lane_widths) {
+                let lane_height = lane.measure(gtk::Orientation::Vertical, lane_width).0;
+                lane.size_allocate(
+                    &gdk::Rectangle::new(x, 0, lane_width, height.max(lane_height)),
                     -1,
                 );
-
-                // Allocate the hit light.
-                {
-                    // Our width is guaranteed to fit the hit lights because we considered them in
-                    // measure().
-                    let hit_light_height =
-                        hit_light.measure(gtk::Orientation::Vertical, lane_width).1;
-
-                    let mut y = hit_position - hit_light_height;
-                    if downscroll {
-                        y = height - y - hit_light_height;
-                    }
-
-                    let mut transform =
-                        gsk::Transform::new().translate(&graphene::Point::new(x as f32, y as f32));
-                    if downscroll {
-                        transform = transform
-                            .translate(&graphene::Point::new(0., hit_light_height as f32))
-                            .scale(1., -1.)
-                    }
-
-                    hit_light.allocate(lane_width, hit_light_height, -1, Some(&transform));
-                }
 
                 x += lane_width;
             }
@@ -324,10 +290,7 @@ mod imp {
         pub fn set_downscroll(&self, value: bool) {
             if self.downscroll.get() != value {
                 self.downscroll.set(value);
-
-                let obj = self.obj();
-                obj.notify("downscroll");
-                obj.queue_allocate();
+                self.obj().notify("downscroll");
             }
         }
 
@@ -359,10 +322,7 @@ mod imp {
         pub fn set_hit_position(&self, value: i32) {
             if self.hit_position.get() != value {
                 self.hit_position.set(value);
-
-                let obj = self.obj();
-                obj.notify("hit-position");
-                obj.queue_allocate();
+                self.obj().notify("hit-position");
             }
         }
 
@@ -384,8 +344,8 @@ mod imp {
                             .get()
                             .unwrap()
                             .set_map_position(position);
-                        for conveyor in &data.conveyors {
-                            conveyor.set_map_position(position);
+                        for lane in &data.lanes {
+                            lane.set_map_position(position);
                         }
                     }
                 }
@@ -405,16 +365,7 @@ mod imp {
                 .borrow()
                 .as_ref()
                 .iter()
-                .flat_map(|d| d.conveyors.iter())
-            {
-                child.unparent();
-            }
-            for child in self
-                .data
-                .borrow()
-                .as_ref()
-                .iter()
-                .flat_map(|d| d.hit_lights.iter())
+                .flat_map(|d| d.lanes.iter())
             {
                 child.unparent();
             }
@@ -440,18 +391,16 @@ mod imp {
 
             let mut notes = Vec::new();
 
-            let conveyors: Vec<Conveyor> = (0..game_state.lane_count())
-                .map(|lane| {
-                    let conveyor = Conveyor::new();
-                    conveyor.set_parent(&*obj);
+            let lanes: Vec<Lane> = (0..game_state.lane_count())
+                .map(|index| {
+                    let lane = Lane::new();
+                    lane.set_parent(&*obj);
 
                     for name in ["scroll-speed", "downscroll", "hit-position"] {
-                        obj.bind_property(name, &conveyor, name)
-                            .sync_create()
-                            .build();
+                        obj.bind_property(name, &lane, name).sync_create().build();
                     }
 
-                    let lane_notes: Vec<NoteWidget> = game_state.immutable.lane_caches[lane]
+                    let lane_notes: Vec<NoteWidget> = game_state.immutable.lane_caches[index]
                         .object_caches
                         .iter()
                         .map(|&object| match object {
@@ -469,28 +418,11 @@ mod imp {
                         .map(|w| w.as_note().upcast_ref())
                         .cloned()
                         .collect();
-                    conveyor.set_widgets(widgets);
+                    lane.set_notes(widgets);
 
                     notes.push(lane_notes);
 
-                    conveyor
-                })
-                .collect();
-
-            let hit_lights = game_state
-                .immutable
-                .lane_caches
-                .iter()
-                .map(|_| {
-                    let hit_light_type = self.hit_light_widget_type.get();
-                    let widget: gtk::Widget = glib::Object::builder_with_type(hit_light_type)
-                        .build()
-                        .downcast()
-                        .expect(
-                            "hit-light-widget-type must prevent non-Widget types from being set",
-                        );
-                    widget.set_parent(&*obj);
-                    widget
+                    lane
                 })
                 .collect();
 
@@ -503,8 +435,8 @@ mod imp {
                 .get()
                 .unwrap()
                 .set_map_position(map_position);
-            for conveyor in &conveyors {
-                conveyor.set_map_position(map_position);
+            for lane in &lanes {
+                lane.set_map_position(map_position);
             }
 
             let lane_sizes = vec![(0, 0); game_state.lane_count()];
@@ -514,8 +446,7 @@ mod imp {
                 lane_sizes,
                 state,
                 notes,
-                conveyors,
-                hit_lights,
+                lanes,
                 map_position,
             };
 
@@ -535,20 +466,12 @@ mod imp {
             }
         }
 
-        pub fn set_hit_light_widget_type(&self, value: glib::Type) {
-            if self.hit_light_widget_type.get() != value {
-                self.hit_light_widget_type.set(value);
-                self.obj().notify("hit-light-widget-type");
-                // TODO: rebuild hit light widgets.
-            }
-        }
-
         pub fn state(&self) -> Option<State> {
             self.data.borrow().as_ref().map(|d| &d.state).cloned()
         }
 
-        pub fn hit_light_for_lane(&self, column: usize) -> gtk::Widget {
-            self.data.borrow().as_ref().unwrap().hit_lights[column].clone()
+        pub fn lanes(&self) -> Option<Ref<[Lane]>> {
+            Ref::filter_map(self.data.borrow(), |d| d.as_ref().map(|d| &*d.lanes)).ok()
         }
 
         fn update_skin(&self) {
@@ -626,24 +549,9 @@ mod imp {
 
         #[instrument("Playfield::refresh_lane_sizes", skip_all)]
         fn refresh_lane_sizes(&self, data: &mut Data) {
-            let lane_sizes = data.conveyors.iter().map(|lane| {
+            for (size, lane) in data.lane_sizes.iter_mut().zip(data.lanes.iter()) {
                 let (min, nat, _, _) = lane.measure(gtk::Orientation::Horizontal, -1);
-                (min, nat)
-            });
-
-            let hit_light_sizes = data
-                .hit_lights
-                .iter()
-                .map(|widget| widget.measure(gtk::Orientation::Horizontal, -1).0);
-
-            let sizes = lane_sizes
-                .zip(hit_light_sizes)
-                .map(|((min_lane, nat_lane), min_light)| {
-                    (min_lane.max(min_light), nat_lane.max(min_light))
-                });
-
-            for (place, value) in data.lane_sizes.iter_mut().zip(sizes) {
-                *place = value;
+                *size = (min, nat)
             }
 
             self.scale_lane_nat_sizes(data);
@@ -784,12 +692,8 @@ impl Playfield {
         self.imp().set_lane_width(value);
     }
 
-    pub fn set_hit_light_widget_type(&self, value: glib::Type) {
-        self.imp().set_hit_light_widget_type(value);
-    }
-
-    pub fn hit_light_for_lane(&self, lane: usize) -> gtk::Widget {
-        self.imp().hit_light_for_lane(lane)
+    pub fn lanes(&self) -> Option<Ref<[Lane]>> {
+        self.imp().lanes()
     }
 
     pub fn update_object_state(&self, lane: usize, index: usize) {

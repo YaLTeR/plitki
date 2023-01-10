@@ -106,9 +106,6 @@ mod imp {
             let obj = self.obj();
             self.parent_constructed();
 
-            self.playfield
-                .set_hit_light_widget_type(HitLight::static_type());
-
             let skin_model = gio::ListStore::new(Skin::static_type());
             skin_model.extend_from_slice(&[
                 create_skin("Bars", "/plitki-gnome/skin/bars"),
@@ -308,6 +305,10 @@ mod imp {
             let state = State::new(game_state);
             self.playfield.set_state(Some(state));
 
+            for lane in &*self.playfield.lanes().unwrap() {
+                lane.set_below_hit_pos_widget(Some(HitLight::new().upcast()));
+            }
+
             self.stack.set_visible_child_name("gameplay");
 
             let mut is_lane_pressed = self.is_lane_pressed.borrow_mut();
@@ -348,13 +349,20 @@ mod imp {
             self.accuracy.set_accuracy(statistics.accuracy());
         }
 
+        fn hit_light_for_lane(&self, lane: usize) -> HitLight {
+            self.playfield.lanes().unwrap()[lane]
+                .below_hit_pos_widget()
+                .unwrap()
+                .downcast()
+                .unwrap()
+        }
+
         #[instrument(skip_all)]
         fn update_state(&self, timestamp: GameTimestamp) {
             let Some(lane_count) = self.playfield.state().map(|s| s.lane_count()) else { return };
 
             for lane in 0..lane_count {
-                let hit_light: HitLight =
-                    self.playfield.hit_light_for_lane(lane).downcast().unwrap();
+                let hit_light = self.hit_light_for_lane(lane);
 
                 let Some(state) = self.playfield.state() else { return };
                 while let Some(event) = {
@@ -610,7 +618,7 @@ mod imp {
             let timestamp = self.game_timestamp();
             self.update_state(timestamp);
 
-            let hit_light: HitLight = self.playfield.hit_light_for_lane(lane).downcast().unwrap();
+            let hit_light = self.hit_light_for_lane(lane);
 
             let Some(state) = self.playfield.state() else { return gtk::Inhibit(false) };
 
@@ -640,7 +648,7 @@ mod imp {
             let timestamp = self.game_timestamp();
             self.update_state(timestamp);
 
-            let hit_light: HitLight = self.playfield.hit_light_for_lane(lane).downcast().unwrap();
+            let hit_light = self.hit_light_for_lane(lane);
 
             let Some(state) = self.playfield.state() else { return };
 
