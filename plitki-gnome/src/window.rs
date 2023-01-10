@@ -38,6 +38,7 @@ mod imp {
     use crate::hit_error::HitError;
     use crate::hit_light::HitLight;
     use crate::judgement::Judgement;
+    use crate::key_binding_indicator::KeyBindingIndicator;
     use crate::statistics::Statistics;
 
     #[derive(Debug, Default, CompositeTemplate)]
@@ -296,6 +297,8 @@ mod imp {
                     .and_then(|file| gdk::Texture::from_file(&file).ok()),
             );
 
+            let lane_count = map.lane_count();
+
             self.gameplay_window_title
                 .set_subtitle(map.difficulty_name.as_deref().unwrap_or(""));
 
@@ -305,9 +308,28 @@ mod imp {
             let state = State::new(game_state);
             self.playfield.set_state(Some(state));
 
-            for lane in &*self.playfield.lanes().unwrap() {
+            for (i, lane) in self.playfield.lanes().unwrap().iter().enumerate() {
                 lane.set_below_hit_pos_widget(Some(HitLight::new().upcast()));
+
+                let accelerator = match lane_count {
+                    4 => ["s", "d", "l", "semicolon"][i],
+                    7 => ["a", "s", "d", "space", "l", "semicolon", "apostrophe"][i],
+                    _ => unimplemented!(),
+                };
+                let indicator = KeyBindingIndicator::new(Some(accelerator.to_string()));
+                lane.set_above_hit_pos_widget(Some(indicator.upcast()));
             }
+
+            // Fire indicators in an idle when they are mapped so the animation isn't skipped.
+            glib::idle_add_local_once(clone!(@weak self as imp => move || {
+                if let Some(lanes) = imp.playfield.lanes() {
+                    for lane in &*lanes {
+                        let indicator: KeyBindingIndicator =
+                            lane.above_hit_pos_widget().unwrap().downcast().unwrap();
+                        indicator.fire();
+                    }
+                };
+            }));
 
             self.stack.set_visible_child_name("gameplay");
 

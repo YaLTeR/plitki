@@ -18,6 +18,7 @@ mod combo;
 mod hit_error;
 mod hit_light;
 mod judgement;
+mod key_binding_indicator;
 mod statistics;
 mod window;
 
