@@ -19,6 +19,7 @@ mod imp {
     pub struct Lane {
         conveyor: OnceCell<Conveyor>,
         below_hit_pos_widget: RefCell<Option<(gtk::Widget, glib::Binding)>>,
+        above_hit_pos_widget: RefCell<Option<(gtk::Widget, glib::Binding)>>,
         scroll_speed: Cell<ScrollSpeed>,
         map_position: Cell<Position>,
         downscroll: Cell<bool>,
@@ -30,6 +31,7 @@ mod imp {
             Self {
                 conveyor: Default::default(),
                 below_hit_pos_widget: Default::default(),
+                above_hit_pos_widget: Default::default(),
                 scroll_speed: Cell::new(ScrollSpeed(30)),
                 map_position: Cell::new(Position::zero()),
                 downscroll: Default::default(),
@@ -69,6 +71,11 @@ mod imp {
                 binding.unbind();
                 widget.unparent();
             }
+
+            if let Some((widget, binding)) = self.above_hit_pos_widget.take() {
+                binding.unbind();
+                widget.unparent();
+            }
         }
 
         fn properties() -> &'static [glib::ParamSpec] {
@@ -94,6 +101,9 @@ mod imp {
                     glib::ParamSpecObject::builder::<gtk::Widget>("below-hit-pos-widget")
                         .explicit_notify()
                         .build(),
+                    glib::ParamSpecObject::builder::<gtk::Widget>("above-hit-pos-widget")
+                        .explicit_notify()
+                        .build(),
                 ]
             });
             PROPERTIES.as_ref()
@@ -109,6 +119,7 @@ mod imp {
                 "downscroll" => self.downscroll().to_value(),
                 "hit-position" => self.hit_position().to_value(),
                 "below-hit-pos-widget" => self.below_hit_pos_widget().to_value(),
+                "above-hit-pos-widget" => self.above_hit_pos_widget().to_value(),
                 _ => unreachable!(),
             }
         }
@@ -123,6 +134,7 @@ mod imp {
                 "downscroll" => self.set_downscroll(value.get().unwrap()),
                 "hit-position" => self.set_hit_position(value.get().unwrap()),
                 "below-hit-pos-widget" => self.set_below_hit_pos_widget(value.get().unwrap()),
+                "above-hit-pos-widget" => self.set_above_hit_pos_widget(value.get().unwrap()),
                 _ => unreachable!(),
             }
         }
@@ -141,6 +153,12 @@ mod imp {
                         conveyor.measure(gtk::Orientation::Horizontal, -1);
 
                     if let Some((widget, _)) = &*self.below_hit_pos_widget.borrow() {
+                        let (min_w, nat_w, _, _) = widget.measure(gtk::Orientation::Horizontal, -1);
+                        min = min.max(min_w);
+                        nat = nat.max(nat_w);
+                    }
+
+                    if let Some((widget, _)) = &*self.above_hit_pos_widget.borrow() {
                         let (min_w, nat_w, _, _) = widget.measure(gtk::Orientation::Horizontal, -1);
                         min = min.max(min_w);
                         nat = nat.max(nat_w);
@@ -171,6 +189,17 @@ mod imp {
                 let widget_height = widget.measure(gtk::Orientation::Vertical, width).1;
 
                 let mut y = hit_position - widget_height;
+                if downscroll {
+                    y = height - y - widget_height;
+                }
+
+                widget.size_allocate(&gdk::Rectangle::new(0, y, width, widget_height), -1);
+            }
+
+            if let Some((widget, _)) = &*self.above_hit_pos_widget.borrow() {
+                let widget_height = widget.measure(gtk::Orientation::Vertical, width).1;
+
+                let mut y = hit_position;
                 if downscroll {
                     y = height - y - widget_height;
                 }
@@ -276,6 +305,44 @@ mod imp {
             obj.notify("below-hit-pos-widget");
         }
 
+        pub fn above_hit_pos_widget(&self) -> Option<gtk::Widget> {
+            self.above_hit_pos_widget
+                .borrow()
+                .as_ref()
+                .map(|(widget, _)| widget.clone())
+        }
+
+        pub fn set_above_hit_pos_widget(&self, value: Option<gtk::Widget>) {
+            if self
+                .above_hit_pos_widget
+                .borrow()
+                .as_ref()
+                .map(|(widget, _)| widget)
+                == value.as_ref()
+            {
+                return;
+            }
+
+            let obj = self.obj();
+
+            let value = value.map(|widget| {
+                widget.set_parent(&*obj);
+                let binding = obj
+                    .bind_property("downscroll", &widget, "downscroll")
+                    .sync_create()
+                    .build();
+                (widget, binding)
+            });
+
+            if let Some((old_widget, old_binding)) = self.above_hit_pos_widget.replace(value) {
+                old_binding.unbind();
+                old_widget.unparent();
+            }
+
+            obj.queue_resize();
+            obj.notify("above-hit-pos-widget");
+        }
+
         pub fn set_notes(&self, notes: Vec<ConveyorWidget>) {
             self.conveyor.get().unwrap().set_widgets(notes);
         }
@@ -330,6 +397,14 @@ impl Lane {
 
     pub fn set_below_hit_pos_widget(&self, value: Option<gtk::Widget>) {
         self.imp().set_below_hit_pos_widget(value);
+    }
+
+    pub fn above_hit_pos_widget(&self) -> Option<gtk::Widget> {
+        self.imp().above_hit_pos_widget()
+    }
+
+    pub fn set_above_hit_pos_widget(&self, value: Option<gtk::Widget>) {
+        self.imp().set_above_hit_pos_widget(value);
     }
 
     pub fn set_notes(&self, notes: Vec<ConveyorWidget>) {
