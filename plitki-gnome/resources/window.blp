@@ -7,6 +7,8 @@ template PlitkiWindow : Adw.ApplicationWindow {
   default-width: 1280;
   default-height: 720;
 
+  volume: bind volume_adjustment.value;
+
   content: Adw.ToastOverlay toast_overlay {
     child: Stack stack {
       transition-type: crossfade;
@@ -234,6 +236,22 @@ Adw.PreferencesWindow pref_window {
 
     Adw.PreferencesGroup {
       title: "Audio";
+
+      Adw.ActionRow {
+        title: "Volume";
+
+        Scale {
+          hexpand: true;
+
+          adjustment: Adjustment volume_adjustment {
+            lower: 0;
+            upper: 1;
+            step-increment: 0.1;
+            page-increment: 0.5;
+            value: 0.5;
+          };
+        }
+      }
 
       Adw.ActionRow {
         title: "Device Offset";

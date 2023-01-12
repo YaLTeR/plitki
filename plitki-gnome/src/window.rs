@@ -74,6 +74,7 @@ mod imp {
         statistics: RefCell<Statistics>,
 
         audio: OnceCell<Rc<AudioEngine>>,
+        volume: Cell<f32>,
 
         offset_toast: RefCell<Option<adw::Toast>>,
         scroll_speed_toast: RefCell<Option<adw::Toast>>,
@@ -179,18 +180,32 @@ mod imp {
                         .write_only()
                         .construct_only()
                         .build(),
+                    glib::ParamSpecFloat::builder("volume")
+                        .minimum(0.)
+                        .maximum(1.)
+                        .explicit_notify()
+                        .build(),
                 ]
             });
 
             PROPERTIES.as_ref()
         }
 
+        fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+            match pspec.name() {
+                "volume" => self.volume().to_value(),
+                _ => unimplemented!(),
+            }
+        }
+
         fn set_property(&self, _id: usize, value: &glib::Value, pspec: &glib::ParamSpec) {
             match pspec.name() {
                 "audio-engine" => {
                     let value = value.get::<BoxedAudioEngine>().unwrap().0;
+                    value.set_volume(self.volume());
                     self.audio.set(value).unwrap();
                 }
+                "volume" => self.set_volume(value.get().unwrap()),
                 _ => unimplemented!(),
             }
         }
@@ -203,6 +218,25 @@ mod imp {
 
     #[gtk::template_callbacks]
     impl Window {
+        pub fn volume(&self) -> f32 {
+            self.volume.get()
+        }
+
+        pub fn set_volume(&self, value: f32) {
+            if self.volume.get() == value {
+                return;
+            }
+
+            assert!(value >= 0.);
+            assert!(value <= 1.);
+
+            self.volume.set(value);
+            if let Some(audio) = self.audio.get() {
+                audio.set_volume(value);
+            }
+            self.obj().notify("volume");
+        }
+
         #[template_callback]
         fn open_preferences(&self) {
             self.pref_window.present();
@@ -768,6 +802,14 @@ impl Window {
             .property("application", app)
             .property("audio-engine", &BoxedAudioEngine(audio))
             .build()
+    }
+
+    pub fn volume(&self) -> f32 {
+        self.imp().volume()
+    }
+
+    pub fn set_volume(&self, value: f32) {
+        self.imp().set_volume(value);
     }
 
     pub fn open_file(&self, file: gio::File) {
