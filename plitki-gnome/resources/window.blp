@@ -7,7 +7,7 @@ template PlitkiWindow : Adw.ApplicationWindow {
   default-width: 1280;
   default-height: 720;
 
-  volume: bind volume_adjustment.value;
+  volume: bind volume_adjustment.value bidirectional;
 
   content: Adw.ToastOverlay toast_overlay {
     child: Stack stack {
@@ -53,7 +53,7 @@ template PlitkiWindow : Adw.ApplicationWindow {
             vexpand: true;
 
             child: .PlitkiBackground map_background {
-              dim: bind background_dim_adjustment.value;
+              dim: bind background_dim_adjustment.value bidirectional;
             };
 
             [overlay]
@@ -208,7 +208,7 @@ Adw.PreferencesWindow pref_window {
             upper: 255;
             step-increment: 5;
             page-increment: 10;
-            value: 35;
+            value: 10;
           };
         }
       }

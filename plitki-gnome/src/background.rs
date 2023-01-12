@@ -138,6 +138,10 @@ mod imp {
             }
         }
 
+        pub fn dim(&self) -> f32 {
+            self.dim.get()
+        }
+
         pub fn set_dim(&self, value: f32) {
             if self.dim.get() != value {
                 self.dim.set(value);
@@ -162,6 +166,14 @@ impl Background {
 
     pub fn set_paintable(&self, value: Option<impl IsA<gdk::Paintable>>) {
         self.imp().set_paintable(value.map(|x| x.upcast()))
+    }
+
+    pub fn dim(&self) -> f32 {
+        self.imp().dim()
+    }
+
+    pub fn set_dim(&self, value: f32) {
+        self.imp().set_dim(value);
     }
 }
 

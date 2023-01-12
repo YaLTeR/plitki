@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<schemalist>
+  <schema id="rs.bxt.Plitki" path="/rs/bxt/Plitki/">
+    <key name="skin-type" type="s">
+      <default>"bars"</default>
+      <summary>Skin type</summary>
+    </key>
+    <key name="lane-width" type="i">
+      <default>80</default>
+      <summary>Lane width</summary>
+    </key>
+    <key name="hit-position" type="i">
+      <default>150</default>
+      <summary>Hit position</summary>
+    </key>
+    <key name="scroll-speed" type="u">
+      <default>10</default>
+      <summary>Scroll speed</summary>
+    </key>
+    <key name="background-dim" type="d">
+      <default>0.9</default>
+      <summary>Hit position</summary>
+    </key>
+    <key name="volume" type="d">
+      <default>0.5</default>
+      <summary>Volume</summary>
+    </key>
+    <key name="device-offset" type="i">
+      <default>-40</default>
+      <summary>Device offset</summary>
+    </key>
+  </schema>
+</schemalist>

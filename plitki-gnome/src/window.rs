@@ -171,6 +171,8 @@ mod imp {
                 obj.imp().on_tick_callback(clock);
                 glib::Continue(true)
             });
+
+            self.load_settings();
         }
 
         fn properties() -> &'static [glib::ParamSpec] {
@@ -212,7 +214,15 @@ mod imp {
     }
 
     impl WidgetImpl for Window {}
-    impl WindowImpl for Window {}
+
+    impl WindowImpl for Window {
+        fn close_request(&self) -> glib::signal::Inhibit {
+            self.save_settings();
+
+            self.parent_close_request()
+        }
+    }
+
     impl ApplicationWindowImpl for Window {}
     impl AdwApplicationWindowImpl for Window {}
 
@@ -235,6 +245,63 @@ mod imp {
                 audio.set_volume(value);
             }
             self.obj().notify("volume");
+        }
+
+        fn load_settings(&self) {
+            let Some(settings) = settings() else { return };
+
+            self.global_offset_adjustment
+                .set_value(settings.int("device-offset") as f64);
+            self.set_volume(settings.double("volume").clamp(0., 1.) as f32);
+            self.map_background
+                .set_dim(settings.double("background-dim").clamp(0., 1.) as f32);
+
+            let skin = match &*settings.string("skin-type") {
+                "arrows" => 1,
+                "circles" => 2,
+                _ => 0,
+            };
+            self.skin_combo_row.set_selected(skin);
+
+            let playfield = &*self.playfield;
+            playfield.set_lane_width(settings.int("lane-width"));
+            playfield.set_hit_position(settings.int("hit-position"));
+            let scroll_speed = ScrollSpeed(settings.uint("scroll-speed").clamp(1, 255) as u8);
+            playfield.set_scroll_speed(scroll_speed);
+        }
+
+        fn save_settings(&self) {
+            let Some(settings) = settings() else { return };
+
+            settings
+                .set_int(
+                    "device-offset",
+                    self.global_offset_adjustment.value() as i32,
+                )
+                .unwrap();
+            settings.set_double("volume", self.volume().into()).unwrap();
+            settings
+                .set_double("background-dim", self.map_background.dim().into())
+                .unwrap();
+
+            let skin = match self.skin_combo_row.selected() {
+                0 => "bars",
+                1 => "arrows",
+                2 => "circles",
+                _ => unreachable!(),
+            };
+            settings.set_string("skin-type", skin).unwrap();
+
+            let playfield = &*self.playfield;
+            settings
+                .set_int("lane-width", playfield.lane_width())
+                .unwrap();
+            settings
+                .set_int("hit-position", playfield.hit_position())
+                .unwrap();
+            settings
+                .set_uint("scroll-speed", playfield.scroll_speed().0.into())
+                .unwrap();
         }
 
         #[template_callback]
@@ -724,6 +791,24 @@ mod imp {
         fn on_mouse_moved(&self, timestamp: i64) {
             self.last_mouse_movement_timestamp.set(timestamp);
         }
+    }
+
+    fn settings() -> Option<gio::Settings> {
+        let Some(source) = gio::SettingsSchemaSource::default() else {
+            warn!("could not get default settings schema source");
+            return None;
+        };
+
+        let Some(schema) = source.lookup("rs.bxt.Plitki", true) else {
+            warn!("could not find settings schema");
+            return None;
+        };
+
+        Some(gio::Settings::new_full(
+            &schema,
+            None::<&gio::SettingsBackend>,
+            None,
+        ))
     }
 
     fn create_skin(name: &str, path: &str) -> Skin {

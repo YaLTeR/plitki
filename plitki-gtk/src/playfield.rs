@@ -202,8 +202,8 @@ mod imp {
                 "game-timestamp" => self.game_timestamp.get().into_milli_hundredths().to_value(),
                 "downscroll" => self.downscroll.get().to_value(),
                 "skin" => self.skin.borrow().to_value(),
-                "lane-width" => self.lane_width.get().to_value(),
-                "hit-position" => self.hit_position.get().to_value(),
+                "lane-width" => self.lane_width().to_value(),
+                "hit-position" => self.hit_position().to_value(),
                 _ => unimplemented!(),
             }
         }
@@ -309,6 +309,10 @@ mod imp {
             }
         }
 
+        pub fn lane_width(&self) -> i32 {
+            self.lane_width.get()
+        }
+
         pub fn set_lane_width(&self, value: i32) {
             if self.lane_width.get() != value {
                 self.lane_width.set(value);
@@ -317,6 +321,10 @@ mod imp {
                 obj.notify("lane-width");
                 obj.queue_resize();
             }
+        }
+
+        pub fn hit_position(&self) -> i32 {
+            self.hit_position.get()
         }
 
         pub fn set_hit_position(&self, value: i32) {
@@ -688,8 +696,20 @@ impl Playfield {
         self.imp().set_game_timestamp(timestamp);
     }
 
+    pub fn lane_width(&self) -> i32 {
+        self.imp().lane_width()
+    }
+
     pub fn set_lane_width(&self, value: i32) {
         self.imp().set_lane_width(value);
+    }
+
+    pub fn hit_position(&self) -> i32 {
+        self.imp().hit_position()
+    }
+
+    pub fn set_hit_position(&self, value: i32) {
+        self.imp().set_hit_position(value);
     }
 
     pub fn lanes(&self) -> Option<Ref<[Lane]>> {
