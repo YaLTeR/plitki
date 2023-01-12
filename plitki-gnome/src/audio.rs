@@ -11,12 +11,23 @@ use rodio::source::UniformSourceIterator;
 use rodio::{cpal, Sample, Source};
 use triple_buffer::TripleBuffer;
 
+/// Message sent to the audio thread.
+enum ToAudioMessage {
+    /// Play the next track.
+    Play {
+        /// Track to play.
+        track: Box<dyn Source<Item = f32> + Send>,
+        /// Identifier of the track.
+        id: usize,
+    },
+}
+
 /// The main struct managing the audio playback.
 pub struct AudioEngine {
     _stream: Stream,
     config: StreamConfig,
     timestamp_consumer: RefCell<triple_buffer::Output<Option<AudioTimestamp>>>,
-    track_sender: Sender<(Box<dyn Source<Item = f32> + Send>, usize)>,
+    sender: Sender<ToAudioMessage>,
     current_track_id: Cell<usize>,
 }
 
@@ -44,10 +55,9 @@ impl AudioEngine {
         };
 
         let (timestamp_producer, timestamp_consumer) = TripleBuffer::new(&None).split();
-        let (track_sender, track_receiver) = crossbeam_channel::unbounded();
+        let (sender, receiver) = crossbeam_channel::unbounded();
 
-        let state =
-            AudioThreadState::new(stream_config.clone(), timestamp_producer, track_receiver);
+        let state = AudioThreadState::new(stream_config.clone(), timestamp_producer, receiver);
 
         let stream = match config.sample_format() {
             SampleFormat::I16 => {
@@ -67,7 +77,7 @@ impl AudioEngine {
             _stream: stream,
             config: stream_config,
             timestamp_consumer: RefCell::new(timestamp_consumer),
-            track_sender,
+            sender,
             current_track_id: Cell::new(0),
         }
     }
@@ -84,7 +94,11 @@ impl AudioEngine {
 
         self.current_track_id.set(self.current_track_id.get() + 1);
 
-        if let Err(err) = self.track_sender.send((track, self.current_track_id.get())) {
+        let message = ToAudioMessage::Play {
+            track,
+            id: self.current_track_id.get(),
+        };
+        if let Err(err) = self.sender.send(message) {
             error!("error sending track to audio thread: {err:?}");
         }
     }
@@ -157,14 +171,14 @@ struct AudioThreadState {
 
     timestamp_producer: triple_buffer::Input<Option<AudioTimestamp>>,
 
-    track_receiver: Receiver<(Box<dyn Source<Item = f32> + Send>, usize)>,
+    receiver: Receiver<ToAudioMessage>,
 }
 
 impl AudioThreadState {
     fn new(
         config: StreamConfig,
         timestamp_producer: triple_buffer::Input<Option<AudioTimestamp>>,
-        track_receiver: Receiver<(Box<dyn Source<Item = f32> + Send>, usize)>,
+        receiver: Receiver<ToAudioMessage>,
     ) -> Self {
         let silence = rodio::source::Zero::new(config.channels, config.sample_rate.0);
 
@@ -174,7 +188,7 @@ impl AudioThreadState {
             track: Box::new(silence),
             samples_taken: 0,
             timestamp_producer,
-            track_receiver,
+            receiver,
             track_id: usize::MAX,
         }
     }
@@ -221,10 +235,14 @@ impl AudioThreadState {
     }
 
     fn receive_messages(&mut self) {
-        if let Some((track, track_id)) = self.track_receiver.try_iter().last() {
-            self.track = track;
-            self.track_id = track_id;
-            self.samples_taken = 0;
+        if let Some(message) = self.receiver.try_iter().last() {
+            match message {
+                ToAudioMessage::Play { track, id } => {
+                    self.track = track;
+                    self.track_id = id;
+                    self.samples_taken = 0;
+                }
+            }
         }
     }
 }
