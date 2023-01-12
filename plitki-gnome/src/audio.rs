@@ -20,6 +20,8 @@ enum ToAudioMessage {
         /// Identifier of the track.
         id: usize,
     },
+    /// Change volume.
+    SetVolume(f32),
 }
 
 /// The main struct managing the audio playback.
@@ -132,6 +134,16 @@ impl AudioEngine {
             track_timestamp + time_since_played
         }
     }
+
+    /// Sets the audio volume.
+    ///
+    /// Volume is a multiplier for all samples, so 1. is 100% and 0. is 0%.
+    pub fn set_volume(&self, volume: f32) {
+        let message = ToAudioMessage::SetVolume(volume);
+        if let Err(err) = self.sender.send(message) {
+            error!("error sending message to audio thread: {err:?}");
+        }
+    }
 }
 
 impl Default for AudioEngine {
@@ -169,6 +181,9 @@ struct AudioThreadState {
     /// Total number of samples taken from [`AudioThreadState::track`].
     samples_taken: usize,
 
+    /// Audio volume.
+    volume: f32,
+
     timestamp_producer: triple_buffer::Input<Option<AudioTimestamp>>,
 
     receiver: Receiver<ToAudioMessage>,
@@ -187,6 +202,7 @@ impl AudioThreadState {
             silence: silence.clone(),
             track: Box::new(silence),
             samples_taken: 0,
+            volume: 1.,
             timestamp_producer,
             receiver,
             track_id: usize::MAX,
@@ -207,6 +223,7 @@ impl AudioThreadState {
 
         let source = self.track.as_mut().chain(self.silence.clone());
         for (out, sample) in data.iter_mut().zip(source) {
+            let sample = sample * self.volume;
             *out = S::from(&sample);
         }
         self.samples_taken += data.len();
@@ -242,6 +259,7 @@ impl AudioThreadState {
                     self.track_id = id;
                     self.samples_taken = 0;
                 }
+                ToAudioMessage::SetVolume(volume) => self.volume = volume,
             }
         }
     }
