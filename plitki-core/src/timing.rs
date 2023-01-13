@@ -408,6 +408,15 @@ impl TryFrom<Timestamp> for Duration {
     }
 }
 
+impl TryFrom<TimestampDifference> for Duration {
+    type Error = TryFromTimestampError;
+
+    #[inline]
+    fn try_from(t: TimestampDifference) -> Result<Self, Self::Error> {
+        Self::try_from(Timestamp(t.0))
+    }
+}
+
 impl_ops!(
     Timestamp,
     into_milli_hundredths,
