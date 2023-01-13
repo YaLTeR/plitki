@@ -15,6 +15,7 @@ pub(crate) struct BoxedAudioEngine(Rc<AudioEngine>);
 mod imp {
     use std::cell::Cell;
     use std::io::Cursor;
+    use std::time::Duration;
 
     use adw::prelude::*;
     use adw::subclass::prelude::*;
@@ -30,6 +31,7 @@ mod imp {
     use plitki_gtk::playfield::Playfield;
     use plitki_gtk::skin::{LaneSkin, Skin};
     use plitki_gtk::state::State;
+    use rodio::Source;
 
     use super::*;
     use crate::accuracy::Accuracy;
@@ -75,6 +77,7 @@ mod imp {
 
         audio: OnceCell<Rc<AudioEngine>>,
         volume: Cell<f32>,
+        starting_silence: Cell<Duration>,
 
         offset_toast: RefCell<Option<adw::Toast>>,
         scroll_speed_toast: RefCell<Option<adw::Toast>>,
@@ -406,6 +409,21 @@ mod imp {
             game_state.timestamp_converter.global_offset =
                 GameTimestampDifference::from_millis(self.global_offset_adjustment.value() as i32);
 
+            let starting_silence = if let Some(first_timestamp) = game_state.first_timestamp() {
+                let first_timestamp = game_state.timestamp_converter.map_to_game(first_timestamp);
+                let start_at = first_timestamp - GameTimestampDifference::from_millis(3000);
+
+                // Start at 0 (music start) or earlier.
+                let start_at = start_at.min(GameTimestamp::zero());
+                let starting_silence: Duration =
+                    (GameTimestamp::zero() - start_at).0.try_into().unwrap();
+                starting_silence
+            } else {
+                // There are no notes.
+                Duration::ZERO
+            };
+            self.starting_silence.set(starting_silence);
+
             let state = State::new(game_state);
             self.playfield.set_state(Some(state));
 
@@ -446,7 +464,7 @@ mod imp {
             // Start the audio.
             let engine = self.audio.get().unwrap();
             if let Some(track) = track {
-                engine.play_track(track);
+                engine.play_track(track.delay(starting_silence));
             } else {
                 engine.play_track(rodio::source::Zero::<f32>::new(2, 44100));
             }
@@ -567,7 +585,15 @@ mod imp {
 
         fn game_timestamp(&self) -> GameTimestamp {
             let audio_time_passed = self.audio.get().unwrap().track_time();
-            GameTimestamp(Timestamp::try_from(audio_time_passed).unwrap())
+            let audio_time_passed = Timestamp::try_from(audio_time_passed)
+                .unwrap()
+                .into_milli_hundredths();
+            let starting_silence = Timestamp::try_from(self.starting_silence.get())
+                .unwrap()
+                .into_milli_hundredths();
+            GameTimestamp(Timestamp::from_milli_hundredths(
+                audio_time_passed.saturating_sub(starting_silence),
+            ))
         }
 
         fn show_local_offset_toast(&self) {
