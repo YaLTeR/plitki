@@ -166,7 +166,7 @@ fn convert() {
             },
             plitki_core::map::TimingPoint {
                 timestamp: MapTimestamp::from_millis(10_000),
-                beat_duration: MapTimestampDifference::from_milli_hundredths(i32::max_value()),
+                beat_duration: MapTimestampDifference::from_milli_hundredths(i32::MAX),
                 signature: TimeSignature {
                     beat_count: 4,
                     beat_unit: 4,
@@ -1049,7 +1049,7 @@ prop_compose! {
                               // Only use 2 orders of magnitude so the SVs are always
                               // representable.
                               bpm_log2 in 6..8u32,
-                              signature in 1..u8::max_value() as i32) // TODO
+                              signature in 1..u8::MAX as i32) // TODO
                              -> TimingPoint {
         TimingPoint {
             start_time: start_time as f32 * 100.,

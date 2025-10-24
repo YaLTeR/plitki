@@ -2,7 +2,7 @@
 //! scrolling rhythm game (VSRG).
 
 #![cfg_attr(not(test), no_std)]
-#![warn(missing_docs)]
+#![cfg_attr(not(test), warn(missing_docs))]
 #![deny(unsafe_code)]
 
 extern crate alloc;

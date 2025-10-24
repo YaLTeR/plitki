@@ -80,7 +80,7 @@ where
         where
             E: de::Error,
         {
-            if value > i32::max_value() as u64 {
+            if value > i32::MAX as u64 {
                 return Err(de::Error::invalid_value(
                     de::Unexpected::Unsigned(value),
                     &"i32",
@@ -102,7 +102,7 @@ impl From<TimingPoint> for plitki_core::map::TimingPoint {
             timestamp: MapTimestamp::from_milli_hundredths((timing_point.start_time * 100.) as i32),
             beat_duration: MapTimestampDifference::from_milli_hundredths(
                 if timing_point.bpm == 0. {
-                    i32::max_value()
+                    i32::MAX
                 } else {
                     (60_000_00. / timing_point.bpm) as i32
                 },

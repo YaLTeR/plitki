@@ -487,7 +487,7 @@ impl GameState {
 
             let step = (i64::from(timing_point.signature.beat_count)
                 * i64::from(timing_point.beat_duration.into_milli_hundredths()))
-            .clamp(0, i64::from(i32::max_value())) as i32;
+            .clamp(0, i64::from(i32::MAX)) as i32;
 
             let mut timestamp = timing_point.timestamp.into_milli_hundredths();
             while timestamp < end {
@@ -1052,7 +1052,7 @@ impl ImmutableGameState {
             .binary_search_by_key(&timestamp, |x| x.timestamp)
         {
             Ok(index) => self.position_cache[index].position,
-            Err(index) if index == 0 => {
+            Err(0) => {
                 self.position_cache[0].position
                     + (timestamp - self.position_cache[0].timestamp)
                         * self.map.initial_scroll_speed_multiplier
