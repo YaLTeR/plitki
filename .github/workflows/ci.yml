@@ -10,17 +10,17 @@ on:
 jobs:
   flatpak:
     name: Build on Flatpak
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     container:
       image: bilelmoussaoui/flatpak-github-actions:gnome-43
       options: --privileged
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
         with:
           lfs: true
 
-      - uses: flatpak/flatpak-github-actions/flatpak-builder@v5
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           manifest-path: rs.bxt.Plitki.json
           bundle: plitki.flatpak
@@ -28,10 +28,10 @@ jobs:
           cache: false
 
   rustfmt:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
 
       - name: Install Rust
         run: |
