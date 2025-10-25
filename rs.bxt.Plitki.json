@@ -1,7 +1,7 @@
 {
     "app-id": "rs.bxt.Plitki",
     "runtime": "org.gnome.Platform",
-    "runtime-version": "43",
+    "runtime-version": "49",
     "sdk": "org.gnome.Sdk",
     "sdk-extensions": ["org.freedesktop.Sdk.Extension.rust-stable"],
     "command": "plitki-gnome",
@@ -28,17 +28,6 @@
         }
     },
     "modules": [
-        {
-            "name" : "blueprint",
-            "buildsystem" : "meson",
-            "sources" : [
-                {
-                    "type" : "git",
-                    "url" : "https://gitlab.gnome.org/jwestman/blueprint-compiler.git",
-                    "commit" : "9adcab2d225fd6435edc85c72a0b67e33880e00b"
-                }
-            ]
-        },
         {
             "name": "plitki",
             "buildsystem": "simple",
