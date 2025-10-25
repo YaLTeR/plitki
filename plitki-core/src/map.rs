@@ -12,9 +12,10 @@ use crate::{
     timing::{MapTimestamp, MapTimestampDifference},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 #[cfg(test)]
 pub enum ArbitraryMapType {
+    #[default]
     Any,
     Valid,
     ValidWithLanes,
@@ -39,20 +40,13 @@ impl ArbitraryMapType {
 }
 
 #[cfg(test)]
-impl Default for ArbitraryMapType {
-    fn default() -> Self {
-        ArbitraryMapType::Any
-    }
-}
-
-#[cfg(test)]
 fn arbitrary_valid_lane(
     type_: ArbitraryMapType,
 ) -> impl proptest::strategy::Strategy<Value = Vec<Object>> {
     (type_.min_object_count()..100).prop_flat_map(|length| {
         (
             proptest::collection::vec(any::<MapTimestamp>(), length),
-            proptest::collection::vec(any::<bool>(), (length + 1) / 2),
+            proptest::collection::vec(any::<bool>(), length.div_ceil(2)),
         )
             .prop_map(|(mut timestamps, is_ln)| {
                 timestamps.sort_unstable();

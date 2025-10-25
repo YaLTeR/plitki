@@ -554,7 +554,7 @@ mod tests {
 
     #[test]
     fn timestamp_from_non_representable_duration() {
-        let timestamp = Timestamp::try_from(Duration::from_millis(u64::max_value()));
+        let timestamp = Timestamp::try_from(Duration::from_millis(u64::MAX));
         assert_eq!(timestamp, Err(TryFromDurationError(())));
     }
 
