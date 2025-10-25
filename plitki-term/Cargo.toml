@@ -1,0 +1,18 @@
+[package]
+name = "plitki-term"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+bitflags = "2"
+calloop = { version = "0.14", features = ["signals"] }
+circular-queue = "0.2"
+plitki-audio = { path = "../plitki-audio" }
+plitki-core = { path = "../plitki-core" }
+plitki-map-qua = { path = "../plitki-map-qua" }
+rustix = { version = "1", features = ["stdio", "termios"] }
+vte = "0.15.0"
+
+[lints.clippy]
+get_first = "allow"

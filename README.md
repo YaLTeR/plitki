@@ -54,5 +54,27 @@ A test application using widgets from `plitki-gtk`.
 
 Building `plitki-gnome` requires [Blueprint].
 
+### `plitki-term`
+
+A terminal UI for playing `.qua` maps.
+
+```
+$ plitki-term /path/to/map.qua
+```
+
+Requires the [kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol)—this is how it can tell apart key releases.
+
+Rendering uses the Unicode box drawing characters that give us ⅛-th cell precision. Surprisingly, this results in a fairly smooth playfield.
+
+Drawing is flicker-free thanks to the CSI 2026 synchronized updates. To avoid filling up the stdout buffer with multiple frames faster than the terminal can read them, the code queries the primary device attributes at the end of each frame, and waits for the terminal to respond before drawing the next one.
+
+Demos:
+- 4K SV: [Aleph-0](https://youtu.be/GzLHJjB-zAU)
+- 4K SV: [Backbeat Maniac](https://youtu.be/C50_wZ1y0cg)
+- 7K LN: [Burnt Rice](https://youtu.be/dFpWJRPD5ZA)
+- 7K SV: [Menu Theme](https://youtu.be/EBxlu87LiX4)
+
+![Screenshot of plitki-term.](plitki-term/screenshot.png)
+
 [Quaver]: https://quavergame.com/
 [Blueprint]: https://gitlab.gnome.org/jwestman/blueprint-compiler
