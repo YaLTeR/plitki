@@ -6,6 +6,7 @@ members = [
     "plitki-ui-wayland",
     "plitki-gtk",
     "plitki-gnome",
+    "plitki-term",
     "tools",
 ]
 
