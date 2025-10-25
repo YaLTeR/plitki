@@ -3,9 +3,10 @@ resolver = "3"
 members = [
     "plitki-core",
     "plitki-map-qua",
-    "plitki-ui-wayland",
-    "plitki-gtk",
-    "plitki-gnome",
+    # "plitki-ui-wayland",
+    # "plitki-gtk",
+    # "plitki-gnome",
+    "plitki-term",
     "tools",
 ]
 

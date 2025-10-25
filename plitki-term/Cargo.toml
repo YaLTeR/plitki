@@ -1,0 +1,11 @@
+[package]
+name = "plitki-term"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+calloop = { version = "0.14", features = ["signals"] }
+plitki-core = { version = "*", path = "../plitki-core" }
+rustix = { version = "1", features = ["stdio", "termios"] }
+vte = "0.15.0"
