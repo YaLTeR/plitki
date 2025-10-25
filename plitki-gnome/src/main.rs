@@ -6,13 +6,11 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use gtk::{gdk, gio};
+use plitki_audio::AudioEngine;
 use tracing_subscriber::prelude::*;
 use window::Window;
 
-use crate::audio::AudioEngine;
-
 mod accuracy;
-mod audio;
 mod background;
 mod combo;
 mod hit_error;

@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "plitki-core",
     "plitki-map-qua",
+    "plitki-audio",
     "plitki-ui-wayland",
     "plitki-gtk",
     "plitki-gnome",

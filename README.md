@@ -26,9 +26,13 @@ Type safety and newtypes are used to good extent to prevent mistakes such as usi
 
 This crate implements reading and writing of the `.qua` map format (used by the [Quaver] VSRG) and conversion to and from `plitki-core`'s `Map` type. Conversion correctness and losslessness is thoroughly tested, however panic safety currently isn't. It's likely that trying to convert a specifically constructed `.qua` to a `Map` will cause panics.
 
+### `plitki-audio`
+
+A simple audio engine built with `rodio`, used by plitki UIs.
+
 ### `plitki-ui-wayland`
 
-A simple UI for playing `.qua` maps using low-level Wayland bindings ([`smithay-client-toolkit`](https://lib.rs/crates/smithay-client-toolkit)) and [`glium`](https://lib.rs/crates/glium). My interest in this somewhat dropped due to lack of audio timing interfaces in [`rodio`](https://lib.rs/crates/rodio) at the time. Currently somewhat bitrotted and doesn't always show a window from the first try for some reason.
+A UI for playing `.qua` maps using low-level Wayland bindings ([`smithay-client-toolkit`](https://lib.rs/crates/smithay-client-toolkit)) and [`glium`](https://lib.rs/crates/glium). My interest in this somewhat dropped due to lack of audio timing interfaces in [`rodio`](https://lib.rs/crates/rodio) at the time. Currently somewhat bitrotted and doesn't always show a window from the first try for some reason.
 
 There are a few interesting things `plitki-ui-wayland` does.
 

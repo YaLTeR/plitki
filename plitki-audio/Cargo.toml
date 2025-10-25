@@ -1,0 +1,10 @@
+[package]
+name = "plitki-audio"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+crossbeam-channel = "0.5.6"
+rodio = { version = "0.16.0", features = ["symphonia-all"], default-features = false }
+tracing = "0.1.37"
+triple_buffer = "6.2.0"

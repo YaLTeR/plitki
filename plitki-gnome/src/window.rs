@@ -5,8 +5,7 @@ use glib::clone;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gio, glib};
-
-use crate::audio::AudioEngine;
+use plitki_audio::{rodio, AudioEngine};
 
 #[derive(Debug, Clone, glib::SharedBoxed)]
 #[shared_boxed_type(name = "BoxedAudioEngine")]

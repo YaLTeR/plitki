@@ -1,14 +1,18 @@
 //! The audio engine.
 
+#[macro_use]
+extern crate tracing;
+
 use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{OutputCallbackInfo, SampleFormat, Stream};
 use crossbeam_channel::{Receiver, Sender};
+pub use rodio;
 use rodio::cpal::StreamConfig;
 use rodio::source::UniformSourceIterator;
-use rodio::{cpal, Sample, Source};
+use rodio::{Sample, Source, cpal};
 use triple_buffer::TripleBuffer;
 
 /// Message sent to the audio thread.
