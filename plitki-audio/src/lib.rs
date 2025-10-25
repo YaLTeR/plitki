@@ -256,7 +256,7 @@ impl AudioThreadState {
     }
 
     fn receive_messages(&mut self) {
-        if let Some(message) = self.receiver.try_iter().last() {
+        for message in self.receiver.try_iter() {
             match message {
                 ToAudioMessage::Play { track, id } => {
                     self.track = track;
