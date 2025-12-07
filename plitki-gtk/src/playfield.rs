@@ -219,7 +219,9 @@ mod imp {
             match orientation {
                 gtk::Orientation::Horizontal => {
                     let mut data = self.data.borrow_mut();
-                    let Some(data) = &mut *data else { return (0, 0, -1, -1) };
+                    let Some(data) = &mut *data else {
+                        return (0, 0, -1, -1);
+                    };
 
                     self.refresh_lane_sizes(data);
 
@@ -484,9 +486,7 @@ mod imp {
 
         fn update_skin(&self) {
             let data = self.data.borrow();
-            let Some(data) = &*data else {
-                return
-            };
+            let Some(data) = &*data else { return };
             let game_state = data.state.game_state();
 
             let skin = self.skin.borrow();
@@ -504,7 +504,9 @@ mod imp {
         }
 
         pub fn update_object_state(&self, lane: usize, index: usize) {
-            let Some(data) = &*self.data.borrow() else { return };
+            let Some(data) = &*self.data.borrow() else {
+                return;
+            };
             let game_state = data.state.game_state();
 
             let widget = &data.notes[lane][index];
@@ -526,7 +528,9 @@ mod imp {
         }
 
         pub fn update_object_states(&self) {
-            let Some(data) = &*self.data.borrow() else { return };
+            let Some(data) = &*self.data.borrow() else {
+                return;
+            };
             let game_state = data.state.game_state();
 
             for (lane, lane_notes) in data.notes.iter().enumerate() {

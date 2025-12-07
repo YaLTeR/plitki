@@ -133,7 +133,9 @@ mod imp {
         fn measure(&self, orientation: gtk::Orientation, _for_size: i32) -> (i32, i32, i32, i32) {
             match orientation {
                 gtk::Orientation::Horizontal => {
-                    let Some(data) = &mut *self.data.borrow_mut() else { return (0, 0, -1, -1) };
+                    let Some(data) = &mut *self.data.borrow_mut() else {
+                        return (0, 0, -1, -1);
+                    };
 
                     // Min and nat width for a lane is the maximum across objects.
                     let (min, nat) = data
@@ -160,7 +162,9 @@ mod imp {
 
         #[instrument("Conveyor::size_allocate", skip_all)]
         fn size_allocate(&self, width: i32, height: i32, _baseline: i32) {
-            let Some(data) = &mut *self.data.borrow_mut() else { return };
+            let Some(data) = &mut *self.data.borrow_mut() else {
+                return;
+            };
 
             let scroll_speed = self.scroll_speed.get();
             let downscroll = self.downscroll.get();
@@ -231,7 +235,9 @@ mod imp {
         }
 
         fn snapshot(&self, snapshot: &gtk::Snapshot) {
-            let Some(data) = &*self.data.borrow_mut() else { return };
+            let Some(data) = &*self.data.borrow_mut() else {
+                return;
+            };
             let obj = self.obj();
 
             for (widget, is_visible) in data.widgets.iter().zip(&data.is_visible) {

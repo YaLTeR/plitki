@@ -501,12 +501,16 @@ mod imp {
 
         #[instrument(skip_all)]
         fn update_state(&self, timestamp: GameTimestamp) {
-            let Some(lane_count) = self.playfield.state().map(|s| s.lane_count()) else { return };
+            let Some(lane_count) = self.playfield.state().map(|s| s.lane_count()) else {
+                return;
+            };
 
             for lane in 0..lane_count {
                 let hit_light = self.hit_light_for_lane(lane);
 
-                let Some(state) = self.playfield.state() else { return };
+                let Some(state) = self.playfield.state() else {
+                    return;
+                };
                 while let Some(event) = {
                     let mut game_state = state.game_state_mut();
                     game_state.update_lane(lane, timestamp)
@@ -597,7 +601,9 @@ mod imp {
         }
 
         fn show_local_offset_toast(&self) {
-            let Some(state) = self.playfield.state() else { return };
+            let Some(state) = self.playfield.state() else {
+                return;
+            };
             let offset = state
                 .game_state()
                 .timestamp_converter
@@ -656,7 +662,9 @@ mod imp {
         }
 
         fn maybe_adjust_local_offset(&self, key: gdk::Key, modifier: gdk::ModifierType) -> bool {
-            let Some(state) = self.playfield.state() else { return false };
+            let Some(state) = self.playfield.state() else {
+                return false;
+            };
             let mut game_state = state.game_state_mut();
 
             let diff = MapTimestampDifference::from_millis(
@@ -770,7 +778,9 @@ mod imp {
 
             let hit_light = self.hit_light_for_lane(lane);
 
-            let Some(state) = self.playfield.state() else { return gtk::Inhibit(false) };
+            let Some(state) = self.playfield.state() else {
+                return gtk::Inhibit(false);
+            };
 
             if let Some(event) = {
                 let mut game_state = state.game_state_mut();
@@ -787,7 +797,9 @@ mod imp {
         }
 
         fn on_key_released(&self, key: gdk::Key) {
-            let Some(lane) = self.lane_for_key(key) else { return };
+            let Some(lane) = self.lane_for_key(key) else {
+                return;
+            };
 
             let mut is_lane_pressed = self.is_lane_pressed.borrow_mut();
             if !is_lane_pressed[lane] {
@@ -800,7 +812,9 @@ mod imp {
 
             let hit_light = self.hit_light_for_lane(lane);
 
-            let Some(state) = self.playfield.state() else { return };
+            let Some(state) = self.playfield.state() else {
+                return;
+            };
 
             if let Some(event) = {
                 let mut game_state = state.game_state_mut();
