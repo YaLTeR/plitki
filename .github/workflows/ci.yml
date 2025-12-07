@@ -12,7 +12,7 @@ jobs:
     name: Build on Flatpak
     runs-on: ubuntu-24.04
     container:
-      image: bilelmoussaoui/flatpak-github-actions:gnome-43
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-49
       options: --privileged
 
     steps:
